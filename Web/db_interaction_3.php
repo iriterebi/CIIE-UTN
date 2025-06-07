@@ -2,10 +2,10 @@
 // Database connection parameters
 /******************************CONEXION BASICA A BBDD*****************************/
 // Database connection details
-$servername = "sql109.infinityfree.com";
-$username = "if0_36411690";
-$password = "GAkHQpTdFpXlxn";
-$dbname = "if0_36411690_ciie_db"; // Cambia al nombre de tu base de datos MySQL
+$servername = "db:3306";
+$username = "debian-sys-maint";
+$password = "olga123";
+$dbname = "ciie_db"; // Cambia al nombre de tu base de datos MySQL
 
 // Crear una conexión a la base de datos
 $conn = new mysqli($servername, $username, $password, $dbname);

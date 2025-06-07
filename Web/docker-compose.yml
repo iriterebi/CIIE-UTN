@@ -1,0 +1,27 @@
+networks:
+  inter-tier:
+    external: true
+    name: ciie-test1
+
+volumes:
+  drun:
+    # --
+  storage-opt:
+    # --
+
+services:
+  app-dev:
+    image: php:8.2-apache-bookworm
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 1s
+    container_name: app
+    # env_file:
+    #   - ./.php.env
+    volumes:
+      - ./sites/default.conf:/etc/apache2/sites-available/000-default.conf
+      - ./:/var/www/html
+    networks:
+      - inter-tier
+    ports:
+      - "8080:80"

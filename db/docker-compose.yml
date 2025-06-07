@@ -1,0 +1,50 @@
+networks:
+  inter-tier:
+    external: true
+    name: ciie-test1
+
+volumes:
+  run:
+    #- 
+  data:
+    # -
+
+services:
+  db:
+    image: mysql:8
+    container_name: db
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE  # CAP_SYS_NICE
+    env_file:
+      - ./.env
+    command:
+      #- "--server-id=115"
+      - "--slow-query-log=ON"
+      - "--slow-query-log-file=/var/log/mysql-logs/mysql-slow.log"
+      - "--long-query-time=2"
+      # - "--binlog_expire_logs_seconds=864000"
+      # - "--max-binlog-size=104857600"
+      # - "--max-allowed-packet=1000000000"
+      # - "--log-bin=/var/log/mysql/mysql-bin.log"
+      #- "--relay-log=/var/log/mysql/relay-bin.log"
+      #- "--binlog-ignore-db=mysql"
+      #- "--innodb-buffer-pool-size=4294967296"
+      #- "--innodb-buffer-pool-instances=4"
+      #- "--innodb-lru-scan-depth=1024"
+      #- "--innodb-log-file-size=268435456"
+      #- "--innodb-log-buffer-size=268435456"
+      - '--skip-log-bin'
+      - '--host-cache-size=0'
+    volumes:
+      - 'run:/var/run/mysqld'
+      - "data:/var/lib/mysql:rw"
+      - ./migrations/:/usr/db-migrations:r
+      #- '/var/log/mysql:/var/log/mysql-logs:rw'
+      #- '/var/lib/xbackups:/xbackups'
+    networks:
+      - inter-tier
+    ports:
+      - "3306:3306"
+    expose:
+      - 3306

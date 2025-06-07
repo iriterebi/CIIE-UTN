@@ -6,10 +6,10 @@ error_reporting(E_ALL);
 
 // Conexión a la base de dato
 
-$servername = "sql109.infinityfree.com";
-$username = "if0_36411690";
-$password = "GAkHQpTdFpXlxn";
-$dbname = "if0_36411690_ciie_db"; // Cambia al nombre de tu base de datos MySQL
+$servername = "db:3306";
+$username = "debian-sys-maint";
+$password = "olga123";
+$dbname = "ciie_db"; // Cambia al nombre de tu base de datos MySQL
 
 // Crear conexión
 $conn = new mysqli($servername, $username, $password, $dbname);
