@@ -35,7 +35,7 @@ try {
         echo '<div style="text-align: center; font-size: 24px;">User already exists.</div>';
         echo "<script>
                     setTimeout(function() {
-                        window.location.href = 're.html';
+                        window.location.href = 're.php';
                     }, 2000); // Redirect after 2 seconds (adjust as needed)
                   </script>";
     } else {

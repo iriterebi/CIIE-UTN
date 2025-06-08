@@ -24,7 +24,7 @@ session_start();
             <input  type="password" name="contraseña" id="contraseña"><br><br>
             <input type="submit" value="Ingresar">
         </form>
-         <h3><a href="re.html" >Crear usuario </a></h3> 
+         <h3><a href="re.php" >Crear usuario </a></h3> 
     </section> 
 
     <footer>
