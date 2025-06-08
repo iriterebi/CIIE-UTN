@@ -7,7 +7,8 @@ session_start();
 <head>
     <?php require('parts/common_header.php') ?>
     <title>CIIE Lab Remoto</title> <!-- Tab name -->
-   
+    <link rel="stylesheet" href="styles/login-form.css">
+
     <script type="text/javascript">
         function validateForm() {
             var password1 = document.getElementById("contraseña").value;
@@ -20,8 +21,6 @@ session_start();
             return true; // Allow form submission
         }
     </script>
-    <meta charset="UTF-8">
-
 </head>
 <body>
     <header>
@@ -31,35 +30,47 @@ session_start();
     <!-- Sections are separated -->
     <section class="s1">
         <h2>Formulario de registro</h2>
-        <form class="f1" action="reg.php" method="post" onsubmit="return validateForm()">
-            
-            <label for="nombre_completo">Nombre y apellio:</label>
-            <input type="text" name="nombre_completo" id="nombre_completo"><br><br>
+        <form class="f1 login-form" action="reg.php" method="post" onsubmit="return validateForm()">
 
-            <label for="email">Email de contacto:</label>
-            <input type="text" name="email" id="email"><br><br>
+            <div class="form-field">
+                <label slot="label" for="nombre_completo">Nombre y apellio:</label>
+                <input slot="input" type="text" name="nombre_completo" id="nombre_completo">
+            </div>
 
-            <label for="nombre">Nombre de usuario:</label>
-            <input type="text" name="nombre" id="nombre"><br><br>
+            <div class="form-field">
+                <label slot="label" for="email">Email de contacto:</label>
+                <input slot="input" type="email" name="email" id="email" required>
+            </div>
 
-            <label for="contraseña">Contraseña:</label>
-            <input type="password" name="contraseña" id="contraseña"><br><br>
-           
-            <label for="r_contraseña">Repetir contraseña:</label>
-            <input type="password" name="r_contraseña" id="r_contraseña"><br><br>
-        
-            <label for="pronombres">¿Con qué pronombres te sientes más cómodo/a?</label>
-            <input type="text" name="pronombres" id="pronombres"><br><br>
-          
+            <div class="form-field">
+                <label slot="label" for="nombre">Nombre de usuario:</label>
+                <input slot="input" type="text" name="nombre" id="nombre" required>
+            </div>
+
+            <div class="form-field">
+                <label slot="label" for="contraseña">Contraseña:</label>
+                <input slot="input" type="password" name="contraseña" id="contraseña" required>
+            </div>
+
+            <div class="form-field">
+                <label slot="label" for="r_contraseña">Repetir contraseña:</label>
+                <input slot="input" type="password" name="r_contraseña" id="r_contraseña" required>
+            </div>
+
+            <div class="form-field">
+                <label slot="label" for="pronombres">¿Con qué pronombres te sientes más cómodo/a?</label>
+                <input slot="input" type="text" name="pronombres" id="pronombres">
+            </div>
+
             <label>
                 <input type="radio" name="status" value="profe"> Soy profesor
                 <input type="radio" name="status" value="alumno"> Soy alumno
             </label>
             <br><br> <!-- Create a line break -->
-            <input type="submit" value="Registrarme">
-            <h3><a href="index.php">Volver</a></h3> 
+            <input type="submit" value="Registrarme" style="display: inline-block;width: fit-content; margin-top: 0.5rem;">
+            <h3><a href="index.php">Volver</a></h3>
         </form>
-    </section> 
+    </section>
     <footer>
         <p>Derechos reservados CIIE - UTN FRBA&copy;</p>
     </footer>
