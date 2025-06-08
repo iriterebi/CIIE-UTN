@@ -1,19 +1,18 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
+    <?php require('parts/common_header.php') ?>  
     <title>CIIE Lab Remoto</title>
-    <link rel="stylesheet" href="sty_main.css"> <!-- Enlace a un archivo CSS externo -->
+
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> <!-- jQuery para AJAX -->
 
     <style>
         /* Estilos para el header fijo */
         header {
-            position: fixed;
+            position: sticky;
             top: 0;
             left: 0;
             width: 100%;
-            background-color: #f8f8f8;
             padding: 10px 0;
             z-index: 1000;
             text-align: center;
@@ -89,21 +88,6 @@
             border-radius: 10px;
         }
 
-        /* Asegurar que el contenido no quede cubierto por el header */
-        body {
-            padding-top: 90px; /* Ajustar padding-top para que el contenido no quede oculto bajo el header */
-            font-family: Arial, sans-serif;
-        }
-
-        /* Estilo del footer */
-        footer {
-            text-align: center;
-            padding: 20px;
-            background-color: #f8f8f8;
-            position: relative;
-            bottom: 0;
-            width: 100%;
-        }
     </style>
 </head>
 <body>
@@ -145,9 +129,7 @@
     </div>
 
     <!-- Mostrar el valor actualizado después de ejecutar db_interaction y obtener datos de get_data.php -->
-    <footer>
-        <p>Derechos reservados CIIE - UTN FRBA&copy;</p>
-    </footer>
+    <?php require('parts/common_footer.php') ?>  
 
     <script>
         const video = document.getElementById('videoElement');

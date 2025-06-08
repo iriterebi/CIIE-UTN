@@ -6,10 +6,10 @@ error_reporting(E_ALL);
 
 // Conexión a la base de dato
 
-$servername = "db:3306";
-$username = "debian-sys-maint";
-$password = "olga123";
-$dbname = "ciie_db"; // Cambia al nombre de tu base de datos MySQL
+$servername = getenv("MYSQL_DB_HOST");
+$username = getenv("MYSQL_DB_USER");
+$password = getenv("MYSQL_DB_PSW");
+$dbname = getenv("MYSQL_DB_NAME");
 
 // Crear conexión
 $conn = new mysqli($servername, $username, $password, $dbname);

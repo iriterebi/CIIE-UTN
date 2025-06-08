@@ -3,12 +3,10 @@
 session_start();
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <?php require('parts/common_header.php') ?>  
     <title>CIIE Lab Remoto</title> <!--Tab name-->
-    <link rel="stylesheet" href="sty_main.css"> <!-- Enlace a un archivo CSS externo -->
-    <meta charset="UTF-8">
-
 </head>
 <body>
     <header>

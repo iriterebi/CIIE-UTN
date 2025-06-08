@@ -1,3 +1,10 @@
+@charset "UTF-8";
+@layer base, layout, theme, utils;
+
+@import url('./base.css') layer(base);
+@import url('./theme.css') layer(base);
+
+
 /* Estilos para el encabezado */
 header {
     background-color: #f2f2f2;   
@@ -60,26 +67,60 @@ body {
 footer {
     background-color: #f2f2f2;
     border-top: 2px solid #000000;
-    padding: 100px;
+    padding: 1rem;
     text-align: center;
+}
+
+@property --link-bg {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
+}
+@property --link-border {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
+}
+@property --link-text-color {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
+}
+@property --link-text-color-visited {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
+}
+@property --link-text-color-hover {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
+}
+@property --link-text-color-active {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: black;
 }
 
 /* Estilos para los enlaces */
-a {
-    color: rgb(0, 0, 0);
+a.link-btn {
+    color: var(--link-text-color);
     text-decoration: none;
     padding: 3px;
-    border: 1px solid #000000;
-    background-color: #0a06ff38;
+    border: 1px solid var(--link-border);
+    background-color: var(--link-bg);
     border-radius: 5px;
     text-align: center;
     font-size: medium;
+    display: inline-block;
+    
+    /* Efectos en los enlaces */
+    &:visited { color: var(--link-text-color-visited); }
+    &:hover { color: var(--link-text-color-hover); }
+    &:active { color: var(--link-text-color-active); }
 }
 
-/* Efectos en los enlaces */
-a:visited { color: rgb(0, 0, 0); }
-a:hover { color: rgb(10, 255, 10); }
-a:active { color: orange; }
+
 
 /* Estilos para los botones */
 input[type="submit"] {
@@ -90,10 +131,10 @@ input[type="submit"] {
     padding: 3px;
     border: 1px solid #000000;
     border-radius: 10px;
+    
+    &:hover { cursor: pointer; }
 }
-input[type="submit"]:hover {
-    cursor: pointer;
-}
+
 
 /* Estilo para los inputs de texto */
 .styled-form input[type="text"],
@@ -105,4 +146,12 @@ input[type="submit"]:hover {
     border-radius: 8px;
     font-size: 1em;
     box-sizing: border-box;
+}
+
+
+
+@layer utils {
+    ul.semantic-list {
+        list-style: none;
+    }
 }
