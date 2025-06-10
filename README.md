@@ -7,8 +7,8 @@ This guide will walk you through the **first steps** to start contributing to th
 
 ## 📌 Prerequisites
 
-- A **GitLab** account → https://gitlab.com  
-- **Git** installed → https://git-scm.com/downloads  
+- A **GitLab** account → https://gitlab.com
+- **Git** installed → https://git-scm.com/downloads
 - Terminal access on your machine
 
 ---
@@ -45,16 +45,16 @@ Cloning the repo to your local machine lets you work offline and use tools like 
                 3.  In your terminal,go to the directory where you want to have your repo and run:
   ```bash
     git clone {{PASTEssh}}
-```      
+```
                 4. You can now access your cloned repo as to any folder in your computer, using cd.
                 5. Add your user name to the computer.
-                ```bash 
+                ```bash
                 git config --global user.name your name
-                ``` 
+                ```
                 6. Add your user email to the computer.
-                 ```bash 
+                 ```bash
                 $ git config --global user.email your email
-                ``` 
+                ```
 
 ## 3️⃣ Create a New Branch for Each Edit
 **Why do we always have to create a new branch?**
@@ -67,7 +67,7 @@ Working on separate branches for each task:
 To create a new branch, go to your terminal and run:
   ```bash
     git checkout -b myNewBranch
-```  
+```
 Note that when you create a new branch, it copies the one you are currently on.
 ## CONGRATULATIONS, YOU ARE NOW READY TO START WORKING
 
@@ -111,3 +111,27 @@ Even if you reviewed it, the person who created the MR should be the one merging
 
 ✅ Keep discussion respectful and constructive
 Reviews are a collaborative process — we're all working toward the same goal. 💬🤝
+
+---
+## Docker Deploy (dev)
+
+Por ahora necesitamos dos shells
+
+### Para la DB
+```shell
+cd db && docker compose up
+# o puedes corriendolo en segundo plano
+cd db && docker compose up -d
+
+# si es primera vez que se corre la DB habrá que crear las tablas,
+# para ello, es necesario correr el siguiente script (en la carpeta db/)
+
+./migrate.sh
+```
+
+### Para el PHP
+```shell
+cd Web && docker compose up
+# o puedes corriendolo en segundo plano
+cd Web && docker compose up -d
+```
