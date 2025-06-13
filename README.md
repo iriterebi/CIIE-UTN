@@ -135,3 +135,5 @@ cd Web && docker compose up
 # o puedes corriendolo en segundo plano
 cd Web && docker compose up -d
 ```
+
+y luego abrir http://localhost:8080 en el browser para ver la página
