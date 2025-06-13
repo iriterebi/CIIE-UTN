@@ -1,0 +1,108 @@
+/* Estilos para el encabezado */
+header {
+    background-color: #f2f2f2;   
+    border-bottom: 2px solid #000000;
+    width: 100%;
+    padding: 25px;
+    text-align: center;
+}
+
+/* Estilos para la barra de navegación */
+nav {
+    position: fixed;
+    background-color: #333;
+    width: 100%;
+    top: 100px; /* Ajustado para una mejor posición */
+    left: 0;
+    color: #fff;
+    text-align: center;
+}
+
+/* Estilos para la barra de navegación con el tag nav ul */
+nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* Estilos para la barra de navegación con el tag nav ul li */
+nav ul li {
+    display: inline-block;
+    margin-right: 200px;
+}
+
+/* Clases para los enlaces */
+.clase1 { color: red; padding: 5px; text-decoration: none; }
+.clase2 { color: rgb(25, 0, 255); padding: 5px; text-decoration: none; }
+.clase3 { color: rgb(241, 241, 241); padding: 5px; text-decoration: none; }
+.clase4 { color: rgb(45, 194, 25); padding: 5px; text-decoration: none; }
+
+/* Estilos generales */
+body { 
+    background-color: #ffffff;
+    padding: 0;
+}
+
+.s1 {
+    padding: 0px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.register, .f1 {
+    padding: 0px;
+    border-radius: 5px;
+    text-align: left;
+    color: #000000;
+}
+
+/* Estilos para el pie de página */
+footer {
+    background-color: #f2f2f2;
+    border-top: 2px solid #000000;
+    padding: 100px;
+    text-align: center;
+}
+
+/* Estilos para los enlaces */
+a {
+    color: rgb(0, 0, 0);
+    text-decoration: none;
+    padding: 3px;
+    border: 1px solid #000000;
+    background-color: #0a06ff38;
+    border-radius: 5px;
+    text-align: center;
+    font-size: medium;
+}
+
+/* Efectos en los enlaces */
+a:visited { color: rgb(0, 0, 0); }
+a:hover { color: rgb(10, 255, 10); }
+a:active { color: orange; }
+
+/* Estilos para los botones */
+input[type="submit"] {
+    background-color: #8c00ffa8;
+    font-style: small;
+    font-weight: bold;
+    width: 10%;
+    padding: 3px;
+    border: 1px solid #000000;
+    border-radius: 10px;
+}
+input[type="submit"]:hover {
+    cursor: pointer;
+}
+
+/* Estilo para los inputs de texto */
+.styled-form input[type="text"],
+.styled-form input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1em;
+    box-sizing: border-box;
+}

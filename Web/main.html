@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CIIE Lab Remoto</title> <!--Tab name-->
+    <link rel="stylesheet" href="sty_main.css"> <!-- Enlace a un archivo CSS externo -->
+    <meta charset="UTF-8">
+   
+</head>
+<body>
+    <header>
+        <h1>Bienvenido</h1>
+        <h3> Sistema de gestion de laboratorios remotos</h>
+        <?php
+            // Start the session
+            session_start();
+            $nombre_usuario = $_SESSION['usuario_session'];
+            echo "<p>Hola, $nombre_usuario</p>";
+          ?>
+           <!---<p>Bienvenidx, <?php session_start();--> 
+            <p>Bienvenidx</p>
+            <a href="logout.php">Cerrar Sesión</a>
+    </header>
+    <ul>
+        <div style="margin: 20px; padding: 10px;">
+            <!-- Your content goes here --> 
+             <li><a href="Labo.php">Laboratorio remoto</a></li>
+        </div>
+        <div style="margin: 20px; padding: 10px;">
+            <!-- Your content goes here --> 
+             <li><a href="#">Mis datos</a></li>
+      
+        
+    </ul>
+ <!--
+    <?php
+    /******************************CONEXION BASICA A BBDD*****************************/
+    // Database connection details
+    $servername = "localhost";
+    $username = "root";
+    $password = "";
+    $dbname = "testing";
+
+    try {
+        // Create a PDO connection
+        $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (PDOException $e) {
+        die("Connection failed: " . $e->getMessage());
+    }
+    /***********************************************************/
+
+    // User whose data you want to load (replace with the actual username)
+    $desiredUsername = "example_user";
+
+    try {
+        // Select data for the specified user
+        $stmt = $pdo->prepare("SELECT usr_name, usr_psw FROM ciie_table WHERE usr_name = :username");
+        $stmt->bindParam(':username', $desiredUsername, PDO::PARAM_STR);
+        $stmt->execute();
+
+        // Fetch user data
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row) {
+            // Display user data in HTML
+            echo "<p>Username: " . $row['usr_name'] . "</p>";
+            echo "<p>Password: " . $row['usr_psw'] . "</p>";
+        } else {
+            echo "User '$desiredUsername' not found.";
+        }
+    } catch (PDOException $e) {
+        echo "Error: " . $e->getMessage();
+    }
+
+    // Close the PDO connection
+    $pdo = null;
+    ?>
+-->
+    <footer>
+        <p>Derechos reservados CIIE - UTN FRBA&copy; </p>
+    </footer>
+</body>
+</html>

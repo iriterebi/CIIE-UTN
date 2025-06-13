@@ -36,27 +36,26 @@ An SSH Key is a secure authentication method used to connect to Git servers with
 4. Go to gitlab -> Preferences -> SSH key
 5. Paste the key, give it a name and click on **add key**
 
-## 2️⃣ Clone your Repo
+## 2️⃣ Fork the Repository
+**Why Fork a repository?**
+Forking creates your own copy of the repository under your GitLab account, allowing you to freely make changes without affecting the original project. It’s the starting point for contributing in a safe and isolated way.
+
+                1. Go to the main repo on GitLab.
+                2. Click "Fork" (top-right).
+                3. Choose your namespace (usually your account).
+
+## 3️⃣ Clone the Forked Repo
 **Why Clone a repository?**
 Cloning the repo to your local machine lets you work offline and use tools like a code editor and terminal. It gives you a full copy of the codebase where you can build, test, and commit changes locally before pushing them back to GitLab.
 
-                1. Go to your repository and click on the button **code** (Its on the upper left corner ;)
+                1. Go to your forked repository and click on **code**
                 2. Copy the SSH code
                 3.  In your terminal,go to the directory where you want to have your repo and run:
   ```bash
-    git clone {{PASTEssh}}
+    git clone {{ssh}}
 ```      
                 4. You can now access your cloned repo as to any folder in your computer, using cd.
-                5. Add your user name to the computer.
-                ```bash 
-                git config --global user.name your name
-                ``` 
-                6. Add your user email to the computer.
-                 ```bash 
-                $ git config --global user.email your email
-                ``` 
-
-## 3️⃣ Create a New Branch for Each Edit
+## 4️⃣ Create a New Branch for Each Edit
 **Why do we always have to create a new branch?**
 Working on separate branches for each task:
         - Keeps the main branch clean and stable
@@ -71,14 +70,14 @@ To create a new branch, go to your terminal and run:
 Note that when you create a new branch, it copies the one you are currently on.
 ## CONGRATULATIONS, YOU ARE NOW READY TO START WORKING
 
-## 4️⃣ Make Commits and Push Your Code
+## 5️⃣ Make Commits and Push Your Code
 After each small, meaningful change to your code, you should be making a commit.
 ``` bash
 git add .
 git commit -m "Explain clearly what was changed"
 git push origin your-branch-name
 ```
-## 5️⃣ Create a Merge Request (MR)
+## 6️⃣ Create a Merge Request (MR)
 Once you've pushed your branch:
         1. Go to GitLab → click "Create merge request"
         2. Fill in:
