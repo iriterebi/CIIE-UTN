@@ -1,0 +1,8 @@
+:root {
+    --link-bg: rgba(10 6 255 / 22%);
+    --link-text-color: rgb(0 0 0);
+    --link-text-color-visited: rgb(0 0 0);
+    --link-text-color-hover: rgb(10 255 10);
+    --link-text-color-active: rgb(255 165 0);
+    --link-border: rgb(0 0 0);
+}

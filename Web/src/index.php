@@ -3,12 +3,10 @@
 session_start();
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+    <?php require('parts/common_header.php') ?>  
     <title>CIIE Lab Remoto</title> <!--Tab name-->
-    <link rel="stylesheet" href="sty_main.css"> <!-- Enlace a un archivo CSS externo -->
-    <meta charset="UTF-8">
-
 </head>
 <body>
     <header>
@@ -26,7 +24,7 @@ session_start();
             <input  type="password" name="contraseña" id="contraseña"><br><br>
             <input type="submit" value="Ingresar">
         </form>
-         <h3><a href="re.html" >Crear usuario </a></h3> 
+         <h3><a href="re.php" >Crear usuario </a></h3> 
     </section> 
 
     <footer>

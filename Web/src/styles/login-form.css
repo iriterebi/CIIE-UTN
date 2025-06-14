@@ -1,0 +1,31 @@
+.login-form {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem;
+}
+
+.form-field {
+    margin-bottom: 1rem;
+
+    & > :is(label) {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 0.9em;
+    }
+    
+    & > :is(input) {
+        display: block;
+        width: 100%;
+        border-radius: 4px;
+
+        border: 1px solid #0005;
+        padding: 6px 8px;
+
+        &:user-invalid {
+            border-color: red;
+        }
+    }
+}
