@@ -147,5 +147,29 @@ IF you get an error trying to build the web docker, run the following command an
 docker pull php:8.2-apache-bookworm
 ```
 
-
 y luego abrir http://localhost:8080 en el browser para ver la página
+
+---
+### Raspberry Pi Configs:
+NOTE: BOTH THE RASPY AND THE LOCALDEV HAS TO BE ON THE SAME NETWORK TO WORK.
+1. If you are using a hotspot, you have to deactivate the proxy settings, for that, you can do the following commands (this will only deactivate the settings for the living terminal):
+```shell
+unset http_proxy
+unset https_proxy
+unset ftp_proxy
+unset HTTP_PROXY
+unset HTTPS_PROXY
+unset FTP_PROXY
+```
+2. Get your computer network IP (not from the raspy):
+```shell
+ip addr 
+```
+check for #3, under the name " wlp3s0", use the ip: named under "inet" (until the /202) and add the port:
+8080 for the website, 3306 to interact with the db
+
+3. Do the following command to check for the active localdev:
+```shell
+curl inet ip 
+```
+
