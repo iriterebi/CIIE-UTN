@@ -118,7 +118,7 @@ Reviews are a collaborative process — we're all working toward the same goal. 
 Por ahora necesitamos dos shells
 
 ### First time using docker
-1. Copy .env.example file, change the name to .env and complete it with your db data {Jesus always has the answer, amen}
+1. Copy .env.example file, change the name to .env and complete it with your db data {Jesus always has the answer, amen}, DO THIS BOTH FOR YOUR .env IN DB AND IN WEB
 2. Do this:
 ```shell
         docker network create ciie-test1
