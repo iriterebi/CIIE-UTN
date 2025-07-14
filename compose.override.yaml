@@ -1,0 +1,4 @@
+networks:
+  inter-tier:
+    external: false
+    name: ciie-test
