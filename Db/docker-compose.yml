@@ -1,45 +1,34 @@
 networks:
   inter-tier:
     external: true
-    name: ciie-test1
+    name: ciie-test
 
 volumes:
-  run:
-    #- 
-  data:
-    # -
+  mysql_dev_data:
+  mysql_prod_data:
 
 services:
   db:
-    image: mysql:8
-    container_name: db
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev # Apunta al stage 'dev' del Dockerfile
+    container_name: ciie_mysql_dev
     restart: unless-stopped
     cap_add:
       - SYS_NICE  # CAP_SYS_NICE
     env_file:
       - ./.env
     command:
-      #- "--server-id=115"
       - "--slow-query-log=ON"
       - "--slow-query-log-file=/var/log/mysql-logs/mysql-slow.log"
       - "--long-query-time=2"
-      # - "--binlog_expire_logs_seconds=864000"
-      # - "--max-binlog-size=104857600"
-      # - "--max-allowed-packet=1000000000"
-      # - "--log-bin=/var/log/mysql/mysql-bin.log"
-      #- "--relay-log=/var/log/mysql/relay-bin.log"
-      #- "--binlog-ignore-db=mysql"
-      #- "--innodb-buffer-pool-size=4294967296"
-      #- "--innodb-buffer-pool-instances=4"
-      #- "--innodb-lru-scan-depth=1024"
-      #- "--innodb-log-file-size=268435456"
-      #- "--innodb-log-buffer-size=268435456"
       - '--skip-log-bin'
       - '--host-cache-size=0'
     volumes:
-      - 'run:/var/run/mysqld'
-      - "data:/var/lib/mysql:rw"
-      - ./migrations/:/usr/db-migrations:r
+      #- 'run:/var/run/mysqld'
+      - mysql_dev_data:/var/lib/mysql
+      - ./def/:/db:r
       #- '/var/log/mysql:/var/log/mysql-logs:rw'
       #- '/var/lib/xbackups:/xbackups'
     networks:
@@ -48,3 +37,30 @@ services:
       - "3306:3306"
     expose:
       - 3306
+    profiles: ['dev']
+
+  db-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod # Apunta al stage 'prod' del Dockerfile
+    container_name: ciie_mysql_prod
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE  # CAP_SYS_NICE
+    env_file:
+      - .env
+    command:
+      - "--slow-query-log=ON"
+      - "--slow-query-log-file=/var/log/mysql-logs/mysql-slow.log"
+      - "--long-query-time=2"
+      - '--skip-log-bin'
+      - '--host-cache-size=0'
+    networks:
+      - inter-tier
+    ports:
+      - "3307:3306" # Usamos un puerto diferente para no colisionar con dev
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+      # OJO: No montamos la carpeta /db aquí. Ya está dentro de la imagen.
+    profiles: ['prod']
