@@ -1,17 +1,22 @@
 -- migrate:up
 
+-- PostgreSQL requiere que los tipos ENUM se creen por separado primero.
+CREATE TYPE user_status AS ENUM ('profe', 'alumno');
+CREATE TYPE user_action AS ENUM ('Girar', 'Pinzar', 'Reverencia');
+
 CREATE TABLE usuarios (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- 'SERIAL' es el equivalente de 'AUTO_INCREMENT' en PostgreSQL.
     nombreCompleto VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     usr_name VARCHAR(255) NOT NULL UNIQUE,
-    usr_psw VARCHAR(255) NOT NULL, -- TODO guarda en bcrypt o Argon2
-    statuss ENUM('profe', 'alumno'),
+    usr_psw VARCHAR(255) NOT NULL, -- TODO: Hashear con password_hash() (bcrypt) o Argon2.
+    statuss user_status,
     usr_pronouns VARCHAR(255),
-    Accion ENUM('Girar', 'Pinzar', 'Reverencia') -- Se asume que 'Girar' es el valor por defecto deseado
+    Accion user_action
 );
 
 -- migrate:down
 
 DROP TABLE IF EXISTS usuarios;
-
+DROP TYPE IF EXISTS user_status;
+DROP TYPE IF EXISTS user_action;

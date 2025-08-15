@@ -113,41 +113,9 @@ Even if you reviewed it, the person who created the MR should be the one merging
 Reviews are a collaborative process — we're all working toward the same goal. 💬🤝
 
 ---
-## Docker Deploy (dev)
+## Docker Deploy
 
-Por ahora necesitamos dos shells
-
-### First time using docker
-1. Copy .env.example file, change the name to .env and complete it with your db data {Jesus always has the answer, amen}, DO THIS BOTH FOR YOUR .env IN DB AND IN WEB
-2. Do this:
-```shell
-        docker network create ciie-test1
-```
-
-### Para la Db
-```shell
-cd Db && docker compose up
-# o puedes corriendolo en segundo plano
-cd Db && docker compose up -d
-
-# si es primera vez que se corre la Db habrá que crear las tablas,
-# para ello, es necesario correr el siguiente script (en la carpeta Db/)
-
-./migrate.sh
-```
-
-### Para el PHP
-```shell
-cd Web && docker compose up
-# o puedes corriendolo en segundo plano
-cd Web && docker compose up -d
-```
-IF you get an error trying to build the web docker, run the following command and then try again...
-```shell
-docker pull php:8.2-apache-bookworm
-```
-
-y luego abrir http://localhost:8080 en el browser para ver la página
+Ver [Docker-deploy.md](./Docker-deploy.md) para más información
 
 ---
 ### Raspberry Pi Configs:
@@ -163,13 +131,13 @@ unset FTP_PROXY
 ```
 2. Get your computer network IP (not from the raspy):
 ```shell
-ip addr 
+ip addr
 ```
 check for #3, under the name " wlp3s0", use the ip: named under "inet" (until the /202) and add the port:
 8080 for the website, 3306 to interact with the db
 
 3. Do the following command to check for the active localdev:
 ```shell
-curl inet ip 
+curl inet ip
 ```
 

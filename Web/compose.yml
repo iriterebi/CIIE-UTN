@@ -1,7 +1,7 @@
 networks:
   inter-tier:
-    external: true
-    name: ciie-test1
+    # external: true
+    # name: ciie-test1
 
 volumes:
   drun:
