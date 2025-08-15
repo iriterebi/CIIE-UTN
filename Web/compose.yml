@@ -1,7 +1,7 @@
 networks:
   inter-tier:
-    external: true
-    name: ciie-test1
+    # external: true
+    # name: ciie-test1
 
 volumes:
   drun:
@@ -26,3 +26,4 @@ services:
       - inter-tier
     ports:
       - "8080:80"
+    profiles: ['dev']
