@@ -140,4 +140,4 @@ check for #3, under the name " wlp3s0", use the ip: named under "inet" (until th
 ```shell
 curl inet ip
 ```
-
+IP priv Gabi: 172.22.144.1
