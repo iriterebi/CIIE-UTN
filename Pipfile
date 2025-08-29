@@ -5,9 +5,20 @@ name = "pypi"
 
 [packages]
 requests = "*"
-serial = "*"
+pyserial = "*"
+python-dotenv = "*"
+fastapi = {extras = ["standard"], version = "*"}
+sqlmodel = "*"
+psycopg2-binary = "*"
+bcrypt = "*"
+pyjwt = "*"
+passlib = {extras = ["bcrypt"], version = "*"}
+pylint = "*"
 
 [dev-packages]
+mypy = "*"
+types-requests = "*"
+types-pyserial = "*"
 
 [requires]
 python_version = "3.12"
