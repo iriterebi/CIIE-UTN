@@ -2,14 +2,18 @@
 session_start();
 
 /******************************CONEXION BASICA A BBDD*****************************/
+// Database connection details
 $servername = getenv("MYSQL_DB_HOST");
 $username = getenv("MYSQL_DB_USER");
 $password = getenv("MYSQL_DB_PSW");
 $dbname = getenv("MYSQL_DB_NAME");
+$dbport = getenv("DB_PORT");
+$dbConecctionUrl = "pgsql:host=$servername;port=$dbport;dbname=$dbname";
+
 
 try {
     // Create a PDO connection
-    $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $pdo = new PDO($dbConecctionUrl, $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Connection failed: " . $e->getMessage());
@@ -27,7 +31,7 @@ $status = $_POST['status'];
 
 try {
     // Check if the user already exists
-    $stmt = $pdo->prepare("SELECT * FROM ciie_table WHERE usr_name = :username");
+    $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE usr_name = :username");
     $stmt->bindParam(':username', $nombre, PDO::PARAM_STR);
     $stmt->execute();
 
@@ -40,7 +44,7 @@ try {
                   </script>";
     } else {
         // User not found, insert the data
-        $sql = "INSERT INTO ciie_table (nombreCompleto,email,usr_name, usr_psw,statuss, usr_pronouns) VALUES (:nombreCompleto,:email,:usr_name, :usr_psw,:statuss,:usr_pronouns)";
+        $sql = "INSERT INTO usuarios (nombreCompleto,email,usr_name, usr_psw,statuss, usr_pronouns) VALUES (:nombreCompleto,:email,:usr_name, :usr_psw,:statuss,:usr_pronouns)";
         $stmt = $pdo->prepare($sql);
         $stmt->bindParam(':nombreCompleto', $nombreCompleto, PDO::PARAM_STR);
         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
@@ -65,7 +69,7 @@ try {
 // Close the PDO connection
 /*
 $sql = "SELECT * FROM testing_data WHERE Nombre = '$nombre'";
-  /***Chequeo si se borro o tiro error 
+  /***Chequeo si se borro o tiro error
 if ($conn->query($sql) === TRUE) {
     if ($conn-> > 0) {
         echo "Encontre y borre $conn->affected_rows $nombre ";

@@ -8,7 +8,7 @@ body {
     min-width: 100vw;
     min-height: 100vh;
     display: grid;
-    grid-template: 
+    grid-template:
         "header" auto
         "body" 1fr
         "footer" auto /

@@ -7,10 +7,13 @@ $servername = getenv("MYSQL_DB_HOST");
 $username = getenv("MYSQL_DB_USER");
 $password = getenv("MYSQL_DB_PSW");
 $dbname = getenv("MYSQL_DB_NAME");
+$dbport = getenv("DB_PORT");
+$dbConecctionUrl = "pgsql:host=$servername;port=$dbport;dbname=$dbname";
+
 
 try {
     // Create a PDO connection
-    $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $pdo = new PDO($dbConecctionUrl, $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Connection failed: " . $e->getMessage());
@@ -24,7 +27,7 @@ $nombre = $_POST["nombre"];
 $contraseña = $_POST["contraseña"];
 try {
     // Select the password for the specified user
-    $stmt = $pdo->prepare("SELECT usr_psw FROM ciie_table WHERE usr_name = :username");
+    $stmt = $pdo->prepare("SELECT usr_psw FROM usuarios WHERE usr_name = :username");
     $stmt->bindParam(':username', $nombre, PDO::PARAM_STR);
     $stmt->execute();
 
@@ -38,7 +41,7 @@ try {
             // Iniciar la sesión
             $_SESSION['usuario_session'] = $nombre; // Almacena el nombre de usuario
             $_SESSION['authenticated'] = true; // Marca al usuario como autenticado
-            
+
             header("Location: main.php"); // Redirecciona a otra página
         } else {
             echo '<div style="text-align: center; font-size: 24px;">Contraseña incorrecta</div>';

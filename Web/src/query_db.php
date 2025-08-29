@@ -8,36 +8,25 @@ $username = getenv("MYSQL_DB_USER");
 $password = getenv("MYSQL_DB_PSW");
 $dbname = getenv("MYSQL_DB_NAME");
 
-// Crear conexión
-$conn = new mysqli($servername, $username, $password, $dbname);
+try {
+    // Crear conexión con PDO
+    $pdo = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Verificar conexión
-if ($conn->connect_error) {
-    die(json_encode(array("error" => "Conexión fallida: " . $conn->connect_error)));
+    // Consulta SQL para obtener datos
+    $sql = "SELECT * FROM usuarios";
+    $stmt = $pdo->query($sql);
+
+    // Crear un array para almacenar los datos
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Devolver los datos en formato JSON
+    echo json_encode($data);
+} catch (PDOException $e) {
+    http_response_code(500);
+    die(json_encode(array("error" => "Error en la base de datos: " . $e->getMessage())));
+} finally {
+    // Cerrar la conexión
+    $pdo = null;
 }
-
-// Consulta SQL para obtener datos
-$sql = "SELECT * FROM ciie_table";
-$result = $conn->query($sql);
-
-// Crear un array para almacenar los datos
-$data = array();
-
-if ($result) {
-    if ($result->num_rows > 0) {
-        // Recorrer los datos y almacenarlos en el array
-        while ($row = $result->fetch_assoc()) {
-            $data[] = $row;
-        }
-    }
-    $result->close();
-} else {
-    die(json_encode(array("error" => "Error en la consulta: " . $conn->error)));
-}
-
-// Cerrar la conexión
-$conn->close();
-
-// Devolver los datos en formato JSON
-echo json_encode($data);
 ?>

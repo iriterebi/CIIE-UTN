@@ -1,10 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <?php require('parts/common_header.php') ?>  
+    <?php require('parts/common_header.php') ?>
     <title>CIIE Lab Remoto</title>
-
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script> <!-- jQuery para AJAX -->
 
     <style>
         /* Estilos para el header fijo */
@@ -128,71 +126,87 @@
         </div>
     </div>
 
-    <!-- Mostrar el valor actualizado después de ejecutar db_interaction y obtener datos de get_data.php -->
-    <?php require('parts/common_footer.php') ?>  
+    <!-- Elemento para mostrar la acción actual. Se agregó porque el script original intentaba usarlo pero no existía. -->
+    <div id="resultado" style="text-align: center; margin: 20px; font-weight: bold;"></div>
+
+    <?php require('parts/common_footer.php') ?>
 
     <script>
-        const video = document.getElementById('videoElement');
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-            .then(function(stream) {
-                video.srcObject = stream;
-            })
-            .catch(function(error) {
-                console.error('Error accessing webcam:', error);
-            });
-        } else {
-            console.error('getUserMedia is not supported by this browser');
-        }
+        "use strict";
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('videoElement');
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                })
+                .catch(function(error) {
+                    console.error('Error al acceder a la cámara:', error);
+                });
+            } else {
+                console.error('getUserMedia no es soportado por este navegador');
+            }
 
-        // Función para obtener los datos de get_data.php
-        function obtenerAccion() {
-            $.ajax({
-                url: 'get_data.php',  // Archivo que obtiene el valor de "Accion"
-                method: 'GET',
-                success: function(response) {
-                    // Actualizar el valor mostrado en la página
-                    $('#resultado').text(response);
-                },
-                error: function() {
-                    $('#resultado').text('Error al obtener los datos');
+            const resultadoEl = document.getElementById('resultado');
+
+            // Función para obtener los datos de get_data.php usando Fetch API
+            async function obtenerAccion() {
+                try {
+                    const response = await fetch('get_data.php');
+                    if (!response.ok) {
+                        throw new Error(`Error de red: ${response.statusText}`);
+                    }
+                    const data = await response.json(); // get_data.php devuelve JSON
+                    if (resultadoEl) {
+                        resultadoEl.textContent = `Última acción registrada: ${data || 'Ninguna'}`;
+                    }
+                } catch (error) {
+                    console.error('Error al obtener los datos:', error);
+                    if (resultadoEl) {
+                        resultadoEl.textContent = 'Error al obtener los datos';
+                    }
                 }
-            });
-        }
+            }
 
-        // Manejo del botón "Girar"
-        $('#formGirar').on('submit', function(event) {
-            event.preventDefault(); // Evita que la página se recargue
-            $.post('db_interaction_1.php', function(data) {
-                alert('Acción: Girar ejecutada');
-                // Luego de ejecutar el script, obtener los datos actualizados
-                obtenerAccion();
-            });
-        });
+            // Función genérica para manejar los envíos de formularios de acción
+            function setupActionForm(formId, actionName) {
+                const form = document.getElementById(formId);
+                if (form) {
+                    form.addEventListener('submit', async (event) => {
+                        event.preventDefault(); // Evita que la página se recargue
+                        try {
+                            const response = await fetch('action_handler.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    'action': actionName
+                                })
+                            });
 
-        // Manejo del botón "Abrir y cerrar pinza"
-        $('#formPinza').on('submit', function(event) {
-            event.preventDefault(); // Evita que la página se recargue
-            $.post('db_interaction_2.php', function(data) {
-                alert('Acción: Abrir y cerrar pinza ejecutada');
-                // Luego de ejecutar el script, obtener los datos actualizados
-                obtenerAccion();
-            });
-        });
+                            if (!response.ok && response.status !== 204) { // 204 es éxito sin contenido
+                                const errorData = await response.json();
+                                throw new Error(errorData.error || `Error del servidor: ${response.statusText}`);
+                            }
 
-        // Manejo del botón "Saludar"
-        $('#formSaludar').on('submit', function(event) {
-            event.preventDefault(); // Evita que la página se recargue
-            $.post('db_interaction_3.php', function(data) {
-                alert('Acción: Saludar ejecutada');
-                // Luego de ejecutar el script, obtener los datos actualizados
-                obtenerAccion();
-            });
-        });
+                            alert(`Acción: ${actionName} ejecutada`);
+                            obtenerAccion();
+                        } catch (error) {
+                            console.error(`Error en la acción ${actionName}:`, error);
+                            alert(`Error al ejecutar la acción ${actionName}: ${error.message}`);
+                        }
+                    });
+                }
+            }
 
-        // Llamar a obtenerAccion cuando la página cargue para mostrar el valor actual de "Accion"
-        $(document).ready(function() {
-            obtenerAccion();  // Mostrar el valor actual de "Accion" al cargar la página
+            // Configurar los manejadores de eventos para cada botón
+            setupActionForm('formGirar', 'Girar');
+            setupActionForm('formPinza', 'Abrir y cerrar pinza');
+            setupActionForm('formSaludar', 'Saludar');
+
+            // Llamar a obtenerAccion cuando la página cargue para mostrar el valor actual de "Accion"
+            obtenerAccion();
         });
     </script>
 </body>
