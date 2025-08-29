@@ -1,10 +1,7 @@
-import jwt
-
-from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel
-from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
+from datetime import datetime, timedelta, timezone
+import jwt
+from fastapi import Depends
 
 from .config import EncryptionConfigDep
 from .access_token import AccessToken
@@ -30,10 +27,13 @@ class EncryptionService:
         access_token_expires = timedelta(minutes=self.toket_expiration_time)
         to_encode = data.copy()
 
-        expire = datetime.now(timezone.utc) + access_token_expires
+        now = datetime.now(timezone.utc)
+        expire = now + access_token_expires
 
         to_encode.update({
-            "exp": expire
+            "iat": now,
+            "nbf": now,
+            "exp": expire,
         })
 
         access_token =  jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)

@@ -12,5 +12,6 @@ class User(SQLModel, table=True):
     usr_pronouns: str
     accion: str | None
 
-
-
+    @property
+    def is_admin(self) -> bool:
+        return self.statuss == 'profe'

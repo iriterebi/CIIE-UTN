@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlmodel import select
 
 from .user import User
-from ..encryption import EncryptionServiceDep, EncryptionService
+from ..encryption import EncryptionServiceDep, EncryptionService, AccessToken
 from ....db_connection import DbSessionDep
 
 
@@ -34,5 +34,22 @@ class UserService:
         ).one()
 
         return user
+
+    def create_access_token(self, user: User) -> AccessToken:
+
+        data = {
+            "sub": user.usr_name,
+            "role": user.statuss,
+        }
+
+        if user.is_admin:
+            data["role"] = "admin"
+        else:
+            data["role"] = "user"
+
+
+        return self.encryption_service.create_bearer_access_token(data=data)
+
+
 
 UserServiceDep = Annotated[UserService, Depends(UserService)]
