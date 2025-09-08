@@ -7,9 +7,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 TokenStrDep = Annotated[str, Depends(oauth2_scheme)]
 
+
 class AccessToken(BaseModel):
     access_token: str
     token_type: str
     scope: str
     expires_in: int
-

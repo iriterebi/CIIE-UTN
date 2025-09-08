@@ -21,4 +21,5 @@ POSTGRES_URL: str = _get_required_env('POSTGRES_URL')
 
 JWT_SECRET_KEY = _get_required_env("JWT_SECRET_KEY")
 JWT_ALGORITHM = _get_required_env("JWT_ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(_get_required_env("ACCESS_TOKEN_EXPIRE_MINUTES"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    _get_required_env("ACCESS_TOKEN_EXPIRE_MINUTES"))

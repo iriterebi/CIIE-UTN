@@ -4,6 +4,7 @@ from .user import User
 from .user_service import UserServiceDep
 from ..encryption import TokenStrDep
 
+
 def get_current_user(
     user_service: UserServiceDep,
     token: TokenStrDep

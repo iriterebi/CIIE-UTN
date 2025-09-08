@@ -13,12 +13,16 @@ psycopg2-binary = "*"
 bcrypt = "*"
 pyjwt = "*"
 passlib = {extras = ["bcrypt"], version = "*"}
-pylint = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+websockets = "*"
+reactivex = "*"
 
 [dev-packages]
+pylint = "*"
 mypy = "*"
 types-requests = "*"
 types-pyserial = "*"
+autopep8 = "*"
 
 [requires]
-python_version = "3.12"
+python_version = ">=3.11"
