@@ -1,0 +1,17 @@
+[project]
+name = "ciie-remote-lab-native"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13.7"
+dependencies = [
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.5",
+    "serial>=0.0.97",
+    "types-pyserial>=3.5.0.20251001",
+]
+
+[dependency-groups]
+dev = [
+    "types-requests>=2.32.4.20250913",
+]
