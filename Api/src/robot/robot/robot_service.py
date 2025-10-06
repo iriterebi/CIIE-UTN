@@ -1,9 +1,10 @@
 from typing import List, Annotated
 from uuid import UUID as PythonUUID
-from fastapi import Depends, HTTPException
 
-from src.db_connection import DbSessionDep
+from fastapi import Depends, HTTPException
+from jwt import InvalidTokenError
 from src.auth.services.encryption import EncryptionServiceDep, TokenStrDep
+from src.db_connection import DbSessionDep
 
 from .robot import Robot, RobotInput
 
@@ -65,9 +66,12 @@ def get_current_robot(
     robot_service: RobotServiceDep,
     token: TokenStrDep
 ) -> Robot:
-    robot = robot_service.get_robot_by_token(token)
+    try:
+        robot = robot_service.get_robot_by_token(token)
 
-    if not robot:
-        raise HTTPException(status_code=401, detail="Robot not found")
+        if not robot:
+            raise HTTPException(status_code=401, detail="Robot not found")
 
-    return robot
+        return robot
+    except InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail="Invaid token") from e

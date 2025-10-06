@@ -5,6 +5,8 @@ This module defines the API routes for interacting with robots
 """
 
 from typing import Annotated
+
+from aioreactive import AsyncSubject
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from reactivex.subject import Subject
@@ -29,7 +31,7 @@ def login(
 @router.websocket("/commands/{auth_token}")
 async def websocket_endpoint(
     websocket: WebSocket,
-    ipc: Annotated[Subject, Depends(create_subject)],
+    ipc: Annotated[AsyncSubject, Depends(create_subject)],
     robot_service: Annotated[RobotService, Depends(RobotService)],
     auth_token: str
 ):

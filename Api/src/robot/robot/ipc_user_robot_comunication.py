@@ -1,6 +1,13 @@
-from reactivex.subject import Subject
+from aioreactive import AsyncSubject
 
-def create_subject():
-    subject = Subject()
+_ipc: AsyncSubject | None = None
 
-    return subject
+
+def create_subject() -> AsyncSubject:
+    global _ipc
+
+    if _ipc is None:
+        print("Creating subject")
+        _ipc = AsyncSubject()
+
+    return _ipc

@@ -1,3 +1,4 @@
+from aioreactive import AsyncSubject
 from fastapi import APIRouter
 from typing import Annotated, List
 from fastapi import Depends
@@ -34,9 +35,9 @@ def create_robot(
 
 
 @router.post("/send_command")
-def send_command(
-    ipc: Annotated[Subject, Depends(create_subject)],
+async def send_command(
+    ipc: Annotated[AsyncSubject, Depends(create_subject)],
     command: RobotCommand
 ):
-    ipc.on_next(command)
+    await ipc.asend(command)
     return {"message": "Command sent"}

@@ -1,73 +1,53 @@
-from typing import Iterable
-from fastapi import WebSocket, WebSocketDisconnect
-from reactivex.operators import filter as rx_filter, observe_on
-from reactivex.subject import Subject
-from reactivex.abc import DisposableBase
-from reactivex.disposable import CompositeDisposable, Disposable
-from reactivex import from_iterable
-from reactivex.scheduler.eventloop import AsyncIOThreadSafeScheduler, AsyncIOScheduler
-import asyncio
+import aioreactive as arx
+from aioreactive import AsyncSubject
+from expression import pipe
+from expression.system import AsyncDisposable
+from fastapi import WebSocket
 
 from .json_rpc_commands import RobotCommand, RobotResponse
-from .robot_service import RobotService
 from .robot import Robot
+from .robot_service import RobotService
 
 
 class RobotConnection:
     websocket: WebSocket | None = None
-    observer: Subject
+    observer: AsyncSubject
     service: RobotService
     robot: Robot
-    disposable: DisposableBase | None = None
+    disposable: AsyncDisposable | None = None
+    adisposable: AsyncDisposable | None = None
 
-    def __init__(self, ipc: Subject, service: RobotService, robot: Robot):
+    def __init__(self, ipc: AsyncSubject, service: RobotService, robot: Robot):
         self.observer = ipc
         self.service = service
         self.robot = robot
+        print("robot", robot)
 
     async def connect(self, websocket: WebSocket):
         self.websocket = websocket
         await websocket.accept()
 
-        loop = asyncio.get_event_loop()
+        self.disposable = await (pipe(
+            self.observer,
+            arx.filter(lambda x: x.robot_id == self.robot.id)
+        ).subscribe_async(self.send))
 
-        self.disposable = CompositeDisposable()
+        while True:
+            await self._emit_response(await self.receive())
 
-        self.disposable.add(
-            self.observer.pipe(
-                observe_on(scheduler=AsyncIOThreadSafeScheduler(loop=loop)),
-                rx_filter(lambda x: x.robot_id == self.robot.id)
-            ).subscribe(self.send, scheduler=AsyncIOScheduler(loop=loop))
-        )
-
-        self.disposable.add(
-            # TODO: no funciona con asyncio
-            from_iterable(self.iter_response()).subscribe(
-                self.observer.on_next, scheduler=AsyncIOScheduler(loop=loop))
-        )
-
-        future = asyncio.Future(loop = loop)
-
-        self.disposable.add(
-            Disposable(lambda: future.set_result(None))
-        )
-
-        return future
-
-    def disconnect(self):
+    async def disconnect(self):
         self.disposable.dispose()
+        await self.adisposable.dispose_async()
         self.websocket = None
 
     async def send(self, data: RobotCommand):
+        print("send", data)
         await self.websocket.send_text(data.model_dump_json())
 
     async def receive(self) -> RobotResponse:
         data = await self.websocket.receive_json()
+        print("receive", data)
         return RobotResponse(**data)
 
-    async def iter_response(self) -> Iterable[RobotResponse]:
-        try:
-            while True:
-                yield await self.receive()
-        except WebSocketDisconnect:
-            pass
+    async def _emit_response(self, response: RobotResponse):
+        await self.observer.asend(response)
