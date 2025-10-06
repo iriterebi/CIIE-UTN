@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlmodel import select
 
 from .user import User
+from .user_base import UserBase
 from ..encryption import EncryptionServiceDep, EncryptionService, AccessToken
 from ....db_connection import DbSessionDep
 
@@ -52,6 +53,23 @@ class UserService:
             data["role"] = "user"
 
         return self.encryption_service.create_bearer_access_token(data=data)
+
+    def register_new_user(self, user_base: UserBase) -> User:
+        if self.db_session.query(User).filter(User.usr_name == user_base.usr_name).count() > 0:
+            raise HTTPException(status_code=400, detail=f"User already exist")
+
+        user = User()
+        user.nombrecompleto = user_base.nombre
+        user.email = user_base.email
+        user.usr_pronouns = user_base.usr_pronouns
+        user.usr_name = user_base.usr_name
+        user.statuss = 'alumno'
+        user.usr_psw = self.encryption_service.encrypt_psw(user_base.usr_psw)
+
+        self.db_session.add(user)
+        self.db_session.commit()
+        self.db_session.refresh(user)
+        return user
 
 
 UserServiceDep = Annotated[UserService, Depends(UserService)]
