@@ -1,3 +1,0 @@
-[console_scripts]
-serial_agent = ros2_serial_agent.serial_agent:main
-
