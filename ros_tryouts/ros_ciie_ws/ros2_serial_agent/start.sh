@@ -37,6 +37,10 @@ tmux send-keys -t $SESSION:0 "ros2 run ros2_serial_agent serial_agent" C-m
 
 # 7. Crea una nueva ventana (simula tu 'tmux 2>')
 tmux new-window -t $SESSION:1 -n "Curl_Test"
+tmux send-keys -t $SESSION:1 "sudo apt install systemctl" C-m
+tmux send-keys -t $SESSION:1 "sudo curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
+" C-m
+
 
 
 tmux new-window -t $SESSION:2 -n "Agent Interaction"
