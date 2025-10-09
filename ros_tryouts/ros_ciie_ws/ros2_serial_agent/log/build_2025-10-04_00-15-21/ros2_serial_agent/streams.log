@@ -1,0 +1,21 @@
+[1.848s] Invoking command in '/ros_ciie_ws/ros2_serial_agent': PYTHONPATH=/ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/ros2_serial_agent build --build-base /ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/build install --record /ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/install.log --single-version-externally-managed install_data
+[2.567s] running egg_info
+[2.569s] writing build/ros2_serial_agent/ros2_serial_agent.egg-info/PKG-INFO
+[2.570s] writing dependency_links to build/ros2_serial_agent/ros2_serial_agent.egg-info/dependency_links.txt
+[2.572s] writing entry points to build/ros2_serial_agent/ros2_serial_agent.egg-info/entry_points.txt
+[2.574s] writing requirements to build/ros2_serial_agent/ros2_serial_agent.egg-info/requires.txt
+[2.575s] writing top-level names to build/ros2_serial_agent/ros2_serial_agent.egg-info/top_level.txt
+[2.581s] reading manifest file 'build/ros2_serial_agent/ros2_serial_agent.egg-info/SOURCES.txt'
+[2.585s] writing manifest file 'build/ros2_serial_agent/ros2_serial_agent.egg-info/SOURCES.txt'
+[2.585s] running build
+[2.585s] running build_py
+[2.586s] running install
+[2.588s] running install_lib
+[2.591s] running install_data
+[2.592s] running install_egg_info
+[2.601s] removing '/ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/python3.10/site-packages/ros2_serial_agent-0.0.0-py3.10.egg-info' (and everything under it)
+[2.602s] Copying build/ros2_serial_agent/ros2_serial_agent.egg-info to /ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/python3.10/site-packages/ros2_serial_agent-0.0.0-py3.10.egg-info
+[2.605s] running install_scripts
+[2.674s] Installing serial_agent script to /ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/ros2_serial_agent
+[2.676s] writing list of installed files to '/ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/install.log'
+[2.793s] Invoked command in '/ros_ciie_ws/ros2_serial_agent' returned '0': PYTHONPATH=/ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base build/ros2_serial_agent build --build-base /ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/build install --record /ros_ciie_ws/ros2_serial_agent/build/ros2_serial_agent/install.log --single-version-externally-managed install_data

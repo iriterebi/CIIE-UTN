@@ -1,0 +1,5 @@
+  File "/ros_ciie_ws/ros2_serial_agent/install/ros2_serial_agent/lib/python3.10/site-packages/ros2_serial_agent/serial_agent.py", line 15
+    baud = int(os.environ["BAUDRATE"]
+              ^
+SyntaxError: '(' was never closed
+
