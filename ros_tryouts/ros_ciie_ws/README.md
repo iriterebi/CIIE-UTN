@@ -35,14 +35,7 @@ USB_PORT=/dev/ttyACM0
 ## 🔨 Build de la imagen
 
 ```bash
-./build.sh
-```
-## ▶️ Correr el contenedor
-
-Si tenes configurado el USB_PORT en config/.env tomara ese, sino montara el docker sin port
-
-```bash
-./run.sh
+./lazy_start.sh
 ```
 
 
@@ -51,4 +44,9 @@ Ya dentro del docker corre el comando:
 ```bash
 ./ros2_serial_agent/start.sh
 ```
-# SI TE PIDE UN ROS_ID, PONE 42
+
+## Al terminar el proceso, en el tab que dice curl, hay que pegar el comando 
+```bash
+sudo curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
+```
+# SI TE PIDE UN ROS_DOMAIN_ID, PONE 42
