@@ -34,12 +34,12 @@ class SerialAgent(Node):
 
         # --- Publishers y Subscribers ---
         # Publisher para el estado y la instrucción de salida
-        self.publisher_ = self.create_publisher(String, '/inorbit/custom_data/0', 10)
+        self.publisher_ = self.create_publisher(String, '/inorbit/custom_data', 10)
         
         # Subscriber para las instrucciones entrantes (desde ROS)
         self.subscription = self.create_subscription(
             String,
-            '/inorbit/custom_data/0',
+            '/inorbit/custom_data',
             self.listener_callback,
             10
         )
@@ -83,7 +83,7 @@ class SerialAgent(Node):
     # --- LÓGICA DE RECEPCIÓN DE ROS 2 ---
     def listener_callback(self, msg):
         """
-        Maneja los mensajes recibidos en /inorbit/custom_data/0.
+        Maneja los mensajes recibidos en /inorbit/custom_data.
         """
         # Intentamos obtener la instrucción del mensaje
         data = msg.data.strip()
