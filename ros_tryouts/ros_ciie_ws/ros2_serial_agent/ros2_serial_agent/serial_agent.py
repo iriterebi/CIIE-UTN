@@ -11,8 +11,8 @@ class SerialAgent(Node):
         super().__init__('serial_agent')
 
         # Leer variables de entorno
-        port = os.environ.get("USB_PORT")
-        baud = os.environ.get("BAUDRATE")
+        port = os.environ.get('SERIAL_PORT', '/dev/ttyACM0') 
+        baud = 115200
 
         self.get_logger().info(f"Conectando a {port} con baudrate {baud}")
 
