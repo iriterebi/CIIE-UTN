@@ -17,21 +17,17 @@ Modificar Variables de Entorno: Antes de empezar, debes asegurarte de que el con
 ```bash
 cp .env.example config/.env
 ```
-EDITA el archivo 'config/.env' y ajusta la variable 'USB_PORT' con el puerto correcto de tu Arduino.
+2. EDITA el archivo 'config/.env' y ajusta la variable 'USB_PORT' con el puerto correcto de tu Arduino.
 
-Pasos para encontrar el puerto en Linux (Raspberry Pi/Ubuntu):
+# Pasos para encontrar el puerto en Linux (Raspberry Pi/Ubuntu):
 
-Desconecta el Arduino.
-
-Ejecuta:
+1. Desconecta el Arduino y ejecuta:
 ```bash
 ls /dev/ttyA* /dev/ttyU*
 ```
-Conecta el Arduino.
+2. Conecta el Arduino y ejecuta de nuevo el comando. El puerto nuevo que aparece (ej: /dev/ttyACM0) es el que debes usar.
 
-Ejecuta de nuevo el comando. El puerto nuevo que aparece (ej: /dev/ttyACM0) es el que debes usar.
-
-Contenido de 'config/.env' (Ejemplo):
+3. Modifica el contenido de 'config/.env' (Ejemplo):
 ```bash
 USB_PORT=/dev/ttyACM0
 ```
@@ -49,3 +45,10 @@ Si tenes configurado el USB_PORT en config/.env tomara ese, sino montara el dock
 ./run.sh
 ```
 
+
+## Correr el agente
+Ya dentro del docker corre el comando:
+```bash
+./ros2_serial_agent/start.sh
+```
+# SI TE PIDE UN ROS_ID, PONE 42
