@@ -12,9 +12,9 @@ class SerialAgent(Node):
 
         # --- Variables de Estado del Protocolo ---
         # is_publishing: Controla si estamos en el "modo de espera de 2s" (pub=true)
-        # last_instruction: Almacena la instrucción recibida para el puerto serie
+        # last_instruccion: Almacena la instrucción recibida para el puerto serie
         self.is_publishing = False
-        self.last_instruction = "none"
+        self.last_instruccion = "none"
         self.publish_counter = 0  # Contador para el timeout de 2 segundos
 
         # --- Configuración del Puerto Serie ---
@@ -78,7 +78,7 @@ class SerialAgent(Node):
                 # 2. Resetear estado
                 self.is_publishing = False
                 self.publish_counter = 0
-                self.last_instruction = "none" # $instruccion = none
+                self.last_instruccion = "none" # $instruccion = none
 
     # --- LÓGICA DE RECEPCIÓN DE ROS 2 ---
     def listener_callback(self, msg):
@@ -88,21 +88,21 @@ class SerialAgent(Node):
         # Intentamos obtener la instrucción del mensaje
         data = msg.data.strip()
         
-        # Caso 1: Lectura de Instrucción (simula tu pub=false y $instruction != none)
-        # Buscamos el prefijo 'instruction=' y verificamos el estado
-        if data.startswith("instruction=") and data != "instruction=none":
+        # Caso 1: Lectura de Instrucción (simula tu pub=false y $instruccion != none)
+        # Buscamos el prefijo 'instruccion=' y verificamos el estado
+        if data.startswith("instruccion=") and data != "instruccion=none":
             
-            received_instruction = data.split("instruction=")[1].strip()
+            received_instruccion = data.split("instruccion=")[1].strip()
             
             # Si NO estamos publicando (is_publishing=False), procesamos la instrucción
             if not self.is_publishing:
-                self.last_instruction = received_instruction
+                self.last_instruccion = received_instruccion
 
                 if self.ser:
                     try:
                         # 1. Enviar al puerto serie
-                        self.ser.write((self.last_instruction + '\n').encode('utf-8'))
-                        self.get_logger().info(f"Enviado a serie: {self.last_instruction}")
+                        self.ser.write((self.last_instruccion + '\n').encode('utf-8'))
+                        self.get_logger().info(f"Enviado a serie: {self.last_instruccion}")
                         
                         # 2. Activar la lógica de publicación de estado (pub=true, sleep, pub=false)
                         self.is_publishing = True
@@ -129,7 +129,7 @@ class SerialAgent(Node):
                     # Publica lo recibido del Arduino
                     msg = String()
                     msg.data = f"serial_in={line}"
-                    self.publisher_.publish(msg)
+                    self.publisher_.publish(String(data="instruccion={msg}"))
                     self.get_logger().info(f"Recibido de serie: {line}")
             except serial.SerialTimeoutException:
                 # Esto es normal con timeout=0.1
