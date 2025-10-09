@@ -5,7 +5,7 @@ IMAGE_NAME="ros-ciie"
 
 # 1. Cargar puerto USB si existe .env (asumo que .env tiene USB_PORT=...)
 if [ -f config/.env ]; then
-    source config/.env
+    source config/example.env
 fi
 
 # El puerto USB_PORT de tu .env debería ser el nombre corto, 

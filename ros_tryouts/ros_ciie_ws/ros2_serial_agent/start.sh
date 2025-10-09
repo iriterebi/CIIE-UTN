@@ -1,5 +1,5 @@
 #!/bin/bash
-source ../config/.env 
+source ../config/example.env 
 cd ros2_serial_agent/
 sudo apt update && sudo apt install -y tmux
 pip install pyserial
