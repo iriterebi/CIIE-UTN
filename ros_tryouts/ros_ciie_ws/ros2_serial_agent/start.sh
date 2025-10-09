@@ -39,7 +39,6 @@ tmux send-keys -t $SESSION:0 "ros2 run ros2_serial_agent serial_agent" C-m
 tmux new-window -t $SESSION:1 -n "Curl_Test"
 tmux send-keys -t $SESSION:1 "sudo apt install systemctl" C-m
 tmux send-keys -t $SESSION:1 "echo "now run curl command, remember that ROS_ID is 42"" C-m
-" C-m
 
 
 
