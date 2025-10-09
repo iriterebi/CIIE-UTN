@@ -35,7 +35,6 @@ tmux send-keys -t $SESSION:0 "ros2 run ros2_serial_agent serial_agent" C-m
 
 # 7. Crea una nueva ventana (simula tu 'tmux 2>')
 tmux new-window -t $SESSION:1 -n "Curl_Test"
-curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
 
 
 tmux new-window -t $SESSION:2 -n "Agent Interaction"
