@@ -29,6 +29,8 @@ tmux rename-window -t $SESSION:0 "ROS_Agent"
 # Envía los comandos para la Ventana 1 (el agente serial)
 # El comando 'send-keys' ejecuta la preparación y el proceso
 tmux send-keys -t $SESSION:0 "$SOURCE_COMMAND" C-m
+tmux send-keys -t $SESSION:0 "export USB_PORT=/dev/ttyACM0" C-m
+tmux send-keys -t $SESSION:0 "export BAUDRATE=115200" C-m
 tmux send-keys -t $SESSION:0 "ros2 run ros2_serial_agent serial_agent" C-m
 
 # --- Ventana 2: Cliente de Prueba (Curl) ---
