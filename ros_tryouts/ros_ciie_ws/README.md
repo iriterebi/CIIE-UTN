@@ -50,3 +50,18 @@ Ya dentro del docker corre el comando:
 sudo curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
 ```
 # SI TE PIDE UN ROS_DOMAIN_ID, PONE 42
+
+
+## Testing:
+Hardcodear datos en el ros2 topic para probar conectividad con InOrbit:
+```bash
+ros2 topic pub /inorbit/custom_data std_msgs/String "{data: 'instruccion=23'}" -r 10
+```
+
+Tambien podemos ver los logs del agente haciendo:
+```bash
+tail -f ~/.inorbit/local/inorbit.log
+```
+```bash
+tail -f ~/.inorbit/local/inorbit_agent.log
+```
