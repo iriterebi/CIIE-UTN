@@ -54,8 +54,9 @@ def request_robot_access(
         robot_id: Annotated[str, Body(embed=True)],
 ):
     # TODO: validate existence and diponibility
-
+    # TODO: usar una clase en lugar de un dict
     return encryption_service.create_bearer_access_token({
-        'user_id': current_user.id,
+        'sub': current_user.usr_name,
         'robot_id': robot_id,
+        'type': "robot_access",
     })

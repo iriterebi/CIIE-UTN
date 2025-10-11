@@ -3,6 +3,9 @@ from uuid import UUID as PythonUUID
 
 from fastapi import Depends, HTTPException
 from jwt import InvalidTokenError
+from pydantic import ValidationError
+
+from .errors import RobotNotFoundException
 from ...auth.services.encryption import EncryptionServiceDep, TokenStrDep
 from ...db_connection import DbSessionDep
 
@@ -11,9 +14,9 @@ from .robot import Robot, RobotInput
 
 class RobotService:
     def __init__(
-        self,
-        db_session: DbSessionDep,
-        encryption_service: EncryptionServiceDep,
+            self,
+            db_session: DbSessionDep,
+            encryption_service: EncryptionServiceDep,
     ):
         self.db_session = db_session
         self.encryption_service = encryption_service
@@ -27,8 +30,15 @@ class RobotService:
 
         return self.db_session.query(Robot).filter(Robot.id == robot_id).first()
 
-    def exists_robot(self, robot_id: str | PythonUUID) -> bool:
+    def exists(self, robot_id: str | PythonUUID) -> bool:
         return self.get_robot_by_id(robot_id) is not None
+
+    def validate_exists_robot(self, robot_id: str | PythonUUID) -> None:
+        try:
+            if not self.exists(robot_id):
+                raise RobotNotFoundException(robot_id)
+        except ValueError as e:
+            raise RobotNotFoundException(robot_id) from e
 
     def get_robot_by_external_identifier(self, external_identifier: str) -> Robot | None:
         return self.db_session.query(Robot).filter(Robot.external_identifier == external_identifier).first()
@@ -68,8 +78,8 @@ RobotServiceDep = Annotated[RobotService, Depends(RobotService)]
 
 
 def get_current_robot(
-    robot_service: RobotServiceDep,
-    token: TokenStrDep
+        robot_service: RobotServiceDep,
+        token: TokenStrDep
 ) -> Robot:
     try:
         robot = robot_service.get_robot_by_token(token)

@@ -16,3 +16,6 @@ class RobotCommandExtended(RRobotCommand):
 
 class RobotResponse(BaseModel):
     pass
+
+class UserWsAuthentication(BaseModel):
+    token: str

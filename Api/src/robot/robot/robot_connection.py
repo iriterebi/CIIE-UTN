@@ -1,9 +1,9 @@
 import aioreactive as arx
-from aioreactive import AsyncSubject
 from expression import pipe
 from expression.system import AsyncDisposable
 from fastapi import WebSocket
 
+from .ipc_user_robot_comunication import IPC_Subject
 from .json_rpc_commands import RobotCommand, RobotResponse
 from .robot import Robot
 from .robot_service import RobotService
@@ -11,13 +11,12 @@ from .robot_service import RobotService
 
 class RobotConnection:
     websocket: WebSocket | None = None
-    observer: AsyncSubject
+    observer: IPC_Subject
     service: RobotService
     robot: Robot
     disposable: AsyncDisposable | None = None
-    adisposable: AsyncDisposable | None = None
 
-    def __init__(self, ipc: AsyncSubject, service: RobotService, robot: Robot):
+    def __init__(self, ipc: IPC_Subject, service: RobotService, robot: Robot):
         self.observer = ipc
         self.service = service
         self.robot = robot
@@ -36,8 +35,9 @@ class RobotConnection:
             await self._emit_response(await self.receive())
 
     async def disconnect(self):
-        self.disposable.dispose()
-        await self.adisposable.dispose_async()
+        if self.disposable is not None:
+            await self.disposable.dispose_async()
+
         self.websocket = None
 
     async def send(self, data: RobotCommand):
