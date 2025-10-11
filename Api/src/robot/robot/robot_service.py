@@ -3,8 +3,8 @@ from uuid import UUID as PythonUUID
 
 from fastapi import Depends, HTTPException
 from jwt import InvalidTokenError
-from src.auth.services.encryption import EncryptionServiceDep, TokenStrDep
-from src.db_connection import DbSessionDep
+from ...auth.services.encryption import EncryptionServiceDep, TokenStrDep
+from ...db_connection import DbSessionDep
 
 from .robot import Robot, RobotInput
 
@@ -21,9 +21,14 @@ class RobotService:
     def list_robots(self) -> List[Robot]:
         return self.db_session.query(Robot).all()
 
-    def get_robot_by_id(self, robot_id: str) -> Robot | None:
-        # type: ignore
-        return self.db_session.query(Robot).filter(Robot.id == PythonUUID(robot_id)).first()
+    def get_robot_by_id(self, robot_id: str | PythonUUID) -> Robot | None:
+        if not isinstance(robot_id, PythonUUID):
+            robot_id = PythonUUID(robot_id)
+
+        return self.db_session.query(Robot).filter(Robot.id == robot_id).first()
+
+    def exists_robot(self, robot_id: str | PythonUUID) -> bool:
+        return self.get_robot_by_id(robot_id) is not None
 
     def get_robot_by_external_identifier(self, external_identifier: str) -> Robot | None:
         return self.db_session.query(Robot).filter(Robot.external_identifier == external_identifier).first()

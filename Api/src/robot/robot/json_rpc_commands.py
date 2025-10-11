@@ -1,10 +1,18 @@
+from uuid import UUID
+
 from pydantic import BaseModel
-from uuid import UUID as PythonUUID
+
+class RRobotCommand(BaseModel):
+    method: str
 
 class RobotCommand(BaseModel):
-    robot_id: PythonUUID
-    args: dict
-    pass
+    robot_id: UUID
+    args: RRobotCommand
+
+class RobotCommandExtended(RRobotCommand):
+    access_token: str
+    robot_id: UUID
+
 
 class RobotResponse(BaseModel):
     pass

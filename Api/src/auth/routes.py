@@ -1,7 +1,8 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm
 
+from .services.encryption import EncryptionServiceDep
 from .services.user import UserService, User, get_current_user, UserBase
 
 router = APIRouter(tags=["auth"])
@@ -44,3 +45,17 @@ def read_users_me(
         current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
     return current_user
+
+
+@router.post("/request_robot_access")
+def request_robot_access(
+        encryption_service: EncryptionServiceDep,
+        current_user: Annotated[User, Depends(get_current_user)],
+        robot_id: Annotated[str, Body(embed=True)],
+):
+    # TODO: validate existence and diponibility
+
+    return encryption_service.create_bearer_access_token({
+        'user_id': current_user.id,
+        'robot_id': robot_id,
+    })

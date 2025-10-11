@@ -9,11 +9,11 @@ from typing import Annotated
 from aioreactive import AsyncSubject
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from reactivex.subject import Subject
+
+from .handshake import HandshakeService
+from .robot import RobotService, Robot, RobotConnection, get_current_robot
 from .robot.ipc_user_robot_comunication import create_subject
 from ..auth.services.encryption import AccessToken
-from .robot import RobotService, Robot, RobotConnection, get_current_robot
-from .handshake import HandshakeService
 
 router = APIRouter(tags=["robots", "m2m"])
 

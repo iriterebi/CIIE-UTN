@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
-from src.auth.services.encryption import EncryptionServiceDep, AccessToken
+from ...auth.services.encryption import EncryptionServiceDep, AccessToken
 from ..robot import Robot, RobotService
 
 
