@@ -37,8 +37,11 @@ USB_PORT=/dev/ttyACM0
 ```bash
 ./lazy_start.sh
 ```
-
-
+## InOrbit Install
+Ya dentro del docker corre el comando:
+```bash
+pip install inorbit-connector
+```
 ## Correr el agente
 Ya dentro del docker corre el comando:
 ```bash

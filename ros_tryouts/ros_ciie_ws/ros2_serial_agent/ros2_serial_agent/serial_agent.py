@@ -34,12 +34,12 @@ class SerialAgent(Node):
 
         # --- Publishers y Subscribers ---
         # Publisher para el estado y la instrucción de salida
-        self.publisher_ = self.create_publisher(String, '/inorbit/custom_data', 10)
+        self.publisher_ = self.create_publisher(String, '/instruccion', 10)
         
         # Subscriber para las instrucciones entrantes (desde ROS)
         self.subscription = self.create_subscription(
             String,
-            '/inorbit/custom_data',
+            '/instruccion',
             self.listener_callback,
             10
         )

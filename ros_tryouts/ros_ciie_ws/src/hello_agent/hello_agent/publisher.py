@@ -12,7 +12,10 @@ class HelloPublisher(Node):
     def tick(self):
         msg = String()
         msg.data = f'Hello World {self.count}'
-        self.pub.publish(msg)
+        if msg:
+            self.pub.publish(msg)
+        else:
+            self.pub.publish("NO SERIAL MESSAGE")
         self.get_logger().info(f'Publishing: "{msg.data}"')
         self.count += 1
 
