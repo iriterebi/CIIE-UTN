@@ -1,14 +1,12 @@
 republishers:
-- topic: "/instruction"
-  msg_type: "rcl_interfaces/msg/Log"
+- topic: "/instruccion"
+  msg_type: "String"
   mappings:
   - field: "msg"
     mapping_type: "single_field"
-    mapping_options:
-      filter: 'lambda x: x != "Go"'
     out:
       topic: "/inorbit/custom_data"
-      key: "rosout_msg"
+      key: "instruccion"
 
 - topic: "/diagnostics"
   qos: 10
