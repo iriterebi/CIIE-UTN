@@ -1,5 +1,0 @@
-<launch>
-  <node name="inorbit_republisher" pkg="inorbit_republisher" exec="republisher">
-    <param name="config" value="$(dirname)/config/example.yaml" />
-  </node>
-</launch>
