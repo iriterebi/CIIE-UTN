@@ -58,16 +58,42 @@ web.up.detached:			## Ejecuta el frontend web en background.
 web.down:				## Detiene el frontend web en background.
 	$(MAKE) -C Web down_dev
 
+# --- RosBridge ---
+
+.PHONY: rosbridge.up
+rosbridge.up:				## Ejecuta rosbridge en foreground.
+	$(MAKE) -C RosBridge up_dev
+
+.PHONY: rosbridge.up.detached
+rosbridge.up.detached:			## Ejecuta rosbridge en background.
+	$(MAKE) -C RosBridge up_dev.detached
+
+.PHONY: rosbridge.down
+rosbridge.down:				## Detiene rosbridge.
+	$(MAKE) -C RosBridge down_dev
+
+.PHONY: rosbridge.demo
+rosbridge.demo:				## Ejecuta rosbridge en modo demo (foreground).
+	$(MAKE) -C RosBridge up_demo
+
+.PHONY: rosbridge.demo.detached
+rosbridge.demo.detached:		## Ejecuta rosbridge en modo demo (background).
+	$(MAKE) -C RosBridge up_demo.detached
+
+.PHONY: rosbridge.demo.down
+rosbridge.demo.down:			## Detiene rosbridge demo.
+	$(MAKE) -C RosBridge down_demo
+
 # --- Compuestos ---
 
 .PHONY: up
 up: db.up.detached api.up		## Ejecuta DB (background) + API (foreground).
 
 .PHONY: up.all
-up.all: db.up.detached web.up.detached api.up	## Ejecuta DB + Web (background) + API (foreground).
+up.all: db.up.detached web.up.detached rosbridge.up.detached api.up	## Ejecuta DB + Web + RosBridge (background) + API (foreground).
 
 .PHONY: down
-down: db.down web.down			## Detiene todos los servicios en background.
+down: db.down web.down rosbridge.down	## Detiene todos los servicios en background.
 
 # --- Help ---
 

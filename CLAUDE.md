@@ -14,6 +14,7 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 
 - **Frontend**: Interfaz de control para el usuario (por construir — el viejo en PHP en `Web/` está deprecado)
 - **Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket, comandos JSON-RPC
+- **RosBridge/**: Servicio rosbridge_suite — puente WebSocket/JSON entre la API y ROS 2. Incluye nodo mock para modo demo
 - **ROS** (`ros_tryouts/`): Sistema de control y gestión de robots. No lo modificamos nosotros — lo maneja otro miembro del equipo
 - **RaspberryPi/**: Se ejecuta en cada robot. Gestiona comportamiento, comunicación serial con Arduino y conexión con la API
 - **Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
@@ -61,6 +62,12 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 │   ├── seed/migrations/  # Datos semilla
 │   ├── compose.yaml      # Servicios de DB (dev, ephemeral, dbmate)
 │   └── Makefile          # make migrate_db, make seed_apply, etc.
+├── RosBridge/            # rosbridge_suite — puente API↔ROS (activo)
+│   ├── Dockerfile        # ROS Humble + rosbridge + nodos custom
+│   ├── compose.yaml      # Servicios: rosbridge (dev) + rosbridge-demo (demo)
+│   ├── launch/           # Launch file ROS 2
+│   ├── src/mock_robot/   # Nodo mock para modo demo
+│   └── Makefile          # make up_dev, make up_demo, etc.
 ├── Arduino/              # Firmware del robot (activo)
 ├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
 ├── Documents/            # Documentación
@@ -96,6 +103,17 @@ make seed_apply             # Aplicar datos semilla
 ```
 
 La DB efímera (`make up_db.ephimeral`) usa tmpfs — los datos se pierden al detener. Útil para testing.
+
+### RosBridge
+
+```bash
+cd RosBridge
+make build                # Construir imagen Docker
+make up_demo              # Modo demo: rosbridge + nodo mock (foreground)
+make up_dev               # Modo dev: solo rosbridge (foreground)
+```
+
+Expone WebSocket en `ws://localhost:9090`. Los topics ROS usan UUIDs codificados en Crockford Base32: `/robot/<base32>/command`, `/robot/<base32>/response`, `/robot/<base32>/status`.
 
 ### Variables de Entorno Requeridas
 
