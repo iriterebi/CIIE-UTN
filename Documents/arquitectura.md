@@ -43,9 +43,9 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 
 ```
 ┌─────────────┐
-│  Frontend   │  Interfaz web de control
-│  (por       │
-│  construir) │
+│ WebClient   │  Frontend Vue 3 + TypeScript
+│ (Vite +     │
+│  PicoCSS)   │
 └──────┬──────┘
        │ HTTP / WebSocket
        ▼
@@ -55,10 +55,15 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 │             │         └─────────────┘
 │  - Auth     │
 │  - Sesiones │
-│  - IPC      │
 └──────┬──────┘
-       │ (futuro: ROS)
-       │ (actual: HTTP/WS directo)
+       │ WebSocket (rosbridge protocol)
+       ▼
+┌─────────────┐
+│ RosBridge   │  Puente WebSocket/JSON ↔ ROS DDS
+│ (rosbridge  │
+│  suite)     │
+└──────┬──────┘
+       │ DDS
        ▼
 ┌─────────────┐
 │    ROS      │  Gestión y control de robots
@@ -84,9 +89,11 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 
 ### Frontend
 
-- **Estado**: Por construir (el frontend viejo en PHP en `Web/` está deprecado)
+- **Directorio**: `WebClient/`
+- **Tecnología**: Vue 3, TypeScript, Vite, PicoCSS, Vue Router, Pinia
 - **Responsabilidad**: Interfaz de usuario para autenticación, selección de robot y envío de comandos de control
-- **Comunicación con API**: HTTP para auth, WebSocket para comandos en tiempo real
+- **Comunicación con API**: HTTP para auth y CRUD, WebSocket para comandos en tiempo real
+- **Despliegue**: Multi-stage Docker (node build → nginx serve), reverse proxy a API y WebSocket
 
 ### API (Backend)
 
@@ -109,20 +116,21 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 | `robot` (m2m) | `/m2m/robot/*` | Handshake y WebSocket para robots |
 | `robot` (user) | `/user/robot/*` | WebSocket para usuarios |
 
-#### IPC (Bus de Mensajes Interno)
+#### Comunicación usuario↔robot vía RosBridge
 
-La API usa un `AsyncSubject` (aioreactive) como bus interno de mensajes:
+La API actúa como cliente WebSocket de rosbridge (`ws://rosbridge:9090`), publicando comandos y recibiendo respuestas a través de topics ROS:
 
 ```
-Usuario ──WS──► UserToRobotCommunication ──► AsyncSubject ──► RobotConnection ──WS──► Robot
-                                                  ▲                    │
-                                                  └────────────────────┘
-                                                  (respuestas del robot)
+Usuario ──WS──► API ──WS:9090──► RosBridge ──DDS──► Robot
+                 ▲                              │
+                 └──────────asyncio.Queue────────┘
+                         (respuestas del robot)
 ```
 
-- Los comandos del usuario se publican al subject con el `robot_id` destino
-- Cada `RobotConnection` se suscribe filtrando por su `robot_id`
-- Las respuestas del robot se emiten de vuelta al subject
+- Los UUIDs de robots se codifican en Crockford Base32 para los nombres de topics: `/robot/<base32>/command`, `/robot/<base32>/response`, `/robot/<base32>/status`
+- Cada usuario tiene su propia `asyncio.Queue` — el listener de rosbridge hace fan-out de respuestas
+- Suscripción lazy: se suscribe a los topics de un robot la primera vez que un usuario envía un comando
+- Reconexión automática con backoff exponencial si se pierde la conexión a rosbridge
 
 ### Base de Datos
 
@@ -213,7 +221,7 @@ Un trigger en la tabla `robots` registra automáticamente cada cambio de estado 
 ### WebSocket
 
 - **Frontend → API** (`/user/robot/send_command`): Canal bidireccional para envío de comandos y recepción de respuestas del robot
-- **API → RaspberryPi** (`/m2m/robot/commands/{token}`): Canal bidireccional para envío de comandos al robot y recepción de respuestas
+- **API → RosBridge** (`ws://rosbridge:9090`): La API publica comandos y se suscribe a respuestas/status vía el protocolo rosbridge (JSON sobre WebSocket)
 
 ### JSON-RPC 2.0
 
@@ -276,34 +284,31 @@ RaspberryPi                API                    Admin              DB
   │                         │ genera JWT (role=robot)                │
   │◄──────AccessToken───────┤                      │                  │
   │                         │                      │                  │
-  ├─WS /m2m/commands/{jwt}─►│                      │                  │
-  │◄──────WS accepted───────┤                      │                  │
-  │                         │ suscribe a IPC subject                 │
-  │         (conexión persistente bidireccional)    │                  │
+  │                         │                      │                  │
+  │  [Robot se comunica vía ROS/DDS, no WS directo con la API]       │
 ```
 
 ### Usuario Envía Comando a Robot
 
 ```
-Usuario                    API                      RaspberryPi
-  │                         │                        │
-  ├─WS /user/send_command──►│                        │
-  │                         │◄──WS accepted──────────│
-  │                         │                        │
-  ├─{token}────────────────►│  (auth en 10s)         │
-  │                         │  valida token          │
-  │◄───{success auth}───────┤                        │
-  │                         │                        │
-  ├─{method, robot_id,─────►│                        │
-  │  access_token}          │ valida robot existe    │
-  │                         │ valida access_token    │
-  │                         │ publica al IPC subject │
-  │                         │                        │
-  │                         ├──{command}────────────►│
-  │                         │ (filtrado por robot_id)│
-  │                         │                        │
-  │                         │◄──{response}───────────┤
-  │◄──{response}────────────┤  (futuro)              │
+Usuario                    API                   RosBridge              Robot (ROS)
+  │                         │                      │                      │
+  ├─WS /user/send_command──►│                      │                      │
+  │                         │                      │                      │
+  ├─{token}────────────────►│  (auth en 10s)       │                      │
+  │                         │  valida token        │                      │
+  │◄───{success auth}───────┤                      │                      │
+  │                         │                      │                      │
+  ├─{method, robot_id,─────►│                      │                      │
+  │  access_token}          │ valida robot existe  │                      │
+  │                         │ valida access_token  │                      │
+  │                         │                      │                      │
+  │                         ├──publish /robot/     │                      │
+  │                         │  <b32>/command──────►├──DDS──────────────►│
+  │                         │                      │                      │
+  │                         │                      │◄──DDS────────────────┤
+  │                         │◄──/robot/<b32>/      │  (response/status)   │
+  │◄──{response}────────────┤  response────────────┤                      │
 ```
 
 ---
@@ -337,18 +342,18 @@ El sistema usa **tres tipos de tokens JWT**:
 El sistema se despliega con **Docker Compose**. Cada subproyecto tiene su propio `Dockerfile` y `compose.yaml` cuando es necesario.
 
 ```
-┌────────────────────────────────────────────┐
-│              Docker Compose                │
-│                                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-│  │   API    │  │   DB     │  │   Web    │  │
-│  │ (FastAPI)│  │(Postgres)│  │  (PHP)   │  │
-│  │ :8000    │  │ :5432    │  │  :8080   │  │
-│  └──────────┘  └──────────┘  └──────────┘  │
-│         │              │                   │
-│         └──────────────┘                   │
-│           red: ciie-test                   │
-└────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Docker Compose                         │
+│                                                             │
+│  ┌───────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
+│  │ WebClient │  │   API    │  │    DB     │  │ RosBridge │  │
+│  │  (nginx)  │  │(FastAPI) │  │(Postgres) │  │(rosbridge │  │
+│  │  :3000    │  │ :8000    │  │ :5432     │  │  suite)   │  │
+│  └───────────┘  └──────────┘  └───────────┘  │  :9090    │  │
+│       │              │              │         └───────────┘  │
+│       └──────────────┴──────────────┴──────────────┘        │
+│                       red: ciie-test                        │
+└─────────────────────────────────────────────────────────────┘
 
 ┌──────────────┐          ┌──────────────┐
 │ RaspberryPi  │          │   Arduino    │
@@ -359,11 +364,13 @@ El sistema se despliega con **Docker Compose**. Cada subproyecto tiene su propio
 ### Comandos principales (Makefile raíz)
 
 ```bash
-make up          # DB (background) + API (foreground)
-make up.all      # DB + Web (background) + API (foreground)
-make down        # Detiene todos los servicios en background
-make db.migrate  # Ejecuta migraciones
-make db.seed     # Aplica datos semilla
+make up              # DB (background) + API (foreground)
+make up.all          # DB + WebClient + RosBridge (background) + API (foreground)
+make down            # Detiene todos los servicios en background
+make db.migrate      # Ejecuta migraciones
+make db.seed         # Aplica datos semilla
+make webclient.up    # Frontend Vue (foreground)
+make rosbridge.demo  # RosBridge + mock robot (foreground)
 ```
 
 ---
@@ -372,8 +379,9 @@ make db.seed     # Aplica datos semilla
 
 El sistema puede ejecutarse **sin hardware físico** para desarrollo y demostración:
 
+- **RosBridge**: El servicio `rosbridge-demo` (`make rosbridge.demo`) incluye un nodo `mock_robot_node` que simula robots, recibe comandos y publica respuestas/status ficticios. Los UUIDs de demo se configuran vía `DEMO_ROBOT_IDS`
 - **RaspberryPi**: Usar `MOCK_ROBOT=1` en `.env` para activar el `RobotMockController`, que simula las respuestas del robot sin comunicación serial
-- **Arduino**: No se necesita — el mock de RaspberryPi lo reemplaza
+- **Arduino**: No se necesita — el mock de RosBridge o RaspberryPi lo reemplaza
 - **Base de datos**: La DB efímera (`make db.up.ephimeral`) usa tmpfs para pruebas rápidas sin persistencia
 
 Toda nueva feature debe garantizar compatibilidad con el modo demo.

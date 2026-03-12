@@ -12,7 +12,7 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
               [PostgreSQL]
 ```
 
-- **Frontend**: Interfaz de control para el usuario (por construir — el viejo en PHP en `Web/` está deprecado)
+- **WebClient/**: Frontend Vue 3 + TypeScript + PicoCSS — SPA servida con nginx
 - **Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket, comandos JSON-RPC
 - **RosBridge/**: Servicio rosbridge_suite — puente WebSocket/JSON entre la API y ROS 2. Incluye nodo mock para modo demo
 - **ROS** (`ros_tryouts/`): Sistema de control y gestión de robots. No lo modificamos nosotros — lo maneja otro miembro del equipo
@@ -23,7 +23,6 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 
 ### Directorios deprecados (no usar ni extender)
 
-- `Web/` — frontend viejo en PHP
 - `Python/` — scripts legacy
 
 ## Stack Tecnológico
@@ -71,9 +70,9 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 ├── Arduino/              # Firmware del robot (activo)
 ├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
 ├── Documents/            # Documentación
-├── Web/                  # DEPRECADO — frontend PHP
+├── WebClient/            # Frontend Vue 3 + TypeScript + PicoCSS (activo)
 ├── Python/               # DEPRECADO — código legacy
-├── compose.yaml          # Compose raíz (incluye Db + Web)
+├── compose.yaml          # Compose raíz (incluye Db + WebClient + RosBridge)
 └── pyproject.toml        # Raíz del workspace uv
 ```
 

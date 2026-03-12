@@ -43,7 +43,8 @@ For a detailed description of the system architecture, communication flows, data
 | `Arduino/` | Active | Robot firmware (7-servo arm control) |
 | `ros_tryouts/` | Active | ROS 2 workspace for robot management |
 | `Documents/` | Active | General system documentation |
-| `Web/` | Deprecated | Old PHP frontend |
+| `WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
+| `RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
 | `Python/` | Deprecated | Legacy scripts |
 
 ## Tech Stack
@@ -51,7 +52,8 @@ For a detailed description of the system architecture, communication flows, data
 - **Backend**: Python 3.13.7+, FastAPI, SQLModel
 - **Database**: PostgreSQL 17.5
 - **Auth**: JWT (HS256) + bcrypt
-- **Real-time**: WebSockets + aioreactive
+- **Frontend**: Vue 3, TypeScript, Vite, PicoCSS
+- **Real-time**: WebSockets + ROS 2 via RosBridge
 - **Protocol**: JSON-RPC 2.0 (robot commands)
 - **Package manager**: uv (workspace)
 - **Deployment**: Docker Compose
@@ -87,12 +89,19 @@ cd Api
 make up_dev
 ```
 
-### 4. Start the RaspberryPi mock (demo mode)
+### 4. Start RosBridge (demo mode)
 
 ```bash
-cd RaspberryPi
-# Set MOCK_ROBOT=1 in .env for demo mode (no physical hardware needed)
-make up_dev
+cd RosBridge
+make up_demo              # rosbridge + mock robot node
+```
+
+### 5. Start the frontend
+
+```bash
+cd WebClient
+npm install
+npm run dev               # Vite dev server on :5173
 ```
 
 ## Conventions
@@ -109,6 +118,7 @@ make up_dev
 **Api** (required):
 - `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_URL`
 - `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `ROSBRIDGE_URL` (e.g. `ws://rosbridge:9090`)
 
 **RaspberryPi** (`.env.defaults` has defaults):
 - `SERVER_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAUL_METADATA`

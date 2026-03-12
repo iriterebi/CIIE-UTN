@@ -1,4 +1,4 @@
 include:
   - ./Db/compose.yaml
-  - ./Web/compose.yaml
+  - ./WebClient/compose.yaml
   - ./RosBridge/compose.yaml

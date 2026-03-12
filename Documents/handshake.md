@@ -170,15 +170,15 @@ El JWT contiene:
 - `role`: `"robot"`
 - `scope`: permisos del robot
 
-### 6. Conexión WebSocket
+### 6. Comunicación vía ROS
 
-Con el JWT, la Pi abre una conexión WebSocket persistente:
+Tras el handshake, la comunicación de comandos **no** pasa por la API. El robot se comunica vía ROS/DDS, y la API publica/suscribe topics a través de RosBridge (`ws://rosbridge:9090`):
 
-```
-WS /m2m/robot/commands/<jwt_token>
-```
+- Comandos: `/robot/<base32>/command`
+- Respuestas: `/robot/<base32>/response`
+- Status: `/robot/<base32>/status`
 
-A partir de aquí, el robot recibe comandos JSON-RPC de los usuarios a través del bus IPC interno de la API.
+Los UUIDs se codifican en Crockford Base32 para los nombres de topics.
 
 ---
 
@@ -218,9 +218,8 @@ RaspberryPi              API                    Admin              DB
     │  (HTTP Basic)        │  status == approved  │                 │
     │◄──200 {JWT}──────────┤                      │                 │
     │                      │                      │                 │
-    ├──WS /commands/{jwt}─►│                      │                 │
-    │◄──WS accepted────────┤                      │                 │
-    │   (bidireccional)    │                      │                 │
+    │                      │                      │                 │
+    │  [Comunicación posterior vía ROS/DDS, no WS directo]           │
 ```
 
 ---
@@ -248,7 +247,6 @@ Cada cambio de estado se registra automáticamente en `robot_status_history` ví
 |--------|------|------|-------------|
 | `POST` | `/m2m/robot/register` | Ninguna (red interna) | Auto-registro del robot |
 | `POST` | `/m2m/robot/handshake` | HTTP Basic | Obtener JWT (solo si aprobado) |
-| `WS` | `/m2m/robot/commands/{token}` | JWT en URL | Canal de comandos |
 
 ### Administración
 

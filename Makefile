@@ -44,20 +44,6 @@ db.migrate:				## Ejecuta las migraciones de la base de datos.
 db.seed:				## Aplica los datos semilla.
 	$(MAKE) -C Db seed_apply
 
-# --- Web (deprecado) ---
-
-.PHONY: web.up
-web.up:					## Ejecuta el frontend web viejo (PHP) en foreground.
-	$(MAKE) -C Web up_dev
-
-.PHONY: web.up.detached
-web.up.detached:			## Ejecuta el frontend web viejo en background.
-	$(MAKE) -C Web up_dev.detached
-
-.PHONY: web.down
-web.down:				## Detiene el frontend web viejo.
-	$(MAKE) -C Web down_dev
-
 # --- WebClient ---
 
 .PHONY: webclient.build
@@ -111,7 +97,7 @@ up: db.up.detached api.up		## Ejecuta DB (background) + API (foreground).
 up.all: db.up.detached webclient.up.detached rosbridge.up.detached api.up	## Ejecuta DB + WebClient + RosBridge (background) + API (foreground).
 
 .PHONY: down
-down: db.down webclient.down web.down rosbridge.down	## Detiene todos los servicios en background.
+down: db.down webclient.down rosbridge.down	## Detiene todos los servicios en background.
 
 # --- Help ---
 
