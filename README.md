@@ -1,3 +1,119 @@
+# CIIE Remote Labs
+
+> [Leer en español](./README.es.md)
+
+A university project for remote control of robots in laboratories. Users interact through a web frontend, which communicates with a Python backend (FastAPI) that bridges to robots managed via ROS.
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Conventions](#conventions)
+- [Environment Variables](#environment-variables)
+- [Contributing Guide](#-welcome-to-ciie_remote_labs-project-repository)
+  - [Prerequisites](#-prerequisites)
+  - [SSH Key Setup](#1️⃣-set-up-your-ssh-key-and-link-it-to-gitlab)
+  - [Clone the Repo](#2️⃣-clone-your-repo)
+  - [Branching](#3️⃣-create-a-new-branch-for-each-edit)
+  - [Commits & Push](#4️⃣-make-commits-and-push-your-code)
+  - [Merge Requests](#5️⃣-create-a-merge-request-mr)
+  - [MR Best Practices](#good-practices-for-merge-requests-mrs)
+- [Docker Deploy](#docker-deploy)
+- [Raspberry Pi Configs](#raspberry-pi-configs)
+
+## Architecture
+
+```
+[Frontend] → [API (FastAPI)] → [ROS] → [RaspberryPi] → [Arduino/Robot]
+                  ↕
+              [PostgreSQL]
+```
+
+## Project Structure
+
+| Directory | Status | Description |
+|-----------|--------|-------------|
+| `Api/` | Active (WIP) | FastAPI backend — main system entry point |
+| `RaspberryPi/` | Active | Robot-side controller (behavior + communication) |
+| `Db/` | Active | PostgreSQL schema, migrations (dbmate), seed data |
+| `Arduino/` | Active | Robot firmware (7-servo arm control) |
+| `ros_tryouts/` | Active | ROS 2 workspace for robot management |
+| `Documents/` | Active | General system documentation |
+| `Web/` | Deprecated | Old PHP frontend |
+| `Python/` | Deprecated | Legacy scripts |
+
+## Tech Stack
+
+- **Backend**: Python 3.13.7+, FastAPI, SQLModel
+- **Database**: PostgreSQL 17.5
+- **Auth**: JWT (HS256) + bcrypt
+- **Real-time**: WebSockets + aioreactive
+- **Protocol**: JSON-RPC 2.0 (robot commands)
+- **Package manager**: uv (workspace)
+- **Deployment**: Docker Compose
+- **Migrations**: dbmate
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.13.7+
+- uv package manager
+- Docker & Docker Compose
+
+### 1. Create the Docker network
+
+```bash
+docker network create ciie-test
+```
+
+### 2. Start the database
+
+```bash
+cd Db
+make up_db.dev.detached    # Start PostgreSQL in background
+make migrate_db            # Run migrations
+make seed_apply            # Apply seed data
+```
+
+### 3. Start the API
+
+```bash
+cd Api
+make up_dev
+```
+
+### 4. Start the RaspberryPi mock (demo mode)
+
+```bash
+cd RaspberryPi
+# Set MOCK_ROBOT=1 in .env for demo mode (no physical hardware needed)
+make up_dev
+```
+
+## Conventions
+
+- **Docker**: every subproject runs via Docker/Docker Compose
+- **Demo mode**: the entire project can run without physical hardware (RaspberryPi mock)
+- **Makefiles**: every subproject uses a Makefile as a unified command entry point
+- **READMEs**: bilingual — `README.md` (English) and `README.es.md` (Spanish)
+- **Documentation**: written in Spanish
+- **Code comments**: Spanish or English
+
+## Environment Variables
+
+**Api** (required):
+- `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_URL`
+- `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
+
+**RaspberryPi** (`.env.defaults` has defaults):
+- `SERVER_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAUL_METADATA`
+
+See each subproject's README for details.
+
+---
 
 ## 🚀 Welcome to CIIE_Remote_Labs Project Repository
 

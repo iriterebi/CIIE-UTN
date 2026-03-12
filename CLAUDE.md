@@ -1,0 +1,152 @@
+# CLAUDE.md — Labs Remoto
+
+## Descripción General
+
+Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. Los usuarios se conectan a través de un frontend web, interactúan con un backend Python (FastAPI), que se comunica con los robots gestionados mediante ROS.
+
+## Arquitectura
+
+```
+[Frontend] → [API (FastAPI)] → [ROS] → [RaspberryPi] → [Arduino/Robot]
+                  ↕
+              [PostgreSQL]
+```
+
+- **Frontend**: Interfaz de control para el usuario (por construir — el viejo en PHP en `Web/` está deprecado)
+- **Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket, comandos JSON-RPC
+- **ROS** (`ros_tryouts/`): Sistema de control y gestión de robots. No lo modificamos nosotros — lo maneja otro miembro del equipo
+- **RaspberryPi/**: Se ejecuta en cada robot. Gestiona comportamiento, comunicación serial con Arduino y conexión con la API
+- **Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
+- **Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
+- **Documents/**: Documentación general del sistema
+
+### Directorios deprecados (no usar ni extender)
+
+- `Web/` — frontend viejo en PHP
+- `Python/` — scripts legacy
+
+## Stack Tecnológico
+
+- **Lenguaje**: Python 3.13.7+ (Api, RaspberryPi), Arduino C++ (firmware)
+- **Framework**: FastAPI con SQLModel ORM
+- **Base de datos**: PostgreSQL 17.5 (Alpine)
+- **Autenticación**: JWT (HS256) + bcrypt para hashing de contraseñas
+- **Tiempo real**: WebSockets + aioreactive (pub/sub)
+- **Protocolo**: JSON-RPC 2.0 para comandos a robots
+- **Gestor de paquetes**: uv (workspace: Api + RaspberryPi)
+- **Despliegue**: Docker Compose
+- **Migraciones**: dbmate
+
+## Estructura del Proyecto
+
+```
+├── Api/                  # Backend FastAPI (activo, WIP)
+│   ├── src/
+│   │   ├── server.py     # Punto de entrada, monta los routers
+│   │   ├── config.py     # Carga de variables de entorno
+│   │   ├── auth/         # Auth JWT, servicio de usuarios, encriptación
+│   │   ├── robot/        # Rutas de robot, WS, handshake, JSON-RPC
+│   │   └── db_connection/
+│   ├── Makefile          # `make up_dev` → fastapi dev src/server.py
+│   └── pyproject.toml
+├── RaspberryPi/          # Controlador del lado del robot (activo)
+│   ├── controller/
+│   │   ├── main.py       # Punto de entrada
+│   │   ├── config.py     # Carga de .env
+│   │   ├── server/       # Comunicación con la API (handshake, comandos)
+│   │   └── robot/        # Controlador serial (real + mock)
+│   └── pyproject.toml
+├── Db/                   # Base de datos (activo)
+│   ├── def/migrations/   # Migraciones de esquema
+│   ├── seed/migrations/  # Datos semilla
+│   ├── compose.yaml      # Servicios de DB (dev, ephemeral, dbmate)
+│   └── Makefile          # make migrate_db, make seed_apply, etc.
+├── Arduino/              # Firmware del robot (activo)
+├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
+├── Documents/            # Documentación
+├── Web/                  # DEPRECADO — frontend PHP
+├── Python/               # DEPRECADO — código legacy
+├── compose.yaml          # Compose raíz (incluye Db + Web)
+└── pyproject.toml        # Raíz del workspace uv
+```
+
+## Setup de Desarrollo
+
+### Prerrequisitos
+
+- Python 3.13.7+
+- Gestor de paquetes uv
+- Docker y Docker Compose
+
+### Ejecutar la API
+
+```bash
+cd Api && make up_dev
+# o: fastapi dev src/server.py
+```
+
+### Base de Datos
+
+```bash
+cd Db
+make up_db.dev              # Iniciar PostgreSQL (foreground)
+make up_db.dev.detached     # Iniciar PostgreSQL (background)
+make migrate_db             # Ejecutar migraciones
+make seed_apply             # Aplicar datos semilla
+```
+
+La DB efímera (`make up_db.ephimeral`) usa tmpfs — los datos se pierden al detener. Útil para testing.
+
+### Variables de Entorno Requeridas
+
+**Api:**
+- `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_URL`
+- `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
+
+**RaspberryPi** (`.env.defaults` tiene valores por defecto):
+- `SERVER_URL` — endpoint de la API (default: `http://localhost:8000/m2m/robot/`)
+- `ARDUINO_PORT` — puerto serial
+- `MOCK_ROBOT` — `1` para usar controlador mock
+- `CREATE_DEFAUL_METADATA` — `1` para auto-generar credenciales del robot
+
+### Red Docker
+
+```bash
+docker network create ciie-test  # Requerido antes del primer docker compose up
+```
+
+## Mapa de Rutas de la API
+
+| Prefijo | Auth | Propósito |
+|---------|------|-----------|
+| `/auth` | Público | Login, signup, usuario actual, solicitar acceso a robot |
+| `/admin/robot` | Admin (WIP — actualmente sin protección) | CRUD robots, enviar comandos |
+| `/user/robot` | JWT (vía WebSocket) | Comunicación usuario↔robot en tiempo real |
+| `/m2m/robot` | HTTP Basic + JWT | Handshake de robot y WebSocket de comandos |
+
+## Esquema de Base de Datos
+
+- **usuarios**: id, nombrecompleto, email, usr_name, usr_psw, statuss (enum: profe/alumno), usr_pronouns, Accion
+- **robots**: id (UUID), external_identifier, name, description, psw, status, user_id (FK → usuarios)
+- **robot_status_history**: Registro automático de auditoría mediante trigger en la tabla robots
+
+## Flujo de Comunicación
+
+1. **Robot se conecta**: `POST /m2m/robot/handshake` (HTTP Basic) → recibe JWT → abre WebSocket en `/m2m/robot/commands/{token}`
+2. **Usuario se conecta**: Abre WebSocket en `/user/robot/send_command` → envía mensaje de auth en 10s → envía comandos JSON-RPC
+3. **La API hace de puente**: Recibe comandos del usuario, valida acceso, los reenvía al robot vía stream reactivo
+
+## Convenciones
+
+- **Documentación**: siempre en español
+- **READMEs**: siempre en dos versiones — `README.md` (inglés) y `README.es.md` (español), cada uno referenciando al otro
+- **Nombres de carpetas**: las carpetas principales de subproyectos van en PascalCase (ej: `Api/`, `Db/`, `RaspberryPi/`)
+- **Docker**: todo el proyecto debe poder ejecutarse con Docker/Docker Compose. Cada subproyecto tiene su propio Dockerfile (si necesario) y docker-compose.yaml
+- **Modo demo**: el proyecto debe poder ejecutarse completo sin hardware físico (mock de RaspberryPi/robot). Garantizar compatibilidad con modo demo en toda nueva feature
+- **Makefiles**: todos los subproyectos usan Makefile como punto de entrada unificado para comandos, incluso si son redundantes con otras herramientas
+- **Código**: comentarios en español o inglés
+- **Campos de DB**: en español (`nombrecompleto`, `statuss`, `usr_name`)
+- **Roles**: `'profe'` = admin, `'alumno'` = usuario regular
+- **Auth de robots**: external_identifier (UUID string) + password, almacenado en `robot-metadata.json` en cada Pi
+- **Workspace uv**: ejecutar `uv sync` desde la raíz para instalar todas las dependencias
+- **Herramientas de desarrollo**: autopep8 (formateo), mypy (type checking), pylint (linting)

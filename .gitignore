@@ -4,3 +4,4 @@ tmp/
 env-test1/*
 **/__pycache__
 .mypy_cache
+*.local.*
