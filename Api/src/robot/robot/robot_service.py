@@ -5,11 +5,11 @@ from fastapi import Depends, HTTPException
 from jwt import InvalidTokenError
 from pydantic import ValidationError
 
-from .errors import RobotNotFoundException
+from .errors import RobotNotFoundException, InvalidRobotStatusException
 from ...auth.services.encryption import EncryptionServiceDep, TokenStrDep
 from ...db_connection import DbSessionDep
 
-from .robot import Robot, RobotInput
+from .robot import Robot, RobotInput, RobotStatus, RobotRegistrationInput, RobotApprovalInput
 
 
 class RobotService:
@@ -60,6 +60,55 @@ class RobotService:
         self.db_session.commit()
         self.db_session.refresh(robot)
         return robot
+
+    def register_robot(self, registration: RobotRegistrationInput) -> Robot:
+        existing = self.get_robot_by_external_identifier(
+            str(registration.external_identifier))
+        if existing:
+            return existing
+
+        hashed_psw = self.encryption_service.encrypt_psw(registration.psw)
+        robot = Robot.model_validate({
+            "external_identifier": str(registration.external_identifier),
+            "psw": hashed_psw,
+            "status": RobotStatus.PENDING_APPROVAL,
+            "name": None,
+        })
+        self.db_session.add(robot)
+        self.db_session.commit()
+        self.db_session.refresh(robot)
+        return robot
+
+    def approve_robot(self, robot_id: PythonUUID, approval: RobotApprovalInput) -> Robot:
+        robot = self.get_robot_by_id(robot_id)
+        if not robot:
+            raise RobotNotFoundException(robot_id)
+        if robot.status != RobotStatus.PENDING_APPROVAL:
+            raise InvalidRobotStatusException(
+                robot_id, robot.status, RobotStatus.PENDING_APPROVAL)
+
+        robot.name = approval.name
+        robot.description = approval.description
+        robot.status = RobotStatus.APPROVED
+        self.db_session.commit()
+        self.db_session.refresh(robot)
+        return robot
+
+    def reject_robot(self, robot_id: PythonUUID) -> Robot:
+        robot = self.get_robot_by_id(robot_id)
+        if not robot:
+            raise RobotNotFoundException(robot_id)
+        if robot.status != RobotStatus.PENDING_APPROVAL:
+            raise InvalidRobotStatusException(
+                robot_id, robot.status, RobotStatus.PENDING_APPROVAL)
+
+        robot.status = RobotStatus.REJECTED
+        self.db_session.commit()
+        self.db_session.refresh(robot)
+        return robot
+
+    def list_robots_by_status(self, status: RobotStatus) -> List[Robot]:
+        return self.db_session.query(Robot).filter(Robot.status == status).all()
 
     def get_robot_by_token(self, token: str) -> Robot | None:
         data: dict = self.encryption_service.decode_token(token)

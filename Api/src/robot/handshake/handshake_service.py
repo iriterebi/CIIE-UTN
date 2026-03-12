@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
 from ...auth.services.encryption import EncryptionServiceDep, AccessToken
-from ..robot import Robot, RobotService
+from ..robot import Robot, RobotService, RobotStatus
 
 
 class HandshakeService:
@@ -24,6 +24,11 @@ class HandshakeService:
         if not self.encryption_service.verify_pwd(credentials.password, robot.psw):
             raise HTTPException(
                 status_code=400, detail="Incorrect password")
+
+        if robot.status != RobotStatus.APPROVED:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Robot no aprobado. Estado actual: {robot.status}")
 
         return self.create_access_token(robot)
 

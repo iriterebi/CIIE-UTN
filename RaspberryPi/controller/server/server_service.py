@@ -7,6 +7,7 @@ import secrets
 import string
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 from urllib.parse import urljoin
@@ -57,18 +58,50 @@ class ServerServices:
         assert self.robot_id is not None, "robot_id not found in config"
         assert self.robot_psw is not None, "robot_psw not found in config"
 
-    def connect(self) -> bool:
-        """
-        TODO
-        """
+    def register(self) -> bool:
+        """Registra el robot en el servidor (idempotente)."""
+        try:
+            response = requests.post(
+                urljoin(self.base_url, "register"),
+                json={
+                    "external_identifier": self.robot_id,
+                    "psw": self.robot_psw,
+                },
+                timeout=10,
+            )
 
-        response = requests.post(
-            urljoin(self.base_url, "handshake"), timeout=10, auth=HTTPBasicAuth(self.robot_id, self.robot_psw))
+            if response.status_code == 200:
+                body = response.json()
+                self.logger.info(
+                    "Registro exitoso. Estado: %s", body.get("status"))
+                return True
+
+            self.logger.error(
+                "Registro fallido. Status: %s, Body: %s",
+                response.status_code, response.text)
+            return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error("Error en registro: %s", e)
+            return False
+
+    def connect(self) -> int:
+        """Intenta handshake con el servidor. Retorna el status code HTTP."""
+
+        try:
+            response = requests.post(
+                urljoin(self.base_url, "handshake"),
+                timeout=10,
+                auth=HTTPBasicAuth(self.robot_id, self.robot_psw),
+            )
+        except requests.exceptions.RequestException as e:
+            self.logger.error("Error de conexion en handshake: %s", e)
+            return 0
 
         if response.status_code != 200:
             self.logger.error(
-                "Handshake failed. Status: %s, Body: %s", response.status_code, response.text)
-            return False
+                "Handshake fallido. Status: %s, Body: %s",
+                response.status_code, response.text)
+            return response.status_code
 
         body: dict = response.json()
         self.expiration = body.get("expires_in")
@@ -79,8 +112,34 @@ class ServerServices:
         })
 
         self.logger.info(
-            "Successfully connected to server and obtained session.")
-        return True
+            "Conexion exitosa con el servidor.")
+        return 200
+
+    def connect_with_retry(self, base_delay: int = 5, max_delay: int = 300) -> bool:
+        """Registra el robot y reintenta handshake hasta ser aprobado."""
+        self.register()
+
+        attempt = 0
+        while True:
+            status_code = self.connect()
+
+            if status_code == 200:
+                return True
+
+            if status_code == 403:
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                self.logger.info(
+                    "Robot pendiente de aprobacion. Reintentando en %ds...",
+                    delay)
+                time.sleep(delay)
+                attempt += 1
+            else:
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                self.logger.warning(
+                    "Error inesperado (status %s). Reintentando en %ds...",
+                    status_code, delay)
+                time.sleep(delay)
+                attempt += 1
 
     def disconnect(self) -> None:
         """
@@ -93,10 +152,11 @@ class ServerServices:
             self.logger.info("Server session closed.")
 
     def __enter__(self):
-        if not self.connect():
+        if not self.connect_with_retry():
             self.logger.critical(
-                "Failed to establish server connection in context manager.")
-            raise EnvironmentError("Failed to establish server connection.")
+                "No se pudo establecer conexion con el servidor.")
+            raise EnvironmentError(
+                "No se pudo establecer conexion con el servidor.")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

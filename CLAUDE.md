@@ -138,21 +138,31 @@ docker network create ciie-test  # Requerido antes del primer docker compose up
 | Prefijo | Auth | Propósito |
 |---------|------|-----------|
 | `/auth` | Público | Login, signup, usuario actual, solicitar acceso a robot |
-| `/admin/robot` | Admin (WIP — actualmente sin protección) | CRUD robots, enviar comandos |
+| `/admin/robot` | Admin (WIP — actualmente sin protección) | CRUD robots, aprobación/rechazo, enviar comandos |
 | `/user/robot` | JWT (vía WebSocket) | Comunicación usuario↔robot en tiempo real |
-| `/m2m/robot` | HTTP Basic + JWT | Handshake de robot y WebSocket de comandos |
+| `/m2m/robot` | HTTP Basic + JWT (interno) | Registro, handshake y WebSocket de comandos |
 
 ## Esquema de Base de Datos
 
 - **usuarios**: id, nombrecompleto, email, usr_name, usr_psw, statuss (enum: profe/alumno), usr_pronouns, Accion
-- **robots**: id (UUID), external_identifier, name, description, psw, status, user_id (FK → usuarios)
+- **robots**: id (UUID), external_identifier, name (nullable), description, psw, status (CHECK: `pending_approval`, `approved`, `rejected`, `disabled`), user_id (FK → usuarios)
 - **robot_status_history**: Registro automático de auditoría mediante trigger en la tabla robots
 
 ## Flujo de Comunicación
 
-1. **Robot se conecta**: `POST /m2m/robot/handshake` (HTTP Basic) → recibe JWT → abre WebSocket en `/m2m/robot/commands/{token}`
-2. **Usuario se conecta**: Abre WebSocket en `/user/robot/send_command` → envía mensaje de auth en 10s → envía comandos JSON-RPC
-3. **La API hace de puente**: Recibe comandos del usuario, valida acceso, los reenvía al robot vía stream reactivo
+### Registro y aprobación de robots (self-registration)
+
+1. **Robot se auto-registra**: La Pi arranca, genera credenciales (`robot-metadata.json`) y llama a `POST /m2m/robot/register` con `external_identifier` + `psw`. El robot se crea en DB con `status=pending_approval` y `name=null`
+2. **Robot espera aprobación**: La Pi reintenta `POST /m2m/robot/handshake` con backoff exponencial. Recibe 403 mientras no esté aprobado
+3. **Admin aprueba**: `POST /admin/robot/{id}/approve` con `name` y `description` → cambia status a `approved`
+4. **Robot se conecta**: El siguiente intento de handshake retorna JWT → la Pi abre WebSocket en `/m2m/robot/commands/{token}`
+
+El registro es idempotente: si el `external_identifier` ya existe, retorna el robot existente sin error. El endpoint `/register` es interno (accesible solo por intranet, protegido vía proxy).
+
+### Operación
+
+1. **Usuario se conecta**: Abre WebSocket en `/user/robot/send_command` → envía mensaje de auth en 10s → envía comandos JSON-RPC
+2. **La API hace de puente**: Recibe comandos del usuario, valida acceso, los reenvía al robot vía stream reactivo
 
 ## Convenciones
 

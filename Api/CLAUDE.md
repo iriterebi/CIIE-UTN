@@ -40,15 +40,15 @@ src/
 │           └── current_user.py        # Dependencia get_current_user
 │
 ├── robot/                             # Módulo de robots
-│   ├── routes_admin.py                # /admin/robot — CRUD + send_command (sin auth actualmente)
-│   ├── routes_m2m.py                  # /m2m/robot — handshake + WebSocket para robots
+│   ├── routes_admin.py                # /admin/robot — CRUD + aprobación/rechazo + send_command (sin auth actualmente)
+│   ├── routes_m2m.py                  # /m2m/robot — registro, handshake + WebSocket para robots
 │   ├── routes_user.py                 # /user/robot — WebSocket para usuarios
 │   ├── access_validator.py            # Valida token robot_access contra robot_id y sesión de usuario
 │   ├── handshake/
 │   │   └── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes
 │   └── robot/
-│       ├── robot.py                   # Robot SQLModel (tabla: robots) + RobotInput/RobotOutput
-│       ├── robot_service.py           # RobotService — CRUD robots, get_robot_by_token
+│       ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum
+│       ├── robot_service.py           # RobotService — CRUD, registro, aprobación/rechazo, get_robot_by_token
 │       ├── robot_connection.py        # RobotConnection — WS del robot, se suscribe al IPC subject
 │       ├── ipc_user_robot_comunication.py  # UserToRobotCommunication — WS del usuario, IPC global
 │       ├── json_rpc_commands.py       # Modelos: RobotCommand, RobotCommandExtended, RobotResponse, UserWsAuthentication
@@ -62,8 +62,8 @@ src/
 | Prefijo | Tag | Auth | Endpoints |
 |---------|-----|------|-----------|
 | `/auth` | publicas | Público (excepto /me) | `POST /login`, `POST /signup`, `GET /me`, `POST /request_robot_access` |
-| `/admin/robot` | robots, admin | **Ninguna (WIP)** | `GET /list`, `GET /{robot_id}`, `POST /create`, `POST /send_command` |
-| `/m2m/robot` | robots, m2m | HTTP Basic → JWT | `POST /handshake`, `WS /commands/{auth_token}` |
+| `/admin/robot` | robots, admin | **Ninguna (WIP)** | `GET /list`, `GET /pending`, `GET /{robot_id}`, `POST /create`, `POST /{id}/approve`, `POST /{id}/reject`, `POST /send_command` |
+| `/m2m/robot` | robots, m2m | Sin auth (interno) / HTTP Basic → JWT | `POST /register`, `POST /handshake`, `WS /commands/{auth_token}` |
 | `/user/robot` | robots, user | JWT (en mensaje WS) | `WS /send_command` |
 
 ## Flujos Principales
@@ -77,12 +77,21 @@ src/
 1. `POST /auth/request_robot_access` (requiere bearer token + robot_id en body)
 2. Genera un JWT especial con `type=robot_access`, `robot_id`, `sub=usr_name`
 
-### M2M: Handshake + Conexión del Robot
-1. `POST /m2m/robot/handshake` — robot envía HTTP Basic (external_identifier, password)
-2. HandshakeService valida credenciales → genera JWT con `role=robot`, scopes
-3. Robot conecta a `WS /m2m/robot/commands/{token}`
-4. RobotConnection acepta WS, se suscribe al AsyncSubject (IPC) filtrando por robot.id
-5. Loop: recibe respuestas del robot → las emite al subject
+### M2M: Registro + Aprobación + Conexión del Robot
+1. **Registro** (self-registration): `POST /m2m/robot/register` — robot envía `{external_identifier, psw}` (sin auth, endpoint interno protegido por proxy)
+   - Si `external_identifier` no existe → crea robot con `status=pending_approval`, `name=null`
+   - Si ya existe → retorna el robot existente (idempotente, noop)
+2. **Handshake**: `POST /m2m/robot/handshake` — robot envía HTTP Basic (external_identifier, password)
+   - HandshakeService valida credenciales
+   - Si `status != approved` → 403 ("Robot no aprobado")
+   - Si aprobado → genera JWT con `role=robot`, scopes
+3. **Aprobación admin**: `POST /admin/robot/{id}/approve` con `{name, description}` → cambia status a `approved`
+4. **Rechazo admin**: `POST /admin/robot/{id}/reject` → cambia status a `rejected`
+5. Robot conecta a `WS /m2m/robot/commands/{token}`
+6. RobotConnection acepta WS, se suscribe al AsyncSubject (IPC) filtrando por robot.id
+7. Loop: recibe respuestas del robot → las emite al subject
+
+**Flujo desde la Pi**: registro → retry handshake con backoff exponencial (5s → 10s → 20s... hasta 300s max) → conexión WebSocket
 
 ### User: Enviar Comando
 1. Usuario conecta a `WS /user/robot/send_command`
@@ -118,7 +127,8 @@ src/
 
 ### Robot (`robots`)
 - `id` (UUID, PK, gen_random_uuid()), `external_identifier` (string, unique, indexed)
-- `name`, `description`, `psw` (bcrypt hash), `status`, `user_id` (FK → usuarios)
+- `name` (nullable — se asigna al aprobar), `description`, `psw` (bcrypt hash)
+- `status` (CHECK: `pending_approval`, `approved`, `rejected`, `disabled`), `user_id` (FK → usuarios)
 
 ## Dependencias
 

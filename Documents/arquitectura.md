@@ -166,10 +166,10 @@ Usuario ──WS──► UserToRobotCommunication ──► AsyncSubject ──
 ├──────────────────┤       ├──────────────────────┤
 │ id (PK, serial)  │◄──┐   │ id (PK, UUID)        │
 │ nombrecompleto   │   │   │ external_identifier  │
-│ email (unique)   │   │   │ name                 │
+│ email (unique)   │   │   │ name (nullable)      │
 │ usr_name (unique)│   └───┤ user_id (FK)         │
 │ usr_psw (bcrypt) │       │ psw (bcrypt)         │
-│ statuss (enum)   │       │ status               │
+│ statuss (enum)   │       │ status (CHECK)       │
 │ usr_pronouns     │       │ description          │
 │ accion (enum)    │       └──────────┬───────────┘
 └──────────────────┘                  │
@@ -208,7 +208,7 @@ Un trigger en la tabla `robots` registra automáticamente cada cambio de estado 
 ### HTTP/REST
 
 - **Frontend → API**: Autenticación (`/auth/login`, `/auth/signup`), administración de robots (`/admin/robot/*`)
-- **RaspberryPi → API**: Handshake inicial (`POST /m2m/robot/handshake` con HTTP Basic)
+- **RaspberryPi → API**: Registro (`POST /m2m/robot/register`) y handshake (`POST /m2m/robot/handshake` con HTTP Basic)
 
 ### WebSocket
 
@@ -250,24 +250,36 @@ Usuario                    API                      DB
   │  (sub, role, exp)       │                        │
 ```
 
-### Conexión del Robot
+### Conexión del Robot (Self-Registration con Aprobación)
+
+> Documentación detallada: [`Documents/handshake.md`](./handshake.md)
 
 ```
-RaspberryPi                API                      DB
-  │                         │                        │
-  ├─POST /m2m/handshake────►│                        │
-  │  (HTTP Basic:           ├──SELECT ext_id────────►│
-  │   ext_id + password)    │◄─────────robot─────────┤
-  │                         │                        │
-  │                         │ verifica bcrypt        │
-  │                         │ genera JWT (role=robot)│
-  │◄──────AccessToken───────┤                        │
-  │                         │                        │
-  ├─WS /m2m/commands/{jwt}─►│                        │
-  │                         │ valida JWT             │
-  │◄──────WS accepted───────┤                        │
-  │                         │ suscribe a IPC subject │
-  │         (conexión persistente bidireccional)     │
+RaspberryPi                API                    Admin              DB
+  │                         │                      │                  │
+  │  [genera credenciales]  │                      │                  │
+  │                         │                      │                  │
+  ├─POST /m2m/register─────►│                      │                  │
+  │  {ext_id, psw}          ├──INSERT (pending)────────────────────►│
+  │◄──200 {pending}─────────┤                      │                  │
+  │                         │                      │                  │
+  ├─POST /m2m/handshake────►│                      │                  │
+  │◄──403 (no aprobado)────┤                      │                  │
+  │                         │                      │                  │
+  │  [retry con backoff]    │    POST /{id}/approve│                  │
+  │                         │◄─────{name, desc}────┤                  │
+  │                         ├──UPDATE (approved)──────────────────►│
+  │                         │                      │                  │
+  ├─POST /m2m/handshake────►│                      │                  │
+  │  (HTTP Basic)           │ verifica bcrypt      │                  │
+  │                         │ verifica status=approved               │
+  │                         │ genera JWT (role=robot)                │
+  │◄──────AccessToken───────┤                      │                  │
+  │                         │                      │                  │
+  ├─WS /m2m/commands/{jwt}─►│                      │                  │
+  │◄──────WS accepted───────┤                      │                  │
+  │                         │ suscribe a IPC subject                 │
+  │         (conexión persistente bidireccional)    │                  │
 ```
 
 ### Usuario Envía Comando a Robot

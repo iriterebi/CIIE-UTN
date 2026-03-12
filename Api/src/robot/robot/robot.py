@@ -1,7 +1,15 @@
+from enum import StrEnum
 from uuid import UUID as PythonUUID
 from sqlmodel import Field, SQLModel
 from pydantic import BaseModel
 from sqlalchemy import text
+
+
+class RobotStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    DISABLED = "disabled"
 
 
 class Robot(SQLModel, table=True):
@@ -17,7 +25,7 @@ class Robot(SQLModel, table=True):
     # It's also marked as unique=True to match the DB constraint.
     external_identifier: str = Field(index=True, unique=True)
 
-    name: str
+    name: str | None = Field(default=None)
 
     description: str | None = Field(default=None)
 
@@ -33,11 +41,27 @@ class RobotInput(BaseModel):
     name: str
     description: str | None = None
     psw: str
-    status: str = "Init"
+    status: str = RobotStatus.APPROVED
+
 
 class RobotOutput(BaseModel):
     id: PythonUUID
     external_identifier: PythonUUID
-    name: str
+    name: str | None = None
     description: str | None = None
     status: str
+
+
+class RobotRegistrationInput(BaseModel):
+    external_identifier: PythonUUID
+    psw: str
+
+
+class RobotRegistrationOutput(BaseModel):
+    external_identifier: PythonUUID
+    status: str
+
+
+class RobotApprovalInput(BaseModel):
+    name: str
+    description: str | None = None

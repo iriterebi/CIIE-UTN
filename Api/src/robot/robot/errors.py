@@ -64,3 +64,29 @@ class UserValidationTimeoutException(SerializableException):
         return {
             "description": "user auth timeout"
         }
+
+
+@dataclass(frozen=True)
+class RobotNotApprovedException(SerializableException):
+    robot_id: str | UUID
+    current_status: str
+
+    def to_dict(self) -> dict:
+        return {
+            "robot_id": str(self.robot_id),
+            "current_status": self.current_status,
+        }
+
+
+@dataclass(frozen=True)
+class InvalidRobotStatusException(SerializableException):
+    robot_id: str | UUID
+    current_status: str
+    expected_status: str
+
+    def to_dict(self) -> dict:
+        return {
+            "robot_id": str(self.robot_id),
+            "current_status": self.current_status,
+            "expected_status": self.expected_status,
+        }
