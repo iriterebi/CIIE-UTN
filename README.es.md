@@ -25,6 +25,8 @@ Proyecto universitario para el control remoto de robots en laboratorios. Los usu
 
 ## Arquitectura
 
+Para una descripción detallada de la arquitectura del sistema, flujos de comunicación, modelo de datos y despliegue, ver [Documents/arquitectura.md](./Documents/arquitectura.md).
+
 ```
 [Frontend] → [API (FastAPI)] → [ROS] → [RaspberryPi] → [Arduino/Robot]
                   ↕

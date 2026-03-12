@@ -25,6 +25,8 @@ A university project for remote control of robots in laboratories. Users interac
 
 ## Architecture
 
+For a detailed description of the system architecture, communication flows, data model, and deployment, see [Documents/arquitectura.md](./Documents/arquitectura.md).
+
 ```
 [Frontend] → [API (FastAPI)] → [ROS] → [RaspberryPi] → [Arduino/Robot]
                   ↕
