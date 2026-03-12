@@ -1,9 +1,15 @@
+"""Comunicación usuario ↔ robot vía RosBridge.
+
+El usuario se conecta por WebSocket a la API, se autentica, y envía
+comandos JSON-RPC. La API los publica al topic ROS del robot vía rosbridge
+y rutea las respuestas de vuelta al usuario.
+"""
+
 import asyncio
 import logging
-from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
-from aioreactive import AsyncSubject
 from fastapi import Depends
 from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -12,44 +18,30 @@ from .errors import SerializableException, RobotAccessException, UserValidationT
 from .json_rpc_commands import RobotCommand, RobotCommandExtended, UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
 from ..access_validator import AccessValidator, UserRobotAccessSession
+from ..rosbridge_client import RosBridgeClient, RosBridgeClientDep
 
-type IPC_Subject = AsyncSubject
-
-_ipc: IPC_Subject | None = None
-
-#
-# # Create a logger instance
-# logger = logging.getLogger(__name__)
-# #logger.setLevel(logging.NOTSET) # Set the desired logging level
-#
-# # Create a console handler and formatter
-# handler = logging.StreamHandler()
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
-#
-
-def create_subject() -> IPC_Subject:
-    global _ipc
-
-    if _ipc is None:
-        print("Creating subject")
-        _ipc = AsyncSubject()
-
-    return _ipc
+logger = logging.getLogger(__name__)
 
 
 class UserToRobotCommunication:
+    """Gestiona la comunicación WebSocket de un usuario con robots vía RosBridge."""
+
     user_session: UserRobotAccessSession | None
 
-    def __init__(self, ipc: IPC_Subject, robot_service: RobotService, access_validator: AccessValidator):
-        self.ipc = ipc
+    def __init__(self, rosbridge: RosBridgeClient, robot_service: RobotService, access_validator: AccessValidator):
+        self.rosbridge = rosbridge
         self.robot_service = robot_service
         self.access_validator = access_validator
+        self.response_queue: asyncio.Queue = asyncio.Queue(maxsize=256)
+        self._subscribed_robots: set[UUID] = set()
 
     async def _send_command_to_robot(self, command: RobotCommand):
+        """Publica un comando al topic ROS del robot vía rosbridge."""
         print("Command ", command)
-        await self.ipc.asend(command)
+        await self.rosbridge.publish_command(
+            command.robot_id,
+            command.args.model_dump(),
+        )
 
     async def connect_ws(self, websocket: WebSocket):
         await websocket.accept()
@@ -57,25 +49,24 @@ class UserToRobotCommunication:
             await self._validate_user(websocket)
 
             async with asyncio.TaskGroup() as tg:
-                # TODO: buscar manera de hacer correr keep_user_session
-                # tg.create_task(self.keep_user_session(websocket))
                 tg.create_task(self.receive_user_commands(websocket))
                 tg.create_task(self.receive_robot_feedback(websocket))
 
         except WebSocketDisconnect:
             print("Client disconnected")
         except SerializableException as e:
-            print(f"SerializableException {e.to_dict()}",)
+            print(f"SerializableException {e.to_dict()}")
             await websocket.send_json(e.to_jsonrpc())
             await websocket.close()
         except Exception as e:
             print(f"Exception {e}")
-            await websocket.send_json({"status": "error", "message": e})
+            await websocket.send_json({"status": "error", "message": str(e)})
             await websocket.close()
+        finally:
+            await self._cleanup()
 
     async def _validate_user(self, websocket: WebSocket) -> None:
         try:
-            # wait for auth
             result = await asyncio.wait_for(websocket.receive_json(), timeout=10)
             self.user_session = self.access_validator.create_robot_access_session(UserWsAuthentication(**result))
 
@@ -83,21 +74,6 @@ class UserToRobotCommunication:
 
         except asyncio.TimeoutError as e:
             raise UserValidationTimeoutException() from e
-
-    async def keep_user_session(self, websocket: WebSocket):
-        if self.user_session is None:
-            await self._validate_user(websocket)
-
-        while True:
-            delta = (self.user_session.expiration_time - datetime.now()).total_seconds()
-
-            await asyncio.sleep(delta - 12)
-
-            # faltan 12 segundos para que la sessión expire
-            # se solicita reautenticación (esto debe ser hecho automáticamente por el frontend)
-            await websocket.send_json({"message": "user session expiration soon", "code": "SessionExpirationSoon"})
-
-            await self._validate_user(websocket)
 
     async def receive_user_commands(self, websocket: WebSocket):
         while True:
@@ -112,13 +88,10 @@ class UserToRobotCommunication:
 
             self.robot_service.validate_exists_robot(payload.robot_id)
 
-            # if not self.access_validator.grant_access(payload.access_token, payload.robot_id, self.user_session):
-            #     await websocket.send_json({
-            #         "status": "error",
-            #         "message": f"user doesn't have access to this robot"
-            #     })
-
             self.access_validator.validate_grant_access(payload.access_token, payload.robot_id, self.user_session)
+
+            # Suscribirse al robot si es la primera vez
+            await self._ensure_robot_subscription(payload.robot_id)
 
             await self._send_command_to_robot(RobotCommand(robot_id=payload.robot_id, args=payload))
 
@@ -129,16 +102,30 @@ class UserToRobotCommunication:
             await websocket.send_json(e.to_jsonrpc())
 
     async def receive_robot_feedback(self, websocket: WebSocket):
-        # TODO: obtener la respuesta del robot
-        pass
+        """Lee respuestas de robots desde la queue y las envía al usuario."""
+        while True:
+            response = await self.response_queue.get()
+            await websocket.send_json(response)
+
+    async def _ensure_robot_subscription(self, robot_id: UUID):
+        """Suscribe la queue a un robot si aún no lo estamos."""
+        if robot_id not in self._subscribed_robots:
+            await self.rosbridge.subscribe_robot(robot_id, self.response_queue)
+            self._subscribed_robots.add(robot_id)
+
+    async def _cleanup(self):
+        """Desuscribir de todos los robots al desconectar."""
+        for robot_id in self._subscribed_robots:
+            await self.rosbridge.unsubscribe_robot(robot_id, self.response_queue)
+        self._subscribed_robots.clear()
 
 
 def create_user_robot_communication(
-        ipc: Annotated[AsyncSubject, Depends(create_subject)],
+        rosbridge: RosBridgeClientDep,
         robot_service: RobotServiceDep,
         access_validator: Annotated[AccessValidator, Depends(AccessValidator)],
 ) -> UserToRobotCommunication:
-    return UserToRobotCommunication(ipc, robot_service, access_validator)
+    return UserToRobotCommunication(rosbridge, robot_service, access_validator)
 
 
 RobotIPCDep = Annotated[UserToRobotCommunication, Depends(create_user_robot_communication)]

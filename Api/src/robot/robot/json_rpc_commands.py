@@ -15,7 +15,10 @@ class RobotCommandExtended(RRobotCommand):
 
 
 class RobotResponse(BaseModel):
-    pass
+    jsonrpc: str = "2.0"
+    result: dict | None = None
+    error: dict | None = None
+    id: str | int | None = None
 
 class UserWsAuthentication(BaseModel):
     token: str

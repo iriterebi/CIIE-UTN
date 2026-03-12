@@ -1,14 +1,11 @@
 from uuid import UUID as PythonUUID
 
-from aioreactive import AsyncSubject
 from fastapi import APIRouter
 from typing import Annotated, List
 from fastapi import Depends
-from reactivex.subject import Subject
-from .robot.ipc_user_robot_comunication import create_subject
 
+from .rosbridge_client import RosBridgeClientDep
 
-# from ..auth.services.user import User, get_current_user
 from .robot import (
     RobotService, RobotServiceDep, Robot, RobotInput, RobotOutput, RobotCommand,
     RobotStatus, RobotApprovalInput,
@@ -19,7 +16,6 @@ router = APIRouter(tags=["robots", "admin"])
 
 @router.get("/list", response_model=List[RobotOutput])
 def list_robots(
-    # current_user: Annotated[User, Depends(get_current_user)],
     robot_service: Annotated[RobotService, Depends(RobotService)]
 ) -> List[RobotOutput]:
     return robot_service.list_robots()
@@ -64,8 +60,8 @@ def reject_robot(
 
 @router.post("/send_command")
 async def send_command(
-    ipc: Annotated[AsyncSubject, Depends(create_subject)],
+    rosbridge: RosBridgeClientDep,
     command: RobotCommand
 ):
-    await ipc.asend(command)
+    await rosbridge.publish_command(command.robot_id, command.args.model_dump())
     return {"message": "Command sent"}

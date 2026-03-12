@@ -162,7 +162,7 @@ El registro es idempotente: si el `external_identifier` ya existe, retorna el ro
 ### Operación
 
 1. **Usuario se conecta**: Abre WebSocket en `/user/robot/send_command` → envía mensaje de auth en 10s → envía comandos JSON-RPC
-2. **La API hace de puente**: Recibe comandos del usuario, valida acceso, los reenvía al robot vía stream reactivo
+2. **La API hace de puente**: Recibe comandos del usuario, valida acceso, los publica al topic ROS del robot vía RosBridge (`ws://rosbridge:9090`). Las respuestas del robot llegan por ROS y se rutean de vuelta al usuario vía `asyncio.Queue`
 
 ## Convenciones
 
