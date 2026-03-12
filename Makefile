@@ -44,19 +44,37 @@ db.migrate:				## Ejecuta las migraciones de la base de datos.
 db.seed:				## Aplica los datos semilla.
 	$(MAKE) -C Db seed_apply
 
-# --- Web ---
+# --- Web (deprecado) ---
 
 .PHONY: web.up
-web.up:					## Ejecuta el frontend web en foreground.
+web.up:					## Ejecuta el frontend web viejo (PHP) en foreground.
 	$(MAKE) -C Web up_dev
 
 .PHONY: web.up.detached
-web.up.detached:			## Ejecuta el frontend web en background.
+web.up.detached:			## Ejecuta el frontend web viejo en background.
 	$(MAKE) -C Web up_dev.detached
 
 .PHONY: web.down
-web.down:				## Detiene el frontend web en background.
+web.down:				## Detiene el frontend web viejo.
 	$(MAKE) -C Web down_dev
+
+# --- WebClient ---
+
+.PHONY: webclient.build
+webclient.build:			## Construye la imagen Docker del frontend Vue.
+	$(MAKE) -C WebClient build
+
+.PHONY: webclient.up
+webclient.up:				## Ejecuta el frontend Vue en foreground.
+	$(MAKE) -C WebClient up_dev
+
+.PHONY: webclient.up.detached
+webclient.up.detached:			## Ejecuta el frontend Vue en background.
+	$(MAKE) -C WebClient up_dev.detached
+
+.PHONY: webclient.down
+webclient.down:				## Detiene el frontend Vue.
+	$(MAKE) -C WebClient down_dev
 
 # --- RosBridge ---
 
@@ -90,10 +108,10 @@ rosbridge.demo.down:			## Detiene rosbridge demo.
 up: db.up.detached api.up		## Ejecuta DB (background) + API (foreground).
 
 .PHONY: up.all
-up.all: db.up.detached web.up.detached rosbridge.up.detached api.up	## Ejecuta DB + Web + RosBridge (background) + API (foreground).
+up.all: db.up.detached webclient.up.detached rosbridge.up.detached api.up	## Ejecuta DB + WebClient + RosBridge (background) + API (foreground).
 
 .PHONY: down
-down: db.down web.down rosbridge.down	## Detiene todos los servicios en background.
+down: db.down webclient.down web.down rosbridge.down	## Detiene todos los servicios en background.
 
 # --- Help ---
 
