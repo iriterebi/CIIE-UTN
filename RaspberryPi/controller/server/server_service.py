@@ -1,8 +1,9 @@
-"""
-TODO
+"""Servicio de comunicación con la API central.
+
+Maneja el registro del robot y el handshake (autenticación).
+La comunicación de comandos se hace vía rosbridge (ver rosbridge/).
 """
 
-from typing import List
 import secrets
 import string
 import json
@@ -15,21 +16,44 @@ import requests
 from requests.auth import HTTPBasicAuth
 from ..config import SERVER_URL
 
+from pydantic import TypeAdapter
+from pydantic.dataclasses import dataclass
+
+@dataclass(frozen=True)
+class RobotIdentity:
+    external_identifier: str
+    psw: str
+
+@dataclass(frozen=True)
+class AccessToken:
+    access_token: str
+    token_type: str
+    scope: str
+    expires_in: int
+
+
+@dataclass(frozen=True)
+class RobotCredentials:
+    access_token: AccessToken
+    topic: str
+
+
+
+
 
 class ServerServices:
     base_url: str
-    robot_id: str
-    robot_psw: str
-    server_session: requests.Session | None = None
-    expiration: int | None = None
+    _identity: RobotIdentity | None = None
+    credentials: RobotCredentials | None = None
+
+
 
     def __init__(self, base_url: str = SERVER_URL):
         self.base_url = base_url
         self.logger = logging.getLogger(__name__)
 
     def load_external_config(self) -> bool:
-        """ TODO """
-
+        """Carga credenciales desde robot-metadata.json."""
         try:
             with open('./robot-metadata.json', 'r', encoding="utf-8") as robot_metadata:
                 data = json.load(robot_metadata)
@@ -37,11 +61,10 @@ class ServerServices:
         except IOError as e:
             self.logger.error("Could not read robot-metadata.json: %s", e)
             return False
-
         return True
 
     def create_default_config(self) -> None:
-        """ TODO """
+        """Genera credenciales nuevas y las guarda en robot-metadata.json."""
         with open('./robot-metadata.json', 'w', encoding="utf-8") as robot_metadata:
             data: dict = {
                 "robot_id": str(uuid.uuid4()),
@@ -52,21 +75,18 @@ class ServerServices:
             self._load_config(data)
 
     def _load_config(self, config: dict) -> None:
-        self.robot_id = config.get("robot_id")
-        self.robot_psw = config.get("robot_psw")
 
-        assert self.robot_id is not None, "robot_id not found in config"
-        assert self.robot_psw is not None, "robot_psw not found in config"
+        self.identity = RobotIdentity(
+            external_identifier=config.get("robot_id"),
+            psw=config.get("robot_psw"),
+        )
 
     def register(self) -> bool:
         """Registra el robot en el servidor (idempotente)."""
         try:
             response = requests.post(
                 urljoin(self.base_url, "register"),
-                json={
-                    "external_identifier": self.robot_id,
-                    "psw": self.robot_psw,
-                },
+                json=TypeAdapter(RobotIdentity).dump_python(self.identity, mode="json"),
                 timeout=10,
             )
 
@@ -86,12 +106,11 @@ class ServerServices:
 
     def connect(self) -> int:
         """Intenta handshake con el servidor. Retorna el status code HTTP."""
-
         try:
             response = requests.post(
                 urljoin(self.base_url, "handshake"),
                 timeout=10,
-                auth=HTTPBasicAuth(self.robot_id, self.robot_psw),
+                auth=HTTPBasicAuth(self.identity.external_identifier, self.identity.psw),
             )
         except requests.exceptions.RequestException as e:
             self.logger.error("Error de conexion en handshake: %s", e)
@@ -103,16 +122,14 @@ class ServerServices:
                 response.status_code, response.text)
             return response.status_code
 
-        body: dict = response.json()
-        self.expiration = body.get("expires_in")
+        json = response.json()
 
-        self.server_session = requests.Session()
-        self.server_session.headers.update({
-            "Authorization": f"{body.get('token_type')} {body.get('access_token')}"
-        })
+        print(json)
 
-        self.logger.info(
-            "Conexion exitosa con el servidor.")
+        self.credentials = TypeAdapter(RobotCredentials).validate_python(json)
+
+
+        self.logger.info("Conexion exitosa con el servidor.")
         return 200
 
     def connect_with_retry(self, base_delay: int = 5, max_delay: int = 300) -> bool:
@@ -141,16 +158,6 @@ class ServerServices:
                 time.sleep(delay)
                 attempt += 1
 
-    def disconnect(self) -> None:
-        """
-        TODO
-        """
-
-        if self.server_session:
-            self.server_session.close()
-            self.server_session = None
-            self.logger.info("Server session closed.")
-
     def __enter__(self):
         if not self.connect_with_retry():
             self.logger.critical(
@@ -160,27 +167,8 @@ class ServerServices:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.disconnect()
-
-    def get_commands(self, on_command: callable = None) -> None:
-        """
-        TODO
-        """
-
-        try:
-            response = self.server_session.get(
-                urljoin(self.base_url, "get_data.php"), timeout=10)
-            response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
-            data = response.text.strip().split('\n')
-
-            on_command(data)
-
-        except requests.exceptions.RequestException as e:
-            self.logger.error("Error fetching commands from server: %s", e)
-            return []
+        pass
 
     def _create_strong_random_psw(self, longitud=24) -> str:
         caracteres = string.ascii_letters + string.digits + string.punctuation
-
-        # Genera la contraseña asegurando que los caracteres sean elegidos de forma segura
         return ''.join(secrets.choice(caracteres) for i in range(longitud))

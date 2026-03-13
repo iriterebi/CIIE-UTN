@@ -19,7 +19,7 @@ Servicio que ejecuta [rosbridge_suite](https://github.com/RobotWebTools/rosbridg
 API (FastAPI) ──WS:9090──► rosbridge_server ──DDS──► nodos ROS ──► RaspberryPi
 ```
 
-La API se conecta como cliente WebSocket a rosbridge y publica/suscribe topics ROS usando un protocolo JSON. rosbridge traduce estos mensajes al sistema nativo de ROS 2 (DDS).
+La API y la RaspberryPi se conectan como clientes WebSocket a rosbridge y publican/suscriben topics ROS usando un protocolo JSON. rosbridge traduce estos mensajes al sistema nativo de ROS 2 (DDS).
 
 ## Prerrequisitos
 
@@ -32,65 +32,54 @@ La API se conecta como cliente WebSocket a rosbridge y publica/suscribe topics R
 # Construir la imagen
 make build
 
-# Modo dev: solo rosbridge (requiere nodos ROS externos)
-make up_dev
+# Ejecutar rosbridge (foreground)
+make up
 
-# Modo demo: rosbridge + nodo mock que simula robots
-make up_demo
-
-# En background
-make up_dev.detached
-make up_demo.detached
+# Ejecutar rosbridge (background)
+make up.detached
 
 # Detener
-make down_dev
-make down_demo
-```
-
-O desde el Makefile raíz del proyecto:
-
-```bash
-make rosbridge.demo          # Modo demo (foreground)
-make rosbridge.up.detached   # Modo dev (background)
+make down
 ```
 
 ## Convención de Topics
 
-Los UUIDs de los robots se codifican en **Crockford Base32** para usarlos en los nombres de topics ROS.
+Los UUIDs de los robots se codifican en **Crockford Base32** con prefijo `r` para usarlos en los nombres de topics ROS (ROS 2 no permite tokens que empiecen con número).
 
 | Topic | Dirección | Contenido |
 |-------|-----------|-----------|
-| `/robot/<base32>/command` | API → Robot | Comandos JSON-RPC |
-| `/robot/<base32>/response` | Robot → API | Respuestas a comandos |
-| `/robot/<base32>/status` | Robot → API | Estado periódico del robot |
+| `/robot/r<base32>/command` | API → Robot | Comandos JSON-RPC 2.0 |
+| `/robot/r<base32>/response` | Robot → API | Respuestas JSON-RPC 2.0 (con `id`) |
+| `/robot/r<base32>/status` | Robot → API | Notifications JSON-RPC 2.0 (sin `id`, `method: "status.update"`) |
 
-Tipo de mensaje: `std_msgs/String` con payload JSON.
-
-**Ejemplo**: UUID `a0e1f2a3-b4c5-d6e7-f8a9-b0c1d2e3f4a5` → Base32 → topic `/robot/A1W3T51ECNQEFSN4P1C3QHRT95/command`
+Tipo de mensaje: `std_msgs/String` con payload JSON-RPC 2.0.
 
 ## Modo Demo
 
-El servicio `rosbridge-demo` (profile `demo`) levanta rosbridge junto con un nodo `mock_robot_node` que simula robots:
-
-- Lee UUIDs de `DEMO_ROBOT_IDS` (variable de entorno, separados por coma)
-- Se suscribe a `/robot/<base32>/command` de cada robot
-- Responde con datos simulados en `/robot/<base32>/response`
-- Publica estado periódico en `/robot/<base32>/status`
-
-Configurable via `DEMO_ROBOT_IDS` en `compose.yaml`.
+Para probar sin hardware físico, ejecutar el controlador RaspberryPi en modo mock (`MOCK_ROBOT=1`) conectado a rosbridge. Ver `RaspberryPi/CLAUDE.md` para detalles.
 
 ## Protocolo rosbridge
 
-Ejemplos de mensajes JSON que la API enviaría al WebSocket de rosbridge:
+Ejemplos de mensajes JSON enviados al WebSocket de rosbridge:
+
+### Advertise de un topic (antes de publicar)
+
+```json
+{
+  "op": "advertise",
+  "topic": "/robot/r<base32>/command",
+  "type": "std_msgs/String"
+}
+```
 
 ### Publicar un comando
 
 ```json
 {
   "op": "publish",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/command",
+  "topic": "/robot/r<base32>/command",
   "msg": {
-    "data": "{\"method\": \"move_arm\", \"params\": {\"angle\": 90}}"
+    "data": "{\"jsonrpc\":\"2.0\",\"method\":\"move_arm\",\"params\":{\"angle\":90},\"id\":1}"
   }
 }
 ```
@@ -100,7 +89,7 @@ Ejemplos de mensajes JSON que la API enviaría al WebSocket de rosbridge:
 ```json
 {
   "op": "subscribe",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/response",
+  "topic": "/robot/r<base32>/response",
   "type": "std_msgs/String"
 }
 ```
@@ -110,7 +99,7 @@ Ejemplos de mensajes JSON que la API enviaría al WebSocket de rosbridge:
 ```json
 {
   "op": "subscribe",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/status",
+  "topic": "/robot/r<base32>/status",
   "type": "std_msgs/String"
 }
 ```

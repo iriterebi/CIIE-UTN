@@ -2,7 +2,9 @@
 
 ## Descripción General
 
-Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se comunica con la API central (FastAPI) para registrarse, autenticarse y recibir comandos, y con el Arduino vía puerto serial para controlar el brazo robótico.
+Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego se conecta a rosbridge vía WebSocket para recibir comandos ROS y publicar respuestas/estado. Controla el Arduino vía puerto serial.
+
+**TODO**: Reemplazar la conexión WebSocket directa a rosbridge por un nodo ROS 2 real (rclpy).
 
 ## Ejecución
 
@@ -16,15 +18,20 @@ uv run python -m controller
 ```
 controller/
 ├── __main__.py              # Entry point (python -m controller)
-├── main.py                  # Flujo principal: config → registro → conexión → comandos
+├── main.py                  # Flujo principal: config → registro → handshake → rosbridge
 ├── config.py                # Carga de variables de entorno (.env.defaults + .env)
 ├── server/
 │   ├── __init__.py
-│   └── server_service.py    # ServerServices — registro, handshake, retry, comunicación con API
-└── robot/
-    ├── __init__.py           # Exporta RobotController (real o mock según MOCK_ROBOT)
-    ├── robot_controller.py   # Controlador real — comunicación serial con Arduino
-    └── robot_mock_controller.py  # Controlador mock — simula respuestas sin hardware
+│   └── server_service.py    # ServerServices — registro y handshake con la API
+├── robot/
+│   ├── __init__.py           # Exporta RobotController (real o mock según MOCK_ROBOT)
+│   ├── robot_controller.py   # Controlador real — comunicación serial con Arduino
+│   └── robot_mock_controller.py  # Controlador mock — simula respuestas sin hardware
+└── rosbridge/
+    ├── __init__.py           # Re-exporta PiRosBridgeClient
+    ├── crockford_base32.py   # UUID → Crockford Base32 (para nombres de topics ROS)
+    ├── rosbridge_client.py   # Cliente WebSocket a rosbridge: subscribe, publish, reconnect
+    └── json_rpc.py           # Mapeo de comandos JSON-RPC 2.0 → acciones del robot
 ```
 
 ## Variables de Entorno
@@ -34,6 +41,7 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | Variable | Descripción | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | URL base de la API M2M | `http://localhost:8000/m2m/robot/` |
+| `ROSBRIDGE_URL` | URL WebSocket de rosbridge | `ws://localhost:9090` |
 | `ARDUINO_PORT` | Puerto serial del Arduino | (ruta USB específica) |
 | `CREATE_DEFAUL_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
@@ -49,13 +57,28 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 1. `register()` — `POST /m2m/robot/register` con `{external_identifier, psw}` (idempotente)
 2. `connect_with_retry()` — reintenta `POST /m2m/robot/handshake` (HTTP Basic) con backoff exponencial:
    - 403 → robot pendiente de aprobación, espera y reintenta (5s → 10s → 20s... hasta 300s max)
-   - 200 → recibe JWT, crea sesión HTTP con bearer token
+   - 200 → handshake exitoso
    - Otro error → log warning + retry con backoff
 3. Un admin debe aprobar el robot vía `POST /admin/robot/{id}/approve` para que el handshake retorne 200
 
-### 3. Operación
+### 3. Operación (async, vía rosbridge)
 1. Entra al context manager del robot (abre puerto serial o mock)
-2. `get_commands()` — recibe comandos del servidor y los envía al robot
+2. `PiRosBridgeClient` conecta a rosbridge vía WebSocket
+3. Se suscribe al topic `/robot/r<base32>/command` para recibir comandos JSON-RPC 2.0
+4. Al recibir un comando, lo ejecuta en el robot (serial I/O vía `run_in_executor`)
+5. Publica la respuesta en `/robot/r<base32>/response`
+6. Publica estado periódico (cada 5s) en `/robot/r<base32>/status`
+
+### Comunicación con rosbridge
+
+La Pi se conecta directamente al WebSocket de rosbridge (puerto 9090) usando el protocolo JSON de rosbridge_suite:
+
+- **Subscribe**: `{"op": "subscribe", "topic": "/robot/r<b32>/command", "type": "std_msgs/String"}`
+- **Publish**: `{"op": "publish", "topic": "/robot/r<b32>/response", "msg": {"data": "<json>"}}`
+
+Los UUIDs se codifican en Crockford Base32 para los nombres de topics (misma implementación que en Api/ y RosBridge/).
+
+Reconexión automática con backoff exponencial (1s → 30s) si se pierde la conexión.
 
 ## Archivo `robot-metadata.json`
 
@@ -76,7 +99,8 @@ Generado automáticamente o provisto manualmente. Contiene las credenciales del 
 ## Dependencias
 
 - **python-dotenv** — carga de `.env`
-- **requests** — HTTP client para comunicación con la API
+- **requests** — HTTP client para registro y handshake con la API
+- **websockets** — cliente WebSocket para comunicación con rosbridge
 - **serial** / **types-pyserial** — comunicación serial con Arduino
 
 ## Modo Demo

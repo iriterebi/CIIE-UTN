@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13.7"
 dependencies = [
+    "pydantic>=2.11.10",
     "python-dotenv>=1.1.1",
     "requests>=2.32.5",
     "serial>=0.0.97",
     "types-pyserial>=3.5.0.20251001",
+    "websockets>=15.0",
 ]
 
 [dependency-groups]

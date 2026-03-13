@@ -187,9 +187,9 @@ Es un protocolo JSON sobre WebSocket. Cada mensaje tiene un campo `op` (operaci�
 ```json
 {
   "op": "publish",
-  "topic": "/robot/abc123/command",
+  "topic": "/robot/rabc123/command",
   "msg": {
-    "data": "{\"method\": \"move_arm\", \"params\": {\"angle\": 90}}"
+    "data": "{\"jsonrpc\": \"2.0\", \"method\": \"move_arm\", \"params\": {\"angle\": 90}, \"id\": 1}"
   }
 }
 ```
@@ -200,7 +200,7 @@ Es un protocolo JSON sobre WebSocket. Cada mensaje tiene un campo `op` (operaci�
 {
   "op": "subscribe",
   "id": "sub_001",
-  "topic": "/robot/abc123/status",
+  "topic": "/robot/rabc123/status",
   "type": "std_msgs/String"
 }
 ```
@@ -210,7 +210,7 @@ A partir de ahí, rosbridge envía mensajes por el mismo WebSocket:
 ```json
 {
   "op": "publish",
-  "topic": "/robot/abc123/status",
+  "topic": "/robot/rabc123/status",
   "msg": {
     "data": "ready"
   }
@@ -223,7 +223,7 @@ A partir de ahí, rosbridge envía mensajes por el mismo WebSocket:
 {
   "op": "unsubscribe",
   "id": "sub_001",
-  "topic": "/robot/abc123/status"
+  "topic": "/robot/rabc123/status"
 }
 ```
 
@@ -233,7 +233,7 @@ A partir de ahí, rosbridge envía mensajes por el mismo WebSocket:
 {
   "op": "call_service",
   "id": "call_001",
-  "service": "/robot/abc123/get_position",
+  "service": "/robot/rabc123/get_position",
   "args": {}
 }
 ```
@@ -267,25 +267,23 @@ API ──JSON/WS──► [rosbridge: traductor] ──► [DDS: el sistema de 
 
 ## Arquitectura de comunicación del proyecto
 
-La decisión de diseño para Labs Remoto es usar **rosbridge_suite** como puente entre la API (FastAPI) y el ecosistema ROS. La API no tiene ROS instalado — solo habla WebSocket con rosbridge.
+La decisión de diseño para Labs Remoto es usar **rosbridge_suite** como hub de comunicación en tiempo real. Tanto la API como la RaspberryPi se conectan como clientes WebSocket a rosbridge — ninguno tiene ROS instalado, solo hablan WebSocket/JSON con rosbridge.
 
 ```
 ┌──────────┐     HTTP/WS      ┌──────────┐      WS (9090)     ┌────────────────┐
 │ Frontend │◄────────────────►│   API    │◄───────────────────►│  rosbridge     │
 │          │                   │ (FastAPI)│                      │  _server       │
 └──────────┘                   └──────────┘                      └───────┬────────┘
-                                                                        │ DDS (ROS 2)
-                                                                        │
+                                                                        │ WS (9090)
                                                     ┌───────────────────┼───────────────────┐
-                                                    │                   │                   │
-                                              ┌─────┴─────┐     ┌─────┴─────┐     ┌──────┴──────┐
-                                              │  Nodo ROS  │     │  Nodo ROS  │     │  Nodo ROS   │
-                                              │  Robot A   │     │  Robot B   │     │  Robot C    │
-                                              └─────┬──────┘     └─────┬──────┘     └──────┬──────┘
                                                     │                   │                   │
                                               ┌─────┴──────┐     ┌─────┴──────┐     ┌──────┴──────┐
                                               │ RaspberryPi │     │ RaspberryPi │     │ RaspberryPi │
                                               │     A       │     │     B       │     │     C       │
+                                              └─────┬───────┘     └─────┬───────┘     └──────┬──────┘
+                                                    │ Serial            │ Serial             │ Serial
+                                              ┌─────┴──────┐     ┌─────┴──────┐     ┌──────┴──────┐
+                                              │  Arduino A  │     │  Arduino B  │     │  Arduino C  │
                                               └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
@@ -293,85 +291,60 @@ La decisión de diseño para Labs Remoto es usar **rosbridge_suite** como puente
 
 ```
 1. Usuario envía comando via WebSocket a la API
-   → {"method": "move_arm", "params": {"angle": 90}, "robot_id": "abc123"}
+   → {"jsonrpc": "2.0", "method": "move_arm", "params": {"angle": 90}, "id": 1}
 
 2. API valida auth, permisos y acceso al robot
 
 3. API publica al topic del robot via rosbridge
-   → WS a rosbridge: {"op": "publish", "topic": "/robot/abc123/command", "msg": {...}}
+   → WS a rosbridge: {"op": "publish", "topic": "/robot/r<base32>/command", "msg": {"data": "<json-rpc>"}}
 
 4. rosbridge traduce el JSON a mensaje ROS y lo publica al topic DDS
 
-5. El nodo ROS del robot abc123 está suscrito a /robot/abc123/command
-   → Recibe el mensaje via DDS
+5. La RaspberryPi del robot está conectada a rosbridge como cliente WS,
+   suscrita a /robot/r<base32>/command
+   → Recibe el mensaje JSON-RPC 2.0
 
-6. El nodo ROS reenvía el comando a la RaspberryPi
-   → (via serial, HTTP, o el mecanismo que maneje el equipo de ROS)
+6. RaspberryPi ejecuta el comando en el Arduino (vía serial)
 
-7. RaspberryPi ejecuta el comando en el Arduino
-
-8. La respuesta hace el camino inverso:
-   RaspberryPi → Nodo ROS → topic /robot/abc123/status → rosbridge → API → Usuario
+7. La respuesta hace el camino inverso:
+   RaspberryPi → publish /robot/r<base32>/response → rosbridge → API → Usuario
 ```
 
 ### Convención de topics por robot
 
-El patrón propuesto usa namespaces por robot:
+Los UUIDs de robots se codifican en **Crockford Base32** con prefijo `r` para los nombres de topics (ROS 2 no permite tokens que empiecen con número):
 
 ```
-/robot/{robot_id}/command    ← comandos hacia el robot
-/robot/{robot_id}/status     ← estado del robot
-/robot/{robot_id}/response   ← respuestas a comandos específicos
+/robot/r<base32>/command    ← comandos hacia el robot (JSON-RPC 2.0 request)
+/robot/r<base32>/response   ← respuestas a comandos (JSON-RPC 2.0 response, con id)
+/robot/r<base32>/status     ← estado del robot (JSON-RPC 2.0 notification, sin id)
 ```
 
-Cada robot tiene su propio canal y la API solo publica/suscribe a los topics del robot que le interesa.
+Tipo de mensaje: `std_msgs/String` con payload JSON-RPC 2.0. Cada robot tiene su propio set de topics.
 
 ### Despliegue con Docker
 
-rosbridge_server se levanta como un contenedor más en la red `ciie-test`:
+rosbridge se levanta como un contenedor más en la red `ciie-test`, usando un Dockerfile propio con rosbridge pre-instalado:
 
-```yaml
-services:
-  rosbridge:
-    image: ros:humble-ros-base-jammy
-    command: >
-      bash -c "
-        apt-get update && apt-get install -y ros-humble-rosbridge-suite &&
-        source /opt/ros/humble/setup.bash &&
-        ros2 launch rosbridge_server rosbridge_websocket_launch.xml
-      "
-    ports:
-      - "9090:9090"
-    networks:
-      - ciie-test
+```bash
+cd RosBridge
+make build        # Construir imagen
+make up           # Ejecutar (foreground)
+make up.detached  # Ejecutar (background)
 ```
-
-En producción se usaría un Dockerfile propio con rosbridge pre-instalado.
-
-### Cambios necesarios en la API
-
-| Hoy (comunicación directa) | Con rosbridge |
-|---|---|
-| RaspberryPi hace handshake HTTP directo a la API | RaspberryPi corre un nodo ROS conectado al grafo DDS |
-| API mantiene WS por cada robot (`RobotConnection`) | API mantiene **una** conexión WS a rosbridge |
-| IPC interno con `AsyncSubject` para routear por `robot_id` | rosbridge routea por topic (`/robot/{id}/command`) |
-| Robot se autentica con JWT | La autenticación se maneja en otra capa (o se embebe en los mensajes) |
-
-El `AsyncSubject` (aioreactive) que hoy actúa como bus interno podría simplificarse o eliminarse, ya que rosbridge + topics ROS cumplen esa función de routeo.
 
 ### Modo demo
 
 Para el modo demo sin hardware:
 
-- **rosbridge corriendo** — es solo software, no necesita hardware
-- **Nodos ROS mock** que simulen los robots: se suscriben a `/robot/{id}/command` y responden a `/robot/{id}/response` con respuestas simuladas
-- Equivalente ROS del `RobotMockController` que ya existe en `RaspberryPi/`
+- **rosbridge corriendo** — es solo software, no necesita hardware (`make rosbridge.up`)
+- **RaspberryPi en modo mock** — con `MOCK_ROBOT=1` y `CREATE_DEFAUL_METADATA=1`, la Pi se auto-registra, hace handshake con la API, se conecta a rosbridge y simula respuestas del robot sin comunicación serial
 
 ### Contrato entre equipos
 
 El acuerdo entre el equipo de la API y el equipo de ROS se limita a:
 
-1. **Nombres de topics**: patrón acordado (`/robot/{id}/command`, `/robot/{id}/status`, etc.)
-2. **Formato de mensajes**: estructura del JSON dentro del `std_msgs/String` (o tipos custom)
+1. **Nombres de topics**: patrón acordado (`/robot/r<base32>/command`, `/robot/r<base32>/status`, `/robot/r<base32>/response`)
+2. **Formato de mensajes**: JSON-RPC 2.0 dentro del `std_msgs/String`
 3. **Puerto de rosbridge**: host y puerto donde estará disponible (default: `9090`)
 4. **Red Docker**: rosbridge accesible en la red `ciie-test`

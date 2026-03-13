@@ -3,6 +3,9 @@ from uuid import UUID as PythonUUID
 from sqlmodel import Field, SQLModel
 from pydantic import BaseModel
 from sqlalchemy import text
+from ...auth.services.encryption import AccessToken
+
+
 
 
 class RobotStatus(StrEnum):
@@ -65,3 +68,7 @@ class RobotRegistrationOutput(BaseModel):
 class RobotApprovalInput(BaseModel):
     name: str
     description: str | None = None
+
+class RobotHandshakeResult(BaseModel):
+    access_token: AccessToken
+    topic: str

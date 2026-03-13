@@ -66,27 +66,15 @@ webclient.down:				## Detiene el frontend Vue.
 
 .PHONY: rosbridge.up
 rosbridge.up:				## Ejecuta rosbridge en foreground.
-	$(MAKE) -C RosBridge up_dev
+	$(MAKE) -C RosBridge up
 
 .PHONY: rosbridge.up.detached
 rosbridge.up.detached:			## Ejecuta rosbridge en background.
-	$(MAKE) -C RosBridge up_dev.detached
+	$(MAKE) -C RosBridge up.detached
 
 .PHONY: rosbridge.down
 rosbridge.down:				## Detiene rosbridge.
-	$(MAKE) -C RosBridge down_dev
-
-.PHONY: rosbridge.demo
-rosbridge.demo:				## Ejecuta rosbridge en modo demo (foreground).
-	$(MAKE) -C RosBridge up_demo
-
-.PHONY: rosbridge.demo.detached
-rosbridge.demo.detached:		## Ejecuta rosbridge en modo demo (background).
-	$(MAKE) -C RosBridge up_demo.detached
-
-.PHONY: rosbridge.demo.down
-rosbridge.demo.down:			## Detiene rosbridge demo.
-	$(MAKE) -C RosBridge down_demo
+	$(MAKE) -C RosBridge down
 
 # --- Compuestos ---
 

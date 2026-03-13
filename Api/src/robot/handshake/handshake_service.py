@@ -14,7 +14,7 @@ class HandshakeService:
         self.encryption_service = encryption_service
         self.robot_service = robot_service
 
-    def create_access_token_by_basic_credentials(self, credentials: HTTPBasicCredentials) -> AccessToken:
+    def create_access_token_by_basic_credentials(self, credentials: HTTPBasicCredentials) -> tuple[AccessToken, Robot]:
         robot = self.robot_service.get_robot_by_external_identifier(credentials.username)
 
         if not robot:
@@ -30,7 +30,7 @@ class HandshakeService:
                 status_code=403,
                 detail=f"Robot no aprobado. Estado actual: {robot.status}")
 
-        return self.create_access_token(robot)
+        return self.create_access_token(robot), robot
 
     def create_access_token(self, robot: Robot) -> AccessToken:
         token = self.encryption_service.create_bearer_access_token(data={

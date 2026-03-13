@@ -31,10 +31,10 @@
 
 Labs Remoto es un sistema distribuido que permite a usuarios (profesores y alumnos) controlar robots en laboratorios de forma remota a través de una interfaz web. La comunicación fluye desde el navegador del usuario hasta los motores del robot, pasando por múltiples capas.
 
-El sistema sigue una arquitectura de **capas lineales** con la API como punto central de orquestación:
+El sistema sigue una arquitectura **hub-and-spoke** con RosBridge como punto central de comunicación en tiempo real:
 
 ```
-Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físico
+Usuario → Frontend → API → RosBridge ← RaspberryPi → Arduino → Robot Físico
 ```
 
 ---
@@ -63,18 +63,11 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 │ (rosbridge  │
 │  suite)     │
 └──────┬──────┘
-       │ DDS
-       ▼
-┌─────────────┐
-│    ROS      │  Gestión y control de robots
-│  (ROS 2     │
-│   Humble)   │
-└──────┬──────┘
-       │
+       │ WebSocket (rosbridge protocol)
        ▼
 ┌─────────────┐
 │ RaspberryPi │  Un controlador por robot
-│ (Python)    │
+│ (Python)    │  Se conecta directo a rosbridge
 └──────┬──────┘
        │ Serial (USB)
        ▼
@@ -113,21 +106,22 @@ Usuario → Frontend → API → ROS → RaspberryPi → Arduino → Robot Físi
 |--------|-------|-----------------|
 | `auth` | `/auth/*` | Login, signup, token de acceso a robot |
 | `robot` (admin) | `/admin/robot/*` | CRUD de robots, envío de comandos (admin) |
-| `robot` (m2m) | `/m2m/robot/*` | Handshake y WebSocket para robots |
+| `robot` (m2m) | `/m2m/robot/*` | Registro y handshake para robots |
 | `robot` (user) | `/user/robot/*` | WebSocket para usuarios |
 
 #### Comunicación usuario↔robot vía RosBridge
 
-La API actúa como cliente WebSocket de rosbridge (`ws://rosbridge:9090`), publicando comandos y recibiendo respuestas a través de topics ROS:
+La API y la RaspberryPi se conectan como clientes WebSocket a rosbridge (`ws://rosbridge:9090`). La API publica comandos y se suscribe a respuestas; la Pi se suscribe a comandos y publica respuestas/estado:
 
 ```
-Usuario ──WS──► API ──WS:9090──► RosBridge ──DDS──► Robot
-                 ▲                              │
-                 └──────────asyncio.Queue────────┘
-                         (respuestas del robot)
+Usuario ──WS──► API ──WS:9090──► RosBridge ◄──WS:9090── RaspberryPi
+                 ▲                    │
+                 └───asyncio.Queue────┘
+                  (respuestas del robot)
 ```
 
-- Los UUIDs de robots se codifican en Crockford Base32 para los nombres de topics: `/robot/<base32>/command`, `/robot/<base32>/response`, `/robot/<base32>/status`
+- Los UUIDs de robots se codifican en Crockford Base32 con prefijo `r` para los nombres de topics: `/robot/r<base32>/command`, `/robot/r<base32>/response`, `/robot/r<base32>/status`. El prefijo `r` es necesario porque ROS 2 no permite tokens que empiecen con número
+- Todo el contenido de los mensajes usa el protocolo JSON-RPC 2.0 (comandos, respuestas y notificaciones de estado)
 - Cada usuario tiene su propia `asyncio.Queue` — el listener de rosbridge hace fan-out de respuestas
 - Suscripción lazy: se suscribe a los topics de un robot la primera vez que un usuario envía un comando
 - Reconexión automática con backoff exponencial si se pierde la conexión a rosbridge
@@ -143,7 +137,7 @@ Usuario ──WS──► API ──WS:9090──► RosBridge ──DDS──�
 
 - **Directorio**: `ros_tryouts/`
 - **Tecnología**: ROS 2 Humble
-- **Responsabilidad**: Gestión y control de robots a nivel de sistema operativo robótico
+- **Responsabilidad**: Gestión y control de robots a nivel de sistema operativo robótico. En la arquitectura actual, rosbridge expone los topics ROS como WebSocket/JSON, y tanto la API como la Pi se conectan como clientes WebSocket
 - **Estado**: En desarrollo por otro miembro del equipo — no lo modificamos
 
 ### RaspberryPi (Controlador del Robot)
@@ -151,10 +145,10 @@ Usuario ──WS──► API ──WS:9090──► RosBridge ──DDS──�
 - **Directorio**: `RaspberryPi/`
 - **Tecnología**: Python 3.13.7+
 - **Responsabilidad**: Se ejecuta en cada robot físico. Maneja:
-  - Conexión con la API (handshake HTTP Basic → JWT → WebSocket)
-  - Recepción de comandos desde la API
+  - Registro y handshake con la API (HTTP Basic → JWT + topic base)
+  - Conexión directa a rosbridge para recibir comandos JSON-RPC 2.0 vía topics ROS
   - Traducción de comandos a instrucciones seriales para Arduino
-  - Reporte de estado (futuro)
+  - Publicación de respuestas y estado periódico vía topics ROS
 - **Mock disponible**: `RobotMockController` (activable con `MOCK_ROBOT=1`) para desarrollo sin hardware
 
 ### Arduino (Firmware)
@@ -222,6 +216,7 @@ Un trigger en la tabla `robots` registra automáticamente cada cambio de estado 
 
 - **Frontend → API** (`/user/robot/send_command`): Canal bidireccional para envío de comandos y recepción de respuestas del robot
 - **API → RosBridge** (`ws://rosbridge:9090`): La API publica comandos y se suscribe a respuestas/status vía el protocolo rosbridge (JSON sobre WebSocket)
+- **RaspberryPi → RosBridge** (`ws://rosbridge:9090`): La Pi se suscribe a comandos y publica respuestas/status vía el protocolo rosbridge
 
 ### JSON-RPC 2.0
 
@@ -282,16 +277,15 @@ RaspberryPi                API                    Admin              DB
   │  (HTTP Basic)           │ verifica bcrypt      │                  │
   │                         │ verifica status=approved               │
   │                         │ genera JWT (role=robot)                │
-  │◄──────AccessToken───────┤                      │                  │
+  │◄──{JWT + topic base}────┤                      │                  │
   │                         │                      │                  │
-  │                         │                      │                  │
-  │  [Robot se comunica vía ROS/DDS, no WS directo con la API]       │
+  │  [Pi se conecta a rosbridge, se suscribe a topic de comandos]    │
 ```
 
 ### Usuario Envía Comando a Robot
 
 ```
-Usuario                    API                   RosBridge              Robot (ROS)
+Usuario                    API                   RosBridge              RaspberryPi
   │                         │                      │                      │
   ├─WS /user/send_command──►│                      │                      │
   │                         │                      │                      │
@@ -304,12 +298,14 @@ Usuario                    API                   RosBridge              Robot (R
   │                         │ valida access_token  │                      │
   │                         │                      │                      │
   │                         ├──publish /robot/     │                      │
-  │                         │  <b32>/command──────►├──DDS──────────────►│
+  │                         │  r<b32>/command─────►├─────────────────────►│
   │                         │                      │                      │
-  │                         │                      │◄──DDS────────────────┤
-  │                         │◄──/robot/<b32>/      │  (response/status)   │
+  │                         │                      │◄─────────────────────┤
+  │                         │◄──/robot/r<b32>/     │  (response/status)   │
   │◄──{response}────────────┤  response────────────┤                      │
 ```
+
+La RaspberryPi está conectada como cliente WebSocket a rosbridge, suscrita a su topic de comandos. Al recibir un comando JSON-RPC 2.0, lo ejecuta en el robot y publica la respuesta/estado en los topics correspondientes.
 
 ---
 
@@ -370,7 +366,7 @@ make down            # Detiene todos los servicios en background
 make db.migrate      # Ejecuta migraciones
 make db.seed         # Aplica datos semilla
 make webclient.up    # Frontend Vue (foreground)
-make rosbridge.demo  # RosBridge + mock robot (foreground)
+make rosbridge.up    # RosBridge (foreground)
 ```
 
 ---
@@ -379,9 +375,9 @@ make rosbridge.demo  # RosBridge + mock robot (foreground)
 
 El sistema puede ejecutarse **sin hardware físico** para desarrollo y demostración:
 
-- **RosBridge**: El servicio `rosbridge-demo` (`make rosbridge.demo`) incluye un nodo `mock_robot_node` que simula robots, recibe comandos y publica respuestas/status ficticios. Los UUIDs de demo se configuran vía `DEMO_ROBOT_IDS`
-- **RaspberryPi**: Usar `MOCK_ROBOT=1` en `.env` para activar el `RobotMockController`, que simula las respuestas del robot sin comunicación serial
-- **Arduino**: No se necesita — el mock de RosBridge o RaspberryPi lo reemplaza
+- **RosBridge**: Ejecutar con `make rosbridge.up`. Es solo software, no requiere hardware
+- **RaspberryPi**: Usar `MOCK_ROBOT=1` en `.env` para activar el `RobotMockController`, que simula las respuestas del robot sin comunicación serial. Combinado con `CREATE_DEFAUL_METADATA=1`, la Pi se auto-registra y conecta a rosbridge automáticamente
+- **Arduino**: No se necesita — el mock de RaspberryPi lo reemplaza
 - **Base de datos**: La DB efímera (`make db.up.ephimeral`) usa tmpfs para pruebas rápidas sin persistencia
 
 Toda nueva feature debe garantizar compatibilidad con el modo demo.

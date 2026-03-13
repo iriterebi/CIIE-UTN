@@ -10,18 +10,15 @@ Servicio que ejecuta [rosbridge_suite](https://github.com/RobotWebTools/rosbridg
 API (FastAPI) ──WS:9090──► rosbridge_server ──DDS──► nodos ROS ──► RaspberryPi
 ```
 
-La API se conecta como cliente WebSocket a rosbridge (puerto 9090) y publica/suscribe topics ROS usando el protocolo JSON de rosbridge.
+La API y la RaspberryPi se conectan como clientes WebSocket a rosbridge (puerto 9090) y publican/suscriben topics ROS usando el protocolo JSON de rosbridge.
 
 ## Ejecución
 
 ```bash
-make build                # Construir imagen Docker
-make up_demo              # rosbridge + nodo mock (foreground)
-make up_dev               # Solo rosbridge (foreground)
-make up_demo.detached     # rosbridge + mock (background)
-make up_dev.detached      # Solo rosbridge (background)
-make down_demo            # Detener demo
-make down_dev             # Detener dev
+make build            # Construir imagen Docker
+make up               # Ejecutar rosbridge (foreground)
+make up.detached      # Ejecutar rosbridge (background)
+make down             # Detener rosbridge
 ```
 
 Requiere la red Docker `ciie-test` creada previamente (`docker network create ciie-test`).
@@ -30,46 +27,27 @@ Requiere la red Docker `ciie-test` creada previamente (`docker network create ci
 
 ```
 RosBridge/
-├── Dockerfile               # ROS Humble + rosbridge_suite + paquetes custom
-├── entrypoint.sh            # Sourcear ROS + workspace overlay
-├── compose.yaml             # Servicios: rosbridge (dev) y rosbridge-demo (demo)
+├── Dockerfile               # ROS Humble + rosbridge_suite
+├── entrypoint.sh            # Sourcear ROS
+├── compose.yaml             # Servicio rosbridge
 ├── Makefile                 # Comandos unificados
 ├── config/
 │   └── rosbridge_params.yaml   # Configuración de rosbridge (puerto, timeouts, etc.)
-├── launch/
-│   └── bridge.launch.py     # Launch file: rosbridge + mock opcional (demo:=true)
-└── src/
-    └── mock_robot/           # Paquete ROS 2 — nodo mock para modo demo
-        ├── package.xml
-        ├── setup.py
-        ├── setup.cfg
-        └── mock_robot/
-            ├── __init__.py
-            └── mock_robot_node.py   # Nodo que simula robots (suscribe commands, publica responses/status)
+└── launch/
+    └── bridge.launch.py     # Launch file: rosbridge_server
 ```
-
-## Docker Compose
-
-Dos servicios con profiles:
-
-| Servicio | Profile | Descripción |
-|----------|---------|-------------|
-| `rosbridge` | `dev` | Solo rosbridge_server — requiere nodos ROS externos |
-| `rosbridge-demo` | `demo` | rosbridge + nodo `mock_robot_node` con robots simulados |
-
-Ambos exponen puerto `9090` y se conectan a la red `ciie-test` con alias `rosbridge`.
 
 ## Convención de Topics
 
-Los UUIDs de robots se codifican en **Crockford Base32** para los nombres de topics:
+Los UUIDs de robots se codifican en **Crockford Base32** con prefijo `r` para los nombres de topics (ROS 2 no permite tokens que empiecen con número):
 
 | Topic | Dirección | Contenido |
 |-------|-----------|-----------|
-| `/robot/<base32>/command` | API → Robot | Comandos JSON-RPC |
-| `/robot/<base32>/response` | Robot → API | Respuestas a comandos |
-| `/robot/<base32>/status` | Robot → API | Estado periódico del robot |
+| `/robot/r<base32>/command` | API → Robot | Comandos JSON-RPC 2.0 |
+| `/robot/r<base32>/response` | Robot → API | Respuestas JSON-RPC 2.0 (con `id`) |
+| `/robot/r<base32>/status` | Robot → API | Notifications JSON-RPC 2.0 (sin `id`, `method: "status.update"`) |
 
-Tipo de mensaje: `std_msgs/String` con payload JSON.
+Tipo de mensaje: `std_msgs/String` con payload JSON-RPC 2.0.
 
 ## Configuración de rosbridge
 
@@ -81,22 +59,25 @@ Tipo de mensaje: `std_msgs/String` con payload JSON.
 
 ## Modo Demo
 
-El servicio `rosbridge-demo` lanza el nodo `mock_robot_node` que:
-- Lee UUIDs de `DEMO_ROBOT_IDS` (variable de entorno, separados por coma)
-- Se suscribe a `/robot/<base32>/command` de cada robot
-- Responde con datos simulados en `/robot/<base32>/response`
-- Publica estado periódico en `/robot/<base32>/status`
-
-Los UUIDs de demo se configuran en `compose.yaml` → `DEMO_ROBOT_IDS`.
+Para pruebas sin hardware, ejecutar la RaspberryPi en modo mock (`MOCK_ROBOT=1`) conectada a rosbridge. Ver `RaspberryPi/CLAUDE.md` para detalles.
 
 ## Protocolo rosbridge (referencia rápida)
+
+### Advertise (antes de publicar)
+```json
+{
+  "op": "advertise",
+  "topic": "/robot/r<base32>/command",
+  "type": "std_msgs/String"
+}
+```
 
 ### Publicar comando
 ```json
 {
   "op": "publish",
-  "topic": "/robot/<base32>/command",
-  "msg": { "data": "{\"method\": \"move_arm\", \"params\": {\"angle\": 90}}" }
+  "topic": "/robot/r<base32>/command",
+  "msg": { "data": "{\"jsonrpc\":\"2.0\",\"method\":\"move_arm\",\"params\":{\"angle\":90},\"id\":1}" }
 }
 ```
 
@@ -104,7 +85,7 @@ Los UUIDs de demo se configuran en `compose.yaml` → `DEMO_ROBOT_IDS`.
 ```json
 {
   "op": "subscribe",
-  "topic": "/robot/<base32>/response",
+  "topic": "/robot/r<base32>/response",
   "type": "std_msgs/String"
 }
 ```

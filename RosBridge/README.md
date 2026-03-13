@@ -19,7 +19,7 @@ Service that runs [rosbridge_suite](https://github.com/RobotWebTools/rosbridge_s
 API (FastAPI) ──WS:9090──► rosbridge_server ──DDS──► ROS nodes ──► RaspberryPi
 ```
 
-The API connects as a WebSocket client to rosbridge and publishes/subscribes to ROS topics using a JSON protocol. rosbridge translates these messages to ROS 2's native system (DDS).
+The API and RaspberryPi connect as WebSocket clients to rosbridge and publish/subscribe to ROS topics using a JSON protocol. rosbridge translates these messages to ROS 2's native system (DDS).
 
 ## Prerequisites
 
@@ -32,65 +32,54 @@ The API connects as a WebSocket client to rosbridge and publishes/subscribes to 
 # Build the image
 make build
 
-# Dev mode: rosbridge only (requires external ROS nodes)
-make up_dev
+# Run rosbridge (foreground)
+make up
 
-# Demo mode: rosbridge + mock node that simulates robots
-make up_demo
-
-# Background
-make up_dev.detached
-make up_demo.detached
+# Run rosbridge (background)
+make up.detached
 
 # Stop
-make down_dev
-make down_demo
-```
-
-Or from the project root Makefile:
-
-```bash
-make rosbridge.demo          # Demo mode (foreground)
-make rosbridge.up.detached   # Dev mode (background)
+make down
 ```
 
 ## Topic Convention
 
-Robot UUIDs are encoded in **Crockford Base32** for use in ROS topic names.
+Robot UUIDs are encoded in **Crockford Base32** with an `r` prefix for use in ROS topic names (ROS 2 does not allow tokens starting with a number).
 
 | Topic | Direction | Content |
 |-------|-----------|---------|
-| `/robot/<base32>/command` | API → Robot | JSON-RPC commands |
-| `/robot/<base32>/response` | Robot → API | Command responses |
-| `/robot/<base32>/status` | Robot → API | Periodic robot status |
+| `/robot/r<base32>/command` | API → Robot | JSON-RPC 2.0 commands |
+| `/robot/r<base32>/response` | Robot → API | JSON-RPC 2.0 responses (with `id`) |
+| `/robot/r<base32>/status` | Robot → API | JSON-RPC 2.0 notifications (no `id`, `method: "status.update"`) |
 
-Message type: `std_msgs/String` with JSON payload.
-
-**Example**: UUID `a0e1f2a3-b4c5-d6e7-f8a9-b0c1d2e3f4a5` → Base32 → topic `/robot/A1W3T51ECNQEFSN4P1C3QHRT95/command`
+Message type: `std_msgs/String` with JSON-RPC 2.0 payload.
 
 ## Demo Mode
 
-The `rosbridge-demo` service (profile `demo`) launches rosbridge alongside a `mock_robot_node` that simulates robots:
-
-- Reads UUIDs from `DEMO_ROBOT_IDS` (environment variable, comma-separated)
-- Subscribes to `/robot/<base32>/command` for each robot
-- Responds with simulated data on `/robot/<base32>/response`
-- Publishes periodic status on `/robot/<base32>/status`
-
-Configurable via `DEMO_ROBOT_IDS` in `compose.yaml`.
+To test without physical hardware, run the RaspberryPi controller in mock mode (`MOCK_ROBOT=1`) connected to rosbridge. See `RaspberryPi/CLAUDE.md` for details.
 
 ## rosbridge Protocol
 
-Example JSON messages the API would send to the rosbridge WebSocket:
+Example JSON messages sent to the rosbridge WebSocket:
+
+### Advertise a topic (before publishing)
+
+```json
+{
+  "op": "advertise",
+  "topic": "/robot/r<base32>/command",
+  "type": "std_msgs/String"
+}
+```
 
 ### Publish a command
 
 ```json
 {
   "op": "publish",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/command",
+  "topic": "/robot/r<base32>/command",
   "msg": {
-    "data": "{\"method\": \"move_arm\", \"params\": {\"angle\": 90}}"
+    "data": "{\"jsonrpc\":\"2.0\",\"method\":\"move_arm\",\"params\":{\"angle\":90},\"id\":1}"
   }
 }
 ```
@@ -100,7 +89,7 @@ Example JSON messages the API would send to the rosbridge WebSocket:
 ```json
 {
   "op": "subscribe",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/response",
+  "topic": "/robot/r<base32>/response",
   "type": "std_msgs/String"
 }
 ```
@@ -110,7 +99,7 @@ Example JSON messages the API would send to the rosbridge WebSocket:
 ```json
 {
   "op": "subscribe",
-  "topic": "/robot/A1W3T51ECNQEFSN4P1C3QHRT95/status",
+  "topic": "/robot/r<base32>/status",
   "type": "std_msgs/String"
 }
 ```

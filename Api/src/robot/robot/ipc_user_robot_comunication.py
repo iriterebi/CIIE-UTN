@@ -19,6 +19,7 @@ from .json_rpc_commands import RobotCommand, RobotCommandExtended, UserWsAuthent
 from .robot_service import RobotServiceDep, RobotService
 from ..access_validator import AccessValidator, UserRobotAccessSession
 from ..rosbridge_client import RosBridgeClient, RosBridgeClientDep
+from .robot import Robot
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,12 @@ class UserToRobotCommunication:
     async def _send_command_to_robot(self, command: RobotCommand):
         """Publica un comando al topic ROS del robot vía rosbridge."""
         print("Command ", command)
+
+        robot = self.robot_service.get_robot_by_id(command.robot_id)
+
         await self.rosbridge.publish_command(
-            command.robot_id,
-            command.args.model_dump(),
+            robot,
+            command.args.model_dump(mode="json"),
         )
 
     async def connect_ws(self, websocket: WebSocket):
@@ -59,8 +63,8 @@ class UserToRobotCommunication:
             await websocket.send_json(e.to_jsonrpc())
             await websocket.close()
         except Exception as e:
-            print(f"Exception {e}")
-            await websocket.send_json({"status": "error", "message": str(e)})
+            logger.error(f"Exception {e}")
+            await websocket.send_json({"status": "error", "message": "Internal Server Error"})
             await websocket.close()
         finally:
             await self._cleanup()
@@ -101,6 +105,10 @@ class UserToRobotCommunication:
         except SerializableException as e:
             await websocket.send_json(e.to_jsonrpc())
 
+        except Exception as e:
+            logger.error(f"Exception: {e}")
+            await websocket.send_json({"status": "error", "message": "Internal Server Error"})
+
     async def receive_robot_feedback(self, websocket: WebSocket):
         """Lee respuestas de robots desde la queue y las envía al usuario."""
         while True:
@@ -110,13 +118,19 @@ class UserToRobotCommunication:
     async def _ensure_robot_subscription(self, robot_id: UUID):
         """Suscribe la queue a un robot si aún no lo estamos."""
         if robot_id not in self._subscribed_robots:
-            await self.rosbridge.subscribe_robot(robot_id, self.response_queue)
+            await self.rosbridge.subscribe_robot(
+                self.robot_service.get_robot_by_id(robot_id),
+                self.response_queue
+            )
             self._subscribed_robots.add(robot_id)
 
     async def _cleanup(self):
         """Desuscribir de todos los robots al desconectar."""
         for robot_id in self._subscribed_robots:
-            await self.rosbridge.unsubscribe_robot(robot_id, self.response_queue)
+            await self.rosbridge.unsubscribe_robot(
+                self.robot_service.get_robot_by_id(robot_id),
+                self.response_queue
+            )
         self._subscribed_robots.clear()
 
 

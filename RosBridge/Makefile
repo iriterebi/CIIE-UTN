@@ -3,29 +3,17 @@
 ## ----------------------------------------------------------------------
 
 
-.PHONY: up_dev
-up_dev:				## Ejecuta rosbridge en foreground (requiere nodos ROS externos).
+.PHONY: up
+up:				## Ejecuta rosbridge en foreground.
 	docker compose up rosbridge
 
-.PHONY: up_dev.detached
-up_dev.detached:		## Ejecuta rosbridge en background.
+.PHONY: up.detached
+up.detached:			## Ejecuta rosbridge en background.
 	docker compose up -d rosbridge
 
-.PHONY: down_dev
-down_dev:			## Detiene rosbridge.
+.PHONY: down
+down:				## Detiene rosbridge.
 	docker compose down rosbridge
-
-.PHONY: up_demo
-up_demo:			## Ejecuta rosbridge + nodo mock en foreground (modo demo).
-	docker compose up rosbridge-demo
-
-.PHONY: up_demo.detached
-up_demo.detached:		## Ejecuta rosbridge + nodo mock en background (modo demo).
-	docker compose up -d rosbridge-demo
-
-.PHONY: down_demo
-down_demo:			## Detiene rosbridge demo.
-	docker compose down rosbridge-demo
 
 .PHONY: build
 build:				## Construye la imagen Docker.

@@ -64,7 +64,13 @@ class RobotController:
         for command in commands:
             if command:
                 self.send_command(command)
-                # Optionally read response after each command if needed
                 response = self.read_response()
-                # print(f"Response for '{command}': {response}")
-                print(f"Response for '{command}': {response}")
+                self.logger.info("Response for '%s': %s", command, response)
+
+    def get_status(self) -> dict:
+        """Retorna el estado actual del robot para publicar vía rosbridge."""
+        return {
+            "status": "online" if self.ser and self.ser.is_open else "disconnected",
+            "mock": False,
+            "port": self.arduino_port,
+        }

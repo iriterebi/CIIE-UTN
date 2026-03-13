@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import List
 
 class RobotMockController:
@@ -35,4 +36,20 @@ class RobotMockController:
             if command:
                 self.send_command(command)
                 response = self.read_response()
-                print(f"Mock Response for '{command}': {response}")
+                self.logger.info("Mock Response for '%s': %s", command, response)
+
+    def get_status(self) -> dict:
+        """Retorna estado simulado del robot mock."""
+        return {
+            "status": "online",
+            "mock": True,
+            "servos": {
+                "base": random.randint(0, 180),
+                "cuerpo": random.randint(0, 180),
+                "hombro": random.randint(0, 180),
+                "brazo": random.randint(0, 180),
+                "antebrazo_1": random.randint(0, 180),
+                "antebrazo_2": random.randint(0, 180),
+                "mano": random.randint(0, 180),
+            },
+        }

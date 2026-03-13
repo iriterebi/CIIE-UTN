@@ -209,10 +209,12 @@ name = "ciie-remote-lab-native"
 version = "0.1.0"
 source = { virtual = "RaspberryPi" }
 dependencies = [
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "serial" },
     { name = "types-pyserial" },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -222,10 +224,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pydantic", specifier = ">=2.11.10" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "serial", specifier = ">=0.0.97" },
     { name = "types-pyserial", specifier = ">=3.5.0.20251001" },
+    { name = "websockets", specifier = ">=15.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -1,12 +1,18 @@
 from typing import Annotated
+import logging
 
 from fastapi import Depends, HTTPException
 from sqlmodel import select
+from jwt import ExpiredSignatureError
+
 
 from .user import User
 from .user_base import UserBase
 from ..encryption import EncryptionServiceDep, EncryptionService, AccessToken
 from ....db_connection import DbSessionDep
+
+logger = logging.getLogger(__name__)
+
 
 
 class UserService:
@@ -32,13 +38,20 @@ class UserService:
         return user
 
     def get_user_by_token(self, token: str) -> User | None:
-        username = self.encryption_service.decode_token(token).get("sub")
 
-        user: User | None = self.db_session.exec(
-            select(User).where(User.usr_name == username)
-        ).one()
+        try:
 
-        return user
+            username = self.encryption_service.decode_token(token).get("sub")
+
+            user: User | None = self.db_session.exec(
+                select(User).where(User.usr_name == username)
+            ).one()
+
+            return user
+        except ExpiredSignatureError as e:
+            logger.error(f'get_user_by_token error: {e}')
+            return None
+
 
     def create_access_token(self, user: User) -> AccessToken:
 

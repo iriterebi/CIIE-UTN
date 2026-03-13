@@ -20,6 +20,7 @@ def _get_required_boolean_env(var_name: str) -> bool:
 
 # Environment variables
 SERVER_URL: str = _get_required_env('SERVER_URL')
+ROSBRIDGE_URL: str = _get_required_env('ROSBRIDGE_URL')
 ARDUINO_PORT: str = _get_required_env('ARDUINO_PORT')
 CREATE_DEFAULT_METADATA: bool = _get_required_boolean_env('CREATE_DEFAUL_METADATA')
 MOCK_ROBOT: bool = _get_required_boolean_env('MOCK_ROBOT')

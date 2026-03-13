@@ -148,7 +148,7 @@ Content-Type: application/json
 
 ### 5. Handshake Exitoso
 
-En el siguiente reintento de la Pi, el handshake retorna un JWT:
+En el siguiente reintento de la Pi, el handshake retorna un JWT y el topic base del robot:
 
 ```
 POST /m2m/robot/handshake
@@ -158,10 +158,13 @@ Authorization: Basic <base64(external_identifier:password)>
 **Respuesta** (200):
 ```json
 {
-    "access_token": "eyJhbGci...",
-    "token_type": "bearer",
-    "scope": "broker:report_log broker:listen_commands",
-    "expires_in": 3600
+    "access_token": {
+        "access_token": "eyJhbGci...",
+        "token_type": "bearer",
+        "scope": "broker:report_log broker:listen_commands",
+        "expires_in": 3600
+    },
+    "topic": "/robot/r<base32>"
 }
 ```
 
@@ -170,15 +173,17 @@ El JWT contiene:
 - `role`: `"robot"`
 - `scope`: permisos del robot
 
-### 6. Comunicación vía ROS
+El `topic` es el prefijo base para los topics ROS del robot. Los UUIDs se codifican en Crockford Base32 con prefijo `r` (ROS 2 no permite tokens que empiecen con número).
 
-Tras el handshake, la comunicación de comandos **no** pasa por la API. El robot se comunica vía ROS/DDS, y la API publica/suscribe topics a través de RosBridge (`ws://rosbridge:9090`):
+### 6. Conexión a rosbridge
 
-- Comandos: `/robot/<base32>/command`
-- Respuestas: `/robot/<base32>/response`
-- Status: `/robot/<base32>/status`
+Tras el handshake, la Pi se conecta directamente al WebSocket de rosbridge (`ws://rosbridge:9090`) y se suscribe a su topic de comandos:
 
-Los UUIDs se codifican en Crockford Base32 para los nombres de topics.
+- Comandos (recibe): `/robot/r<base32>/command`
+- Respuestas (publica): `/robot/r<base32>/response`
+- Estado (publica): `/robot/r<base32>/status`
+
+Todos los mensajes usan el protocolo JSON-RPC 2.0 dentro de `std_msgs/String`.
 
 ---
 
@@ -216,10 +221,9 @@ RaspberryPi              API                    Admin              DB
     │                      │                      │                 │
     ├──POST /handshake────►│                      │                 │
     │  (HTTP Basic)        │  status == approved  │                 │
-    │◄──200 {JWT}──────────┤                      │                 │
+    │◄──200 {JWT, topic}───┤                      │                 │
     │                      │                      │                 │
-    │                      │                      │                 │
-    │  [Comunicación posterior vía ROS/DDS, no WS directo]           │
+    │  [Pi se conecta a rosbridge, se suscribe a topic de comandos] │
 ```
 
 ---
@@ -299,10 +303,13 @@ POST /admin/robot/{id}/reject
 Para probar el flujo completo sin hardware:
 
 1. Iniciar DB: `cd Db && make up_db.dev.detached && make migrate_db`
-2. Iniciar API: `cd Api && make up_dev`
-3. Simular registro: `curl -X POST http://localhost:8000/m2m/robot/register -H 'Content-Type: application/json' -d '{"external_identifier": "550e8400-e29b-41d4-a716-446655440000", "psw": "test123"}'`
-4. Ver pendientes: `curl http://localhost:8000/admin/robot/pending`
-5. Aprobar: `curl -X POST http://localhost:8000/admin/robot/{id}/approve -H 'Content-Type: application/json' -d '{"name": "Demo Robot"}'`
-6. Handshake: `curl -X POST http://localhost:8000/m2m/robot/handshake -u '550e8400-e29b-41d4-a716-446655440000:test123'`
+2. Iniciar RosBridge: `cd RosBridge && make up.detached`
+3. Iniciar API: `cd Api && make up_dev`
+4. Simular registro: `curl -X POST http://localhost:8000/m2m/robot/register -H 'Content-Type: application/json' -d '{"external_identifier": "550e8400-e29b-41d4-a716-446655440000", "psw": "test123"}'`
+5. Ver pendientes: `curl http://localhost:8000/admin/robot/pending`
+6. Aprobar: `curl -X POST http://localhost:8000/admin/robot/{id}/approve -H 'Content-Type: application/json' -d '{"name": "Demo Robot"}'`
+7. Handshake: `curl -X POST http://localhost:8000/m2m/robot/handshake -u '550e8400-e29b-41d4-a716-446655440000:test123'`
+
+El handshake retorna el JWT y el topic base del robot. Tras esto, la Pi se conecta a rosbridge para recibir comandos.
 
 Con la Pi en modo mock (`MOCK_ROBOT=1`, `CREATE_DEFAUL_METADATA=1`), el flujo completo se ejecuta automáticamente — solo falta la aprobación manual del admin.

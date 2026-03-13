@@ -89,11 +89,12 @@ cd Api
 make up_dev
 ```
 
-### 4. Iniciar RosBridge (modo demo)
+### 4. Iniciar RosBridge
 
 ```bash
 cd RosBridge
-make up_demo              # rosbridge + nodo mock del robot
+make build                # Construir imagen Docker (primera vez)
+make up                   # Ejecutar rosbridge (foreground)
 ```
 
 ### 5. Iniciar el frontend
@@ -121,7 +122,7 @@ npm run dev               # Servidor Vite en :5173
 - `ROSBRIDGE_URL` (ej: `ws://rosbridge:9090`)
 
 **RaspberryPi** (`.env.defaults` tiene valores por defecto):
-- `SERVER_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAUL_METADATA`
+- `SERVER_URL`, `ROSBRIDGE_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAUL_METADATA`
 
 Ver el README de cada subproyecto para más detalles.
 
