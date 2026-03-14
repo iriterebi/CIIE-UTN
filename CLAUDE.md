@@ -185,3 +185,7 @@ El registro es idempotente: si el `external_identifier` ya existe, retorna el ro
 - **Auth de robots**: external_identifier (UUID string) + password, almacenado en `robot-metadata.json` en cada Pi
 - **Workspace uv**: ejecutar `uv sync` desde la raíz para instalar todas las dependencias
 - **Herramientas de desarrollo**: autopep8 (formateo), mypy (type checking), pylint (linting)
+
+## Planes activos
+
+- [MockCam — Stream MJPEG con telemetría](.claude/plan-mockcam.md): servicio que genera imágenes del brazo robótico a partir de la telemetría de la Pi y las sirve como stream MJPEG. Mock de una futura cámara real.
