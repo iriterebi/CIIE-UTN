@@ -3,14 +3,13 @@
 ## Uso: make help
 ## ----------------------------------------------------------------------
 
-
-# --- Api ---
+## --- Api ---
 
 .PHONY: api.up
 api.up:					## Ejecuta la API en modo desarrollo.
 	$(MAKE) -C Api up_dev
 
-# --- Db ---
+## --- Db ---
 
 .PHONY: db.up
 db.up:					## Ejecuta la base de datos en foreground.
@@ -44,7 +43,7 @@ db.migrate:				## Ejecuta las migraciones de la base de datos.
 db.seed:				## Aplica los datos semilla.
 	$(MAKE) -C Db seed_apply
 
-# --- WebClient ---
+## --- WebClient ---
 
 .PHONY: webclient.build
 webclient.build:			## Construye la imagen Docker del frontend Vue.
@@ -62,7 +61,7 @@ webclient.up.detached:			## Ejecuta el frontend Vue en background.
 webclient.down:				## Detiene el frontend Vue.
 	$(MAKE) -C WebClient down_dev
 
-# --- RosBridge ---
+## --- RosBridge ---
 
 .PHONY: rosbridge.up
 rosbridge.up:				## Ejecuta rosbridge en foreground.
@@ -76,7 +75,7 @@ rosbridge.up.detached:			## Ejecuta rosbridge en background.
 rosbridge.down:				## Detiene rosbridge.
 	$(MAKE) -C RosBridge down
 
-# --- Compuestos ---
+## --- Compuestos ---
 
 .PHONY: up
 up: db.up.detached api.up		## Ejecuta DB (background) + API (foreground).
@@ -87,11 +86,14 @@ up.all: db.up.detached webclient.up.detached rosbridge.up.detached api.up	## Eje
 .PHONY: down
 down: db.down webclient.down rosbridge.down	## Detiene todos los servicios en background.
 
-# --- Help ---
+## --- Help ---
 
 .PHONY: help
 help:					## Muestra esta ayuda.
-	@grep -E '^[a-zA-Z_.]+:.*##' $(MAKEFILE_LIST) | \
-		awk -F ':.*## ' '{printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^(## |[a-zA-Z_.]+:.*##)' $(MAKEFILE_LIST) | \
+		awk -F ':' '{ \
+			if ($$0 ~ /^## /) { sub(/^## /, "", $$0); printf "  %s\n", $$0 } \
+			else { split($$0, a, /:.*## /); printf "    \033[36m%-28s\033[0m %s\n", a[1], a[2] } \
+		}'
 
 .DEFAULT_GOAL := help

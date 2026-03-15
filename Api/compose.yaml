@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: Api/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - ciie-test
+    restart: unless-stopped
+    depends_on:
+      - db-dev
+      - rosbridge
+
+networks:
+  ciie-test:
+    external: true

@@ -21,10 +21,6 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 - **Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
 - **Documents/**: Documentación general del sistema
 
-### Directorios deprecados (no usar ni extender)
-
-- `Python/` — scripts legacy
-
 ## Stack Tecnológico
 
 - **Lenguaje**: Python 3.13.7+ (Api, RaspberryPi), Arduino C++ (firmware)
@@ -71,7 +67,6 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 ├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
 ├── Documents/            # Documentación
 ├── WebClient/            # Frontend Vue 3 + TypeScript + PicoCSS (activo)
-├── Python/               # DEPRECADO — código legacy
 ├── compose.yaml          # Compose raíz (incluye Db + WebClient + RosBridge)
 └── pyproject.toml        # Raíz del workspace uv
 ```

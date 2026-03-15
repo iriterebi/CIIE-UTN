@@ -45,7 +45,6 @@ For a detailed description of the system architecture, communication flows, data
 | `Documents/` | Active | General system documentation |
 | `WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
 | `RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
-| `Python/` | Deprecated | Legacy scripts |
 
 ## Tech Stack
 
