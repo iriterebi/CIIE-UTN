@@ -7,17 +7,30 @@ Flujo:
 2. (async) Conecta a rosbridge, escucha comandos y publica estado
 """
 
+import argparse
 import asyncio
 import logging
 import sys
 
-from .config import ARDUINO_PORT, CREATE_DEFAULT_METADATA, ROSBRIDGE_URL
+from .config import ARDUINO_PORT, CREATE_DEFAULT_METADATA, METADATA_FILE, ROSBRIDGE_URL, SERVER_URL
+
 from .server.server_service import ServerServices
 from .robot import RobotController
 from .rosbridge import PiRosBridgeClient
 from .rosbridge.json_rpc import handle_json_rpc
 from .server.server_service import RobotCredentials
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Controlador de robot — se registra en la API y escucha comandos vía rosbridge."
+    )
+    parser.add_argument(
+        '--metadata-file',
+        default=METADATA_FILE,
+        help="Ruta al archivo de credenciales del robot (default: env METADATA_FILE o ./robot-metadata.json)",
+    )
+    return parser.parse_args()
 
 
 async def async_main(credentials: RobotCredentials, robot):
@@ -30,16 +43,20 @@ async def async_main(credentials: RobotCredentials, robot):
 
 
 def main():
+    args = parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         stream=sys.stdout,
     )
 
-    service = ServerServices()
-
-    if not service.load_external_config() and CREATE_DEFAULT_METADATA:
-        service.create_default_config()
-
-    with service, RobotController(ARDUINO_PORT) as robot:
+    with (
+        ServerServices(
+            base_url=SERVER_URL,
+            metadata_file=args.metadata_file,
+            create_default_config=CREATE_DEFAULT_METADATA,
+        ) as service,
+        RobotController(ARDUINO_PORT) as robot,
+    ):
         asyncio.run(async_main(service.credentials, robot))

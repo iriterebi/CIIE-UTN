@@ -14,7 +14,6 @@ from datetime import datetime
 from urllib.parse import urljoin
 import requests
 from requests.auth import HTTPBasicAuth
-from ..config import SERVER_URL
 
 from pydantic import TypeAdapter
 from pydantic.dataclasses import dataclass
@@ -47,25 +46,59 @@ class ServerServices:
     credentials: RobotCredentials | None = None
 
 
+    def __init__(self, *,
+                 base_url: str,
+                 metadata_file: str,
+                 create_default_config: bool = False):
+        if not base_url:
+            raise ValueError("base_url es requerido")
+        if not metadata_file:
+            raise ValueError("metadata_file es requerido")
 
-    def __init__(self, base_url: str = SERVER_URL):
         self.base_url = base_url
+        self.metadata_file = metadata_file
+        self._create_default_config = create_default_config
         self.logger = logging.getLogger(__name__)
 
+    def __enter__(self):
+        self.load_config()
+        if not self.connect_with_retry():
+            self.logger.critical(
+                "No se pudo establecer conexion con el servidor.")
+            raise EnvironmentError(
+                "No se pudo establecer conexion con el servidor.")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+    def load_config(self) -> None:
+        """Carga credenciales desde el archivo de metadata, o genera uno por defecto."""
+        if self.load_external_config():
+            return
+
+        if self._create_default_config:
+            self.create_default_config()
+            return
+
+        raise FileNotFoundError(
+            f"No se encontró {self.metadata_file} y create_default_config está desactivado"
+        )
+
     def load_external_config(self) -> bool:
-        """Carga credenciales desde robot-metadata.json."""
+        """Intenta cargar credenciales desde el archivo de metadata."""
         try:
-            with open('./robot-metadata.json', 'r', encoding="utf-8") as robot_metadata:
+            with open(self.metadata_file, 'r', encoding="utf-8") as robot_metadata:
                 data = json.load(robot_metadata)
                 self._load_config(data)
         except IOError as e:
-            self.logger.error("Could not read robot-metadata.json: %s", e)
+            self.logger.error("Could not read %s: %s", self.metadata_file, e)
             return False
         return True
 
     def create_default_config(self) -> None:
-        """Genera credenciales nuevas y las guarda en robot-metadata.json."""
-        with open('./robot-metadata.json', 'w', encoding="utf-8") as robot_metadata:
+        """Genera credenciales nuevas y las guarda en el archivo de metadata."""
+        with open(self.metadata_file, 'w', encoding="utf-8") as robot_metadata:
             data: dict = {
                 "robot_id": str(uuid.uuid4()),
                 "robot_psw": self._create_strong_random_psw(),
@@ -157,17 +190,6 @@ class ServerServices:
                     status_code, delay)
                 time.sleep(delay)
                 attempt += 1
-
-    def __enter__(self):
-        if not self.connect_with_retry():
-            self.logger.critical(
-                "No se pudo establecer conexion con el servidor.")
-            raise EnvironmentError(
-                "No se pudo establecer conexion con el servidor.")
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
 
     def _create_strong_random_psw(self, longitud=24) -> str:
         caracteres = string.ascii_letters + string.digits + string.punctuation
