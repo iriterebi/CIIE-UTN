@@ -4,9 +4,9 @@ from fastapi import APIRouter
 from typing import Annotated, List
 from fastapi import Depends
 
-from .rosbridge_client import RosBridgeClientDep
+from ..services.rosbridge_client import RosBridgeClientDep
 
-from .robot import (
+from ..services import (
     RobotService, RobotServiceDep, Robot, RobotInput, RobotOutput, RobotCommand,
     RobotStatus, RobotApprovalInput,
 )

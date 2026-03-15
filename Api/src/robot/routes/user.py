@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from starlette.websockets import WebSocket
 
-from .robot.ipc_user_robot_comunication import RobotIPCDep
+from ..services.ipc_user_robot_comunication import RobotIPCDep
 
 router = APIRouter(tags=["robots", "user"])
 

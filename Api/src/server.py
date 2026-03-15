@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from .auth import auth_router
 from .config import ROSBRIDGE_URL
 from .robot import m2m_robot_router, admin_robot_router, user_robot_router
-from .robot.rosbridge_client import RosBridgeClient, set_rosbridge_client
+from .robot.services.rosbridge_client import RosBridgeClient, set_rosbridge_client
 
 
 @asynccontextmanager

@@ -14,12 +14,12 @@ from fastapi import Depends
 from pydantic import ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from .errors import SerializableException, RobotAccessException, UserValidationTimeoutException
-from .json_rpc_commands import RobotCommand, RobotCommandExtended, UserWsAuthentication
+from ..entities.errors import SerializableException, RobotAccessException, UserValidationTimeoutException
+from ..entities.json_rpc_commands import RobotCommand, RobotCommandExtended, UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
-from ..access_validator import AccessValidator, UserRobotAccessSession
-from ..rosbridge_client import RosBridgeClient, RosBridgeClientDep
-from .robot import Robot
+from .access_validator import AccessValidator, UserRobotAccessSession
+from .rosbridge_client import RosBridgeClient, RosBridgeClientDep
+from ..entities import Robot
 
 logger = logging.getLogger(__name__)
 

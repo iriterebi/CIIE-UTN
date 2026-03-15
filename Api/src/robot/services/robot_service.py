@@ -3,32 +3,28 @@ from uuid import UUID as PythonUUID
 
 from fastapi import Depends, HTTPException
 from jwt import InvalidTokenError
-from pydantic import ValidationError
 
-from .errors import RobotNotFoundException, InvalidRobotStatusException
+from ..entities.errors import RobotNotFoundException, InvalidRobotStatusException
 from ...auth.services.encryption import EncryptionServiceDep, TokenStrDep
-from ...db_connection import DbSessionDep
+from ..repositories.robot import RobotRepositoryDep
 
-from .robot import Robot, RobotInput, RobotStatus, RobotRegistrationInput, RobotApprovalInput
+from ..entities import Robot, RobotInput, RobotStatus, RobotRegistrationInput, RobotApprovalInput
 
 
 class RobotService:
     def __init__(
             self,
-            db_session: DbSessionDep,
+            repository: RobotRepositoryDep,
             encryption_service: EncryptionServiceDep,
     ):
-        self.db_session = db_session
+        self.repository = repository
         self.encryption_service = encryption_service
 
     def list_robots(self) -> List[Robot]:
-        return self.db_session.query(Robot).all()
+        return self.repository.list()
 
     def get_robot_by_id(self, robot_id: str | PythonUUID) -> Robot | None:
-        if not isinstance(robot_id, PythonUUID):
-            robot_id = PythonUUID(robot_id)
-
-        return self.db_session.query(Robot).filter(Robot.id == robot_id).first()
+        return self.repository.get_by_id(robot_id)
 
     def exists(self, robot_id: str | PythonUUID) -> bool:
         return self.get_robot_by_id(robot_id) is not None
@@ -41,29 +37,21 @@ class RobotService:
             raise RobotNotFoundException(robot_id) from e
 
     def get_robot_by_external_identifier(self, external_identifier: str) -> Robot | None:
-        return self.db_session.query(Robot).filter(Robot.external_identifier == external_identifier).first()
+        return self.repository.get_by_external_identifier(external_identifier)
 
     def create_robot(self, robotInput: RobotInput) -> Robot:
         hashed_psw = self.encryption_service.encrypt_psw(robotInput.psw)
 
-        # Create a dictionary from the input, excluding the plain password
-        robot_data = robotInput.model_dump(exclude={"psw"})
-
-        # Add the hashed password and ensure external_identifier is a string
+        robot_data = robotInput.model_dump(exclude={"psw"}, mode="json")
         robot_data["psw"] = hashed_psw
-        robot_data["external_identifier"] = str(robotInput.external_identifier)
 
-        # Create the Robot instance from the validated and prepared data
         robot = Robot.model_validate(robot_data)
-
-        self.db_session.add(robot)
-        self.db_session.commit()
-        self.db_session.refresh(robot)
-        return robot
+        return self.repository.save(robot)
 
     def register_robot(self, registration: RobotRegistrationInput) -> Robot:
         existing = self.get_robot_by_external_identifier(
             str(registration.external_identifier))
+
         if existing:
             return existing
 
@@ -74,13 +62,11 @@ class RobotService:
             "status": RobotStatus.PENDING_APPROVAL,
             "name": None,
         })
-        self.db_session.add(robot)
-        self.db_session.commit()
-        self.db_session.refresh(robot)
-        return robot
+        return self.repository.save(robot)
 
     def approve_robot(self, robot_id: PythonUUID, approval: RobotApprovalInput) -> Robot:
         robot = self.get_robot_by_id(robot_id)
+
         if not robot:
             raise RobotNotFoundException(robot_id)
         if robot.status != RobotStatus.PENDING_APPROVAL:
@@ -90,9 +76,8 @@ class RobotService:
         robot.name = approval.name
         robot.description = approval.description
         robot.status = RobotStatus.APPROVED
-        self.db_session.commit()
-        self.db_session.refresh(robot)
-        return robot
+
+        return self.repository.save(robot)
 
     def reject_robot(self, robot_id: PythonUUID) -> Robot:
         robot = self.get_robot_by_id(robot_id)
@@ -103,12 +88,11 @@ class RobotService:
                 robot_id, robot.status, RobotStatus.PENDING_APPROVAL)
 
         robot.status = RobotStatus.REJECTED
-        self.db_session.commit()
-        self.db_session.refresh(robot)
-        return robot
+
+        return self.repository.save(robot)
 
     def list_robots_by_status(self, status: RobotStatus) -> List[Robot]:
-        return self.db_session.query(Robot).filter(Robot.status == status).all()
+        return self.repository.list_by_status(status)
 
     def get_robot_by_token(self, token: str) -> Robot | None:
         data: dict = self.encryption_service.decode_token(token)

@@ -14,8 +14,8 @@ from fastapi import Depends
 from websockets.asyncio.client import connect, ClientConnection
 from websockets.exceptions import ConnectionClosed
 
-from .robot.crockford_base32 import uuid_to_crockford_base32
-from .robot import Robot
+from ..utils.crockford_base32 import uuid_to_crockford_base32
+from ..entities import Robot
 
 
 logger = logging.getLogger(__name__)

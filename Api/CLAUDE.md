@@ -40,23 +40,47 @@ src/
 │           └── current_user.py        # Dependencia get_current_user
 │
 ├── robot/                             # Módulo de robots
-│   ├── routes_admin.py                # /admin/robot — CRUD + aprobación/rechazo + send_command
-│   ├── routes_m2m.py                  # /m2m/robot — registro y handshake
-│   ├── routes_user.py                 # /user/robot — WebSocket para usuarios
-│   ├── rosbridge_client.py            # RosBridgeClient — WS persistente a rosbridge, pub/sub de topics ROS
-│   ├── access_validator.py            # Valida token robot_access contra robot_id y sesión de usuario
-│   ├── handshake/
-│   │   └── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes
-│   └── robot/
-│       ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum
-│       ├── robot_service.py           # RobotService — CRUD, registro, aprobación/rechazo, get_robot_by_token
-│       ├── crockford_base32.py        # UUID → Crockford Base32 (para nombres de topics ROS)
-│       ├── ipc_user_robot_comunication.py  # UserToRobotCommunication — WS del usuario, publica/suscribe vía RosBridge
-│       ├── json_rpc_commands.py       # Modelos: RobotCommand, RobotCommandExtended, RobotResponse, UserWsAuthentication
-│       └── errors.py                  # Excepciones serializables + códigos de error JSON-RPC
+│   ├── entities/                      # Modelos de dominio, DTOs, excepciones, constantes
+│   │   ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum
+│   │   ├── json_rpc_commands.py       # Modelos: RobotCommand, RobotCommandExtended, RobotResponse, UserWsAuthentication
+│   │   └── errors.py                 # Excepciones serializables + códigos de error JSON-RPC
+│   ├── services/                      # Lógica de negocio (clases con estado/dependencias inyectadas)
+│   │   ├── robot_service.py           # RobotService — CRUD, registro, aprobación/rechazo, get_robot_by_token
+│   │   ├── rosbridge_client.py        # RosBridgeClient — WS persistente a rosbridge, pub/sub de topics ROS
+│   │   ├── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes
+│   │   ├── access_validator.py        # Valida token robot_access contra robot_id y sesión de usuario
+│   │   └── ipc_user_robot_comunication.py  # UserToRobotCommunication — WS del usuario, publica/suscribe vía RosBridge
+│   ├── repositories/                  # Acceso a datos (queries, persistencia, transacciones)
+│   │   └── robot.py                   # RobotRepository — CRUD de robots en DB
+│   ├── routes/                        # Endpoints HTTP/WS (routers FastAPI)
+│   │   ├── admin.py                   # /admin/robot — CRUD + aprobación/rechazo + send_command
+│   │   ├── m2m.py                     # /m2m/robot — registro y handshake
+│   │   └── user.py                    # /user/robot — WebSocket para usuarios
+│   └── utils/                         # Funciones stateless auxiliares
+│       └── crockford_base32.py        # UUID → Crockford Base32 (para nombres de topics ROS)
 │
 └── user_management/                   # Módulo vacío (placeholder)
 ```
+
+## Estructura Estándar de Módulos
+
+Cada módulo del monolito debe seguir esta estructura por capas para mantener legibilidad y consistencia:
+
+```
+modulo/
+├── entities/        # Modelos de dominio (SQLModel), DTOs (Pydantic), excepciones, enums, constantes
+├── services/        # Lógica de negocio — clases con estado y dependencias inyectadas vía Depends
+├── repositories/    # Acceso a datos — queries, persistencia, transacciones (delega al ORM)
+├── routes/          # Endpoints HTTP/WS — routers FastAPI, sin lógica de negocio
+└── utils/           # Funciones puras, stateless, sin dependencias inyectadas
+```
+
+**Criterios de clasificación:**
+- **entities**: no tiene dependencias de otros módulos internos (excepto tipos base). Define *qué* es algo
+- **services**: tiene dependencias inyectadas (`*Dep`), encapsula lógica de negocio. Define *qué hacer* con algo
+- **repositories**: tiene `DbSessionDep`, encapsula acceso a datos. Define *cómo persistir* algo
+- **routes**: solo orquesta — recibe request, delega a servicios, retorna response
+- **utils**: funciones puras sin estado ni inyección. Si necesita `Depends`, es un servicio
 
 ## Mapa de Rutas
 

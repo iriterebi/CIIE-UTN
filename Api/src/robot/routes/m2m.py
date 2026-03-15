@@ -11,12 +11,12 @@ from uuid import UUID as PythonUUID
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from .handshake import HandshakeService
-from .robot import (
+from ..services.handshake_service import HandshakeService
+from ..services import (
     RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult
 )
-from .robot.crockford_base32 import uuid_to_crockford_base32
-from ..auth.services.encryption import AccessToken
+from ..utils.crockford_base32 import uuid_to_crockford_base32
+from ...auth.services.encryption import AccessToken
 
 router = APIRouter(tags=["robots", "m2m"])
 

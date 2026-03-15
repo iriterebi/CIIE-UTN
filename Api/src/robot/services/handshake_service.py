@@ -2,7 +2,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
 from ...auth.services.encryption import EncryptionServiceDep, AccessToken
-from ..robot import Robot, RobotService, RobotStatus
+from .robot_service import RobotService
+from ..entities import Robot, RobotStatus
 
 
 class HandshakeService:

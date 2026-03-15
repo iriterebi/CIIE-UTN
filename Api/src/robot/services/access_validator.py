@@ -2,9 +2,9 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from .robot.errors import RobotAccessException
-from .robot.json_rpc_commands import UserWsAuthentication
-from ..auth.services.encryption import EncryptionServiceDep
+from ..entities.errors import RobotAccessException
+from ..entities.json_rpc_commands import UserWsAuthentication
+from ...auth.services.encryption import EncryptionServiceDep
 
 
 #
