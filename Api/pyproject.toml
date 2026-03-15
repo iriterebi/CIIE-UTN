@@ -13,3 +13,8 @@ dependencies = [
     "pyjwt>=2.10.1",
     "sqlmodel>=0.0.25",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]

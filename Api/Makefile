@@ -17,3 +17,7 @@ up.detached:
 .PHONY: down
 down:
 	docker compose down
+
+.PHONY: test
+test:
+	uv run pytest
