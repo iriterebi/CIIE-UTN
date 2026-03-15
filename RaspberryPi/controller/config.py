@@ -1,27 +1,15 @@
-import os
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-load_dotenv(".env.defaults", override=True)
-load_dotenv(".env", override=True)
+class Config(BaseSettings):
+    model_config = SettingsConfigDict(frozen=True)
+
+    server_url: str
+    rosbridge_url: str
+    arduino_port: str
+    create_default_metadata: bool
+    mock_robot: bool
+    metadata_file: str = './robot-metadata.json'
 
 
-def _get_required_env(var_name: str) -> str:
-    value = os.getenv(var_name)
-    if value is None:
-        raise ValueError(f"Environment variable '{var_name}' is not set.")
-    return value
-
-def _get_required_boolean_env(var_name: str) -> bool:
-    value = _get_required_env(var_name)
-    return value.lower() in ("true", "yes", "1", "on")
-
-
-
-# Environment variables
-SERVER_URL: str = _get_required_env('SERVER_URL')
-ROSBRIDGE_URL: str = _get_required_env('ROSBRIDGE_URL')
-ARDUINO_PORT: str = _get_required_env('ARDUINO_PORT')
-CREATE_DEFAULT_METADATA: bool = _get_required_boolean_env('CREATE_DEFAUL_METADATA')
-MOCK_ROBOT: bool = _get_required_boolean_env('MOCK_ROBOT')
-METADATA_FILE: str = os.getenv('METADATA_FILE', './robot-metadata.json')
+config = Config()  # type: ignore[call-arg]

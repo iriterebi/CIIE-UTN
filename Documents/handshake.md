@@ -48,7 +48,7 @@ Al arrancar por primera vez, la RaspberryPi genera un archivo `robot-metadata.js
 - `robot_psw` es una contraseña aleatoria de 24 caracteres (letras, dígitos, símbolos)
 - Este archivo se persiste en el filesystem de la Pi y no se versiona
 
-Controlado por la variable `CREATE_DEFAUL_METADATA=1`.
+Controlado por la variable `CREATE_DEFAULT_METADATA=1`.
 
 ### 2. Registro (Self-Registration)
 
@@ -312,4 +312,4 @@ Para probar el flujo completo sin hardware:
 
 El handshake retorna el JWT y el topic base del robot. Tras esto, la Pi se conecta a rosbridge para recibir comandos.
 
-Con la Pi en modo mock (`MOCK_ROBOT=1`, `CREATE_DEFAUL_METADATA=1`), el flujo completo se ejecuta automáticamente — solo falta la aprobación manual del admin.
+Con la Pi en modo mock (`MOCK_ROBOT=1`, `CREATE_DEFAULT_METADATA=1`), el flujo completo se ejecuta automáticamente — solo falta la aprobación manual del admin.

@@ -338,7 +338,7 @@ make up.detached  # Ejecutar (background)
 Para el modo demo sin hardware:
 
 - **rosbridge corriendo** — es solo software, no necesita hardware (`make rosbridge.up`)
-- **RaspberryPi en modo mock** — con `MOCK_ROBOT=1` y `CREATE_DEFAUL_METADATA=1`, la Pi se auto-registra, hace handshake con la API, se conecta a rosbridge y simula respuestas del robot sin comunicación serial
+- **RaspberryPi en modo mock** — con `MOCK_ROBOT=1` y `CREATE_DEFAULT_METADATA=1`, la Pi se auto-registra, hace handshake con la API, se conecta a rosbridge y simula respuestas del robot sin comunicación serial
 
 ### Contrato entre equipos
 

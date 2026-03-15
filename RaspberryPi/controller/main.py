@@ -12,8 +12,7 @@ import asyncio
 import logging
 import sys
 
-from .config import ARDUINO_PORT, CREATE_DEFAULT_METADATA, METADATA_FILE, ROSBRIDGE_URL, SERVER_URL
-
+from .config import config
 from .server.server_service import ServerServices
 from .robot import RobotController
 from .rosbridge import PiRosBridgeClient
@@ -27,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--metadata-file',
-        default=METADATA_FILE,
+        default=config.metadata_file,
         help="Ruta al archivo de credenciales del robot (default: env METADATA_FILE o ./robot-metadata.json)",
     )
     return parser.parse_args()
@@ -35,7 +34,7 @@ def parse_args() -> argparse.Namespace:
 
 async def async_main(credentials: RobotCredentials, robot):
     """Fase operativa: comunicación con rosbridge vía WebSocket."""
-    async with PiRosBridgeClient(ROSBRIDGE_URL, credentials) as client:
+    async with PiRosBridgeClient(config.rosbridge_url, credentials) as client:
         await client.run(
             on_command=lambda cmd: handle_json_rpc(cmd, robot),
             get_status=robot.get_status,
@@ -53,10 +52,10 @@ def main():
 
     with (
         ServerServices(
-            base_url=SERVER_URL,
+            base_url=config.server_url,
             metadata_file=args.metadata_file,
-            create_default_config=CREATE_DEFAULT_METADATA,
+            create_default_config=config.create_default_metadata,
         ) as service,
-        RobotController(ARDUINO_PORT) as robot,
+        RobotController(config.arduino_port) as robot,
     ):
         asyncio.run(async_main(service.credentials, robot))

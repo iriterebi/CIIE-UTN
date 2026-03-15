@@ -376,7 +376,7 @@ make rosbridge.up    # RosBridge (foreground)
 El sistema puede ejecutarse **sin hardware físico** para desarrollo y demostración:
 
 - **RosBridge**: Ejecutar con `make rosbridge.up`. Es solo software, no requiere hardware
-- **RaspberryPi**: Usar `MOCK_ROBOT=1` en `.env` para activar el `RobotMockController`, que simula las respuestas del robot sin comunicación serial. Combinado con `CREATE_DEFAUL_METADATA=1`, la Pi se auto-registra y conecta a rosbridge automáticamente
+- **RaspberryPi**: Usar `MOCK_ROBOT=1` en `.env` para activar el `RobotMockController`, que simula las respuestas del robot sin comunicación serial. Combinado con `CREATE_DEFAULT_METADATA=1`, la Pi se auto-registra y conecta a rosbridge automáticamente
 - **Arduino**: No se necesita — el mock de RaspberryPi lo reemplaza
 - **Base de datos**: La DB efímera (`make db.up.ephimeral`) usa tmpfs para pruebas rápidas sin persistencia
 

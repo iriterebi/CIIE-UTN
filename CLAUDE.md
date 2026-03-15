@@ -124,7 +124,7 @@ Expone WebSocket en `ws://localhost:9090`. Los topics ROS usan UUIDs codificados
 - `ROSBRIDGE_URL` — URL WebSocket de rosbridge (default: `ws://localhost:9090`)
 - `ARDUINO_PORT` — puerto serial
 - `MOCK_ROBOT` — `1` para usar controlador mock
-- `CREATE_DEFAUL_METADATA` — `1` para auto-generar credenciales del robot
+- `CREATE_DEFAULT_METADATA` — `1` para auto-generar credenciales del robot
 
 ### Red Docker
 

@@ -122,7 +122,7 @@ npm run dev               # Vite dev server on :5173
 - `ROSBRIDGE_URL` (e.g. `ws://rosbridge:9090`)
 
 **RaspberryPi** (`.env.defaults` has defaults):
-- `SERVER_URL`, `ROSBRIDGE_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAUL_METADATA`
+- `SERVER_URL`, `ROSBRIDGE_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`
 
 See each subproject's README for details.
 

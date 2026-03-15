@@ -53,7 +53,7 @@ Defined in `.env.defaults` (defaults), overridden by `.env`:
 | `SERVER_URL` | API M2M base URL | `http://localhost:8000/m2m/robot/` |
 | `ROSBRIDGE_URL` | rosbridge WebSocket URL | `ws://localhost:9090` |
 | `ARDUINO_PORT` | Arduino serial port | (specific USB path) |
-| `CREATE_DEFAUL_METADATA` | `1` to auto-generate credentials on startup | `1` |
+| `CREATE_DEFAULT_METADATA` | `1` to auto-generate credentials on startup | `1` |
 | `MOCK_ROBOT` | `1` to use mock controller without hardware | `1` |
 
 ## Main Flow
@@ -62,7 +62,7 @@ Defined in `.env.defaults` (defaults), overridden by `.env`:
 
 1. Loads environment variables (`config.py`)
 2. Creates a `ServerServices` instance
-3. Tries to load `robot-metadata.json` — if it doesn't exist and `CREATE_DEFAUL_METADATA=1`, generates new credentials (UUID + 24-char random password)
+3. Tries to load `robot-metadata.json` — if it doesn't exist and `CREATE_DEFAULT_METADATA=1`, generates new credentials (UUID + 24-char random password)
 
 ### 2. Registration and connection (self-registration with approval)
 
@@ -86,4 +86,4 @@ Automatic reconnection with exponential backoff (1s → 30s) if the connection i
 
 ## Demo Mode
 
-With `MOCK_ROBOT=1`, the controller uses `robot_mock_controller.py` which simulates the robot's behavior without physical hardware (Arduino/robotic arm). Combined with `CREATE_DEFAUL_METADATA=1`, it allows running the full flow without hardware.
+With `MOCK_ROBOT=1`, the controller uses `robot_mock_controller.py` which simulates the robot's behavior without physical hardware (Arduino/robotic arm). Combined with `CREATE_DEFAULT_METADATA=1`, it allows running the full flow without hardware.
