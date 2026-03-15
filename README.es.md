@@ -45,6 +45,7 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 | `Documents/` | Activo | Documentación general del sistema |
 | `WebClient/` | Activo | Frontend Vue 3 + TypeScript + PicoCSS |
 | `RosBridge/` | Activo | rosbridge_suite — puente WebSocket/JSON entre API y ROS 2 |
+| `Proxy/` | Activo | Reverse proxy nginx — punto de entrada único del servidor de despliegue (instalado en el host, no en Docker) |
 
 ## Stack Tecnológico
 

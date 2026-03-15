@@ -19,6 +19,7 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 - **RaspberryPi/**: Se ejecuta en cada robot. Se registra en la API, luego se conecta a rosbridge para recibir comandos y publicar respuestas/estado. Controla el Arduino vía serial
 - **Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
 - **Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
+- **Proxy/**: Configuración de nginx como reverse proxy principal. Único componente instalado en el host (no Docker). Punto de entrada para todo el tráfico — sirve la SPA, proxea API y RosBridge, maneja TLS, restringe rutas internas (`/m2m`, `/rosbridge`) a intranet
 - **Documents/**: Documentación general del sistema
 
 ## Stack Tecnológico
@@ -63,6 +64,8 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 │   ├── compose.yaml      # Servicio rosbridge
 │   ├── launch/           # Launch file ROS 2
 │   └── Makefile          # make up, make down, etc.
+├── Proxy/                # nginx reverse proxy (activo, instalado en host)
+│   └── nginx.conf        # Configuración de producción
 ├── Arduino/              # Firmware del robot (activo)
 ├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
 ├── Documents/            # Documentación
