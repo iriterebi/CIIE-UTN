@@ -71,6 +71,13 @@ class PiRosBridgeClient:
             await self._ws.close()
         logger.info("Desconectado de rosbridge")
 
+    async def __aenter__(self):
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.disconnect()
+
     async def run(
         self,
         on_command: Callable[[JsonRpcCommand], Awaitable[JsonRpcResponse]],
