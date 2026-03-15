@@ -16,7 +16,7 @@ from ..services import (
     RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult
 )
 from ..utils.crockford_base32 import uuid_to_crockford_base32
-from ...auth.services.encryption import AccessToken
+from ...auth.entities import AccessToken
 
 router = APIRouter(tags=["robots", "m2m"])
 

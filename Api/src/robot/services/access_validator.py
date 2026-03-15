@@ -4,7 +4,7 @@ from uuid import UUID
 
 from ..entities.errors import RobotAccessException
 from ..entities.json_rpc_commands import UserWsAuthentication
-from ...auth.services.encryption import EncryptionServiceDep
+from ...auth.services import EncryptionServiceDep
 
 
 #

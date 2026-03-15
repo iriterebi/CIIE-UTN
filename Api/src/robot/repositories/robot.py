@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, List
 from fastapi import Depends
 from uuid import UUID as PythonUUID
 from contextlib import contextmanager
@@ -16,7 +16,7 @@ class RobotRepository:
     ):
         self.db_session = db_session
 
-    def list(self) -> list[Robot]:
+    def list(self) -> List[Robot]:
         return self.db_session.query(Robot).all()
 
     def get_by_id(self, robot_id: str) -> Robot | None:
@@ -28,7 +28,7 @@ class RobotRepository:
     def get_by_external_identifier(self, external_identifier: str) -> Robot | None:
         return self.db_session.query(Robot).filter(Robot.external_identifier == external_identifier).first()
 
-    def list_by_status(self, status: RobotStatus) -> list[Robot]:
+    def list_by_status(self, status: RobotStatus) -> List[Robot]:
         return self.db_session.query(Robot).filter(Robot.status == status).all()
 
     def save(self, robot: Robot) -> Robot:

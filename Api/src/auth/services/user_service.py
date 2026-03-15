@@ -6,10 +6,9 @@ from sqlmodel import select
 from jwt import ExpiredSignatureError
 
 
-from .user import User
-from .user_base import UserBase
-from ..encryption import EncryptionServiceDep, EncryptionService, AccessToken
-from ....db_connection import DbSessionDep
+from ..entities import User, UserBase, AccessToken
+from .encryption_service import EncryptionServiceDep, EncryptionService
+from ...db_connection import DbSessionDep
 
 logger = logging.getLogger(__name__)
 

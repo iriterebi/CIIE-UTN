@@ -2,8 +2,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Body
 from fastapi.security import OAuth2PasswordRequestForm
 
-from .services.encryption import EncryptionServiceDep
-from .services.user import UserService, User, get_current_user, UserBase
+from ..services import EncryptionServiceDep, UserService, get_current_user
+from ..entities import User, UserBase
 
 router = APIRouter(tags=["auth"])
 

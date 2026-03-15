@@ -3,7 +3,7 @@ from uuid import UUID as PythonUUID
 from sqlmodel import Field, SQLModel
 from pydantic import BaseModel
 from sqlalchemy import text
-from ...auth.services.encryption import AccessToken
+from ...auth.entities import AccessToken
 
 
 

@@ -1,8 +1,7 @@
 from fastapi import HTTPException
 
-from .user import User
+from ..entities import User, TokenStrDep
 from .user_service import UserServiceDep
-from ..encryption import TokenStrDep
 
 
 def get_current_user(

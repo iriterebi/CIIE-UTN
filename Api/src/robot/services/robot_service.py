@@ -5,7 +5,8 @@ from fastapi import Depends, HTTPException
 from jwt import InvalidTokenError
 
 from ..entities.errors import RobotNotFoundException, InvalidRobotStatusException
-from ...auth.services.encryption import EncryptionServiceDep, TokenStrDep
+from ...auth.services import EncryptionServiceDep
+from ...auth.entities import TokenStrDep
 from ..repositories.robot import RobotRepositoryDep
 
 from ..entities import Robot, RobotInput, RobotStatus, RobotRegistrationInput, RobotApprovalInput

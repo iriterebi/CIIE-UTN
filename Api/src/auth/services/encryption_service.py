@@ -4,14 +4,13 @@ import jwt
 import bcrypt
 from fastapi import Depends
 
-from .config import EncryptionConfigDep
-from .access_token import AccessToken
+from ..entities import EncryptionConfigDep, AccessToken
 
 
 class EncryptionService:
     secret_key: str
     algorithm: str
-    toket_expiration_time: int
+    token_expiration_time: int
 
     def __init__(
         self,
@@ -19,10 +18,10 @@ class EncryptionService:
     ) -> None:
         self.secret_key = config.secret_key
         self.algorithm = config.algorithm
-        self.toket_expiration_time = config.toket_expiration_time
+        self.token_expiration_time = config.token_expiration_time
 
     def create_bearer_access_token(self, data: dict) -> AccessToken:
-        access_token_expires = timedelta(minutes=self.toket_expiration_time)
+        access_token_expires = timedelta(minutes=self.token_expiration_time)
         to_encode = data.copy()
 
         now = datetime.now(timezone.utc)
