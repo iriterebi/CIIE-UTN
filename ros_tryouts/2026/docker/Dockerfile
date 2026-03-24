@@ -27,6 +27,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV ROS_DOMAIN_ID=42
+
+# 2. Instalar agente InOrbit (systemctl fallará en Docker, se ignora con || true)
+RUN curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh || true
 
 # 3. Configurar el entorno de ROS 2 para que cargue automáticamente
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
