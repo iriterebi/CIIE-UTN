@@ -19,7 +19,7 @@ else
 
     # 3. Instalación de ROS-BASE (Sin GUI/RViz)
     sudo apt update
-    sudo apt install ros-humble-ros-base python3-rosdep -y
+    sudo NEEDRESTART_MODE=a apt install ros-humble-ros-base python3-rosdep -y
 fi
 
 # 4. Inicialización de rosdep
