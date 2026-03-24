@@ -14,8 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     python3-pip \
     python3-venv \
+    python3-dev \
     python3-serial \
     virtualenv \
+    gcc \
+    build-essential \
     curl \
     udev \
     tmux \
