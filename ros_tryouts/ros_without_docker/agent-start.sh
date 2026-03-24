@@ -29,7 +29,7 @@ else
 
     # 3. Instalación de ROS-BASE
     sudo apt update
-    sudo NEEDRESTART_MODE=a apt install ros-humble-ros-base python3-rosdep tmux -y
+    sudo NEEDRESTART_MODE=a apt install ros-jazzy-ros-base python3-rosdep tmux -y
 fi
 
 # 4. Inicialización de rosdep
