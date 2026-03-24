@@ -8,12 +8,14 @@ ENV LC_ALL=en_US.UTF-8
 
 # 1. Instalar dependencias mínimas de sistema y Python para Serial
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales \
     net-tools \
     iputils-ping \
     python3-pip \
     python3-serial \
     curl \
     udev \
+    && locale-gen en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Instalar el agente de InOrbit (El comando curl de tu consola)

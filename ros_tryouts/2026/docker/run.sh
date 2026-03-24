@@ -2,9 +2,14 @@
 set -e
 
 IMAGE_NAME="ros_agent"
+HOST_DIR="${1:-$PWD}"
 
 docker run -it --name $IMAGE_NAME \
     --net=host \
     --privileged \
     -v /dev:/dev \
+    -v "$HOST_DIR:$HOST_DIR" \
+    -w "$HOST_DIR" \
     $IMAGE_NAME
+
+echo ">>> Docker corriendo"
