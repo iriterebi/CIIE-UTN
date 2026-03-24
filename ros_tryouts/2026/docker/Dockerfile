@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-serial \
     curl \
     udev \
+    tmux \
+    virtualenv \
     && locale-gen en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,8 +27,11 @@ RUN curl -sSL https://install.inorbit.ai/TU_API_KEY_AQUI | sh
 # 3. Configurar el entorno de ROS 2 para que cargue automáticamente
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
 
+# Copiar script de inicio de tmux
+COPY ros_tryouts/2026/tmux-start.sh /root/tmux-start.sh
+RUN chmod +x /root/tmux-start.sh
+
 # Configurar el directorio de trabajo
 WORKDIR /root/workspace
 
-# Comando por defecto al iniciar el contenedor (mantiene el contenedor vivo)
-CMD ["bash"]
+CMD ["/root/tmux-start.sh"]
