@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+RUN pip3 install python-dotenv
 ENV ROS_DOMAIN_ID=42
 
 # These ROS env vars are set by the base image entrypoint at runtime, but are
