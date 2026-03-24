@@ -31,8 +31,12 @@ rosdep update
 # 5. Configuración del entorno
 if ! grep -q "source /opt/ros/humble/setup.bash" ~/.bashrc; then
     echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+    sudo apt install tmux -y
     echo "✅ Entorno configurado en .bashrc"
 fi
 echo "🚀 Agente listo"
 source ~/.bashrc
+./tmux-setup.sh
+
+tmux select-window -t $SESSION:0
 curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
