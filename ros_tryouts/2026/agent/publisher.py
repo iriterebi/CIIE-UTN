@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 import random
-import json
 
 class Publisher(Node):
     def __init__(self):
@@ -14,7 +13,7 @@ class Publisher(Node):
     def timer_callback(self):
         # dummy simulado de dato fluctuante
         msg = String()
-        msg.data = json.dumps({'temperatura': round(random.uniform(20.0, 30.0), 2)})
+        msg.data = f"data_dummy={round(random.uniform(20.0, 30.0), 2)}"
         self.publisher_.publish(msg)
         self.get_logger().info(f'Publicando: {msg.data}')
 

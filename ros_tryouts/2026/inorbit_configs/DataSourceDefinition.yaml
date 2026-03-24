@@ -1,0 +1,11 @@
+Version: v0.1
+kind: DataSourceDefinition
+metadata:
+  id: published-data
+  scope: account/QsFNvNwHSHvgnhYmT
+spec:
+  label: Data Dummy
+  source:
+    keyValue:
+      key: data_dummy
+  timeline: {}
