@@ -9,20 +9,20 @@ ENV LC_ALL=en_US.UTF-8
 # 1. Instalar dependencias mínimas de sistema y Python para Serial
 RUN apt-get update && apt-get install -y --no-install-recommends \
     locales \
+    ca-certificates \
     net-tools \
     iputils-ping \
     python3-pip \
+    python3-venv \
     python3-serial \
+    virtualenv \
     curl \
     udev \
     tmux \
-    virtualenv \
     && locale-gen en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Instalar el agente de InOrbit (El comando curl de tu consola)
-# REEMPLAZA 'TU_API_KEY_AQUI' por tu clave real
-RUN curl -sSL https://install.inorbit.ai/TU_API_KEY_AQUI | sh
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # 3. Configurar el entorno de ROS 2 para que cargue automáticamente
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
