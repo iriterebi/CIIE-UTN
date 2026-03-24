@@ -46,9 +46,9 @@ for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc"; do
 done
 
 echo "🚀 Agente listo. Configurando tmux..."
-./tmux-setup.sh
+# ./tmux-setup.sh
 
-tmux select-window -t $SESSION:0
+# tmux select-window -t $SESSION:0
 if [ ! -d "/opt/inorbit-agent" ]; then
-    curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | s
+    curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh
 fi
