@@ -1,4 +1,5 @@
 #!/bin/bash
+SESSION="ros_agent"
 
 # Comprobar si ros2 ya está instalado viendo si existe la carpeta de Humble
 if [ -d "/opt/ros/humble" ]; then
