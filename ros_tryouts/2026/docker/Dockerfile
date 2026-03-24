@@ -29,8 +29,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 ENV ROS_DOMAIN_ID=42
 
-# 2. Instalar agente InOrbit (systemctl fallará en Docker, se ignora con || true)
-RUN curl https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN | sh || true
+# These ROS env vars are set by the base image entrypoint at runtime, but are
+# NOT available during docker build RUN steps unless explicitly declared here.
+# The InOrbit installer needs them to detect the ROS version correctly.
+ENV ROS_DISTRO=humble
+ENV ROS_PYTHON_VERSION=3
+ENV ROS_VERSION=2
+
+# 2. Instalar agente InOrbit
+# The installer has interactive prompts that read from /dev/tty which fail in Docker.
+# We download the script, patch out the tty reads, then run it.
+# systemctl steps will fail in Docker but the binary is still installed.
+RUN curl -fsSL https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN -o /tmp/inorbit_install.sh \
+    && sed -i 's|read -r input </dev/tty|: # skip interactive read|g' /tmp/inorbit_install.sh \
+    && sh /tmp/inorbit_install.sh || true \
+    && rm -f /tmp/inorbit_install.sh
 
 # 3. Configurar el entorno de ROS 2 para que cargue automáticamente
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
