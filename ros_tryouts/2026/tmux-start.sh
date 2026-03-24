@@ -11,7 +11,12 @@ tmux send-keys -t $SESSION:0 "source /opt/ros/humble/setup.bash && /root/.inorbi
 tmux new-window -t $SESSION:1 -n "Arduino Scrapper"
 tmux send-keys -t $SESSION:1 "cd agent/serial_scraper/ && python3 scraper.py" Enter
 
-# Third window: interactive terminal, prints banner when InOrbit connects
-tmux new-window -t $SESSION:2 -n "Terminal"
+# Third window: Listener
+tmux new-window -t $SESSION:2 -n "Agent Listener"
+tmux send-keys -t $SESSION:2 "cd agent/ && python3 listener.py" Enter
+
+
+# Fourth window: interactive terminal, prints banner when InOrbit connects
+tmux new-window -t $SESSION:3 -n "Terminal"
 
 tmux attach-session -t $SESSION -t $SESSION:1
