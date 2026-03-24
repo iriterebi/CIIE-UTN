@@ -1,4 +1,4 @@
-Version: v0.1
+apiVersion: v0.1
 kind: DataSourceDefinition
 metadata:
   id: published-data
