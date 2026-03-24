@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     virtualenv \
     gcc \
     build-essential \
+    sudo \
     curl \
     udev \
     tmux \
