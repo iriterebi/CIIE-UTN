@@ -6,7 +6,7 @@ import random
 class Publisher(Node):
     def __init__(self):
         super().__init__('agente_serial_node')
-        self.publisher_ = self.create_publisher(Float32, 'sensor_dummy', 10)
+        self.publisher_ = self.create_publisher(String, '/inorbit/custom_data', 10)
         self.timer = self.create_timer(1.0, self.timer_callback)
         self.get_logger().info('Nodo Publicador Dummy Iniciado')
 
