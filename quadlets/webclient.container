@@ -1,0 +1,20 @@
+[Unit]
+Description=WebClient — SPA Vue 3 servida con nginx
+After=network-online.target
+
+[Container]
+Image=localhost/labs-remoto/webclient
+ContainerName=webclient
+
+# Red interna — accesible por el proxy como "webclient"
+Network=labs-remoto.network
+NetworkAlias=webclient
+
+# No publicamos puerto — solo accesible via proxy por la red interna
+
+[Service]
+Restart=always
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target default.target

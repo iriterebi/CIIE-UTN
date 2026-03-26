@@ -46,6 +46,7 @@ For a detailed description of the system architecture, communication flows, data
 | `WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
 | `RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
 | `Proxy/` | Active | nginx reverse proxy — single entry point for the deployment server (installed on host, not Docker) |
+| `quadlets/` | Active | Production deployment with Podman Quadlets — systemd unit files, deploy script |
 
 ## Tech Stack
 
@@ -56,7 +57,7 @@ For a detailed description of the system architecture, communication flows, data
 - **Real-time**: WebSockets + ROS 2 via RosBridge
 - **Protocol**: JSON-RPC 2.0 (robot commands)
 - **Package manager**: uv (workspace)
-- **Deployment**: Docker Compose
+- **Deployment**: Docker Compose (dev), Podman Quadlets (prod)
 - **Migrations**: dbmate
 
 ## Quick Start
@@ -242,9 +243,20 @@ Even if you reviewed it, the person who created the MR should be the one merging
 Reviews are a collaborative process — we're all working toward the same goal. 💬🤝
 
 ---
-## Docker Deploy
+## Deploy
 
-Ver [Docker-deploy.md](./Docker-deploy.md) para más información
+### Development (Docker Compose)
+
+See [Docker-deploy.md](./Docker-deploy.md) for details.
+
+### Production (Podman Quadlets)
+
+Production uses Podman Quadlets — images are built locally and transferred to the server via SSH. See [Documents/deploy_produccion.md](./Documents/deploy_produccion.md) for full documentation and [quadlets/README.md](./quadlets/README.md) for setup instructions.
+
+```bash
+./quadlets/deploy.sh user@server              # Deploy all services
+./quadlets/deploy.sh user@server -c api       # Deploy only the API
+```
 
 ---
 ### Raspberry Pi Configs:

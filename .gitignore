@@ -6,3 +6,4 @@ env-test1/*
 .mypy_cache
 *.local.*
 *.docx#
+.build-cache

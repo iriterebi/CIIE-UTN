@@ -1,0 +1,23 @@
+[Unit]
+Description=Proxy nginx — Punto de entrada público de Labs Remoto
+After=network-online.target
+Requires=api.service webclient.service rosbridge.service
+After=api.service webclient.service rosbridge.service
+
+[Container]
+Image=localhost/labs-remoto/proxy
+ContainerName=proxy
+
+# Red interna — resuelve api, webclient, rosbridge por hostname
+Network=labs-remoto.network
+NetworkAlias=proxy
+
+# Punto de entrada público
+PublishPort=80:80
+
+[Service]
+Restart=always
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -46,6 +46,7 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 | `WebClient/` | Activo | Frontend Vue 3 + TypeScript + PicoCSS |
 | `RosBridge/` | Activo | rosbridge_suite — puente WebSocket/JSON entre API y ROS 2 |
 | `Proxy/` | Activo | Reverse proxy nginx — punto de entrada único del servidor de despliegue (instalado en el host, no en Docker) |
+| `quadlets/` | Activo | Deploy de producción con Podman Quadlets — archivos de systemd, script de deploy |
 
 ## Stack Tecnológico
 
@@ -56,7 +57,7 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 - **Tiempo real**: WebSockets + ROS 2 vía RosBridge
 - **Protocolo**: JSON-RPC 2.0 (comandos a robots)
 - **Gestor de paquetes**: uv (workspace)
-- **Despliegue**: Docker Compose
+- **Despliegue**: Docker Compose (dev), Podman Quadlets (prod)
 - **Migraciones**: dbmate
 
 ## Inicio Rápido
@@ -247,9 +248,20 @@ Las revisiones son un proceso colaborativo — todos trabajamos hacia el mismo o
 
 ---
 
-## Docker Deploy
+## Deploy
 
-Ver [Docker-deploy.md](./Docker-deploy.md) para más información
+### Desarrollo (Docker Compose)
+
+Ver [Docker-deploy.md](./Docker-deploy.md) para más información.
+
+### Producción (Podman Quadlets)
+
+Producción usa Podman Quadlets — las imágenes se compilan localmente y se transfieren al servidor via SSH. Ver [Documents/deploy_produccion.md](./Documents/deploy_produccion.md) para la documentación completa y [quadlets/README.es.md](./quadlets/README.es.md) para instrucciones de setup.
+
+```bash
+./quadlets/deploy.sh usuario@servidor              # Desplegar todos los servicios
+./quadlets/deploy.sh usuario@servidor -c api       # Desplegar solo la API
+```
 
 ---
 

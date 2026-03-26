@@ -19,7 +19,8 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 - **RaspberryPi/**: Se ejecuta en cada robot. Se registra en la API, luego se conecta a rosbridge para recibir comandos y publicar respuestas/estado. Controla el Arduino vía serial
 - **Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
 - **Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
-- **Proxy/**: Configuración de nginx como reverse proxy principal. Único componente instalado en el host (no Docker). Punto de entrada para todo el tráfico — sirve la SPA, proxea API y RosBridge, maneja TLS, restringe rutas internas (`/m2m`, `/rosbridge`) a intranet
+- **Proxy/**: Configuración de nginx como reverse proxy principal. En dev se instala en el host; en prod corre containerizado via quadlet. Punto de entrada para todo el tráfico — proxea la SPA, API y RosBridge, restringe rutas internas (`/m2m`, `/rosbridge`) a intranet
+- **quadlets/**: Configuración de deploy de producción con Podman Quadlets. Incluye archivos `.container`, `.network`, `.volume` y el script `deploy.sh` para compilar localmente y desplegar via SSH
 - **Documents/**: Documentación general del sistema
 
 ## Stack Tecnológico
@@ -31,7 +32,7 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 - **Tiempo real**: WebSockets (usuario↔API) + ROS 2 vía RosBridge (API↔robot)
 - **Protocolo**: JSON-RPC 2.0 para comandos a robots
 - **Gestor de paquetes**: uv (workspace: Api + RaspberryPi)
-- **Despliegue**: Docker Compose
+- **Despliegue**: Docker Compose (dev), Podman Quadlets (prod)
 - **Migraciones**: dbmate
 
 ## Estructura del Proyecto
@@ -64,8 +65,14 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 │   ├── compose.yaml      # Servicio rosbridge
 │   ├── launch/           # Launch file ROS 2
 │   └── Makefile          # make up, make down, etc.
-├── Proxy/                # nginx reverse proxy (activo, instalado en host)
-│   └── nginx.conf        # Configuración de producción
+├── Proxy/                # nginx reverse proxy (activo)
+│   ├── nginx.conf        # Config para instalación en host (dev/legacy)
+│   ├── nginx.container.conf  # Config para contenedor (producción)
+│   └── Dockerfile        # nginx:alpine con config de producción
+├── quadlets/             # Deploy de producción con Podman Quadlets (activo)
+│   ├── *.container       # Definición de cada servicio
+│   ├── *.network, *.volume  # Red y volúmenes
+│   └── deploy.sh         # Script: build local → transfer SSH → reload
 ├── Arduino/              # Firmware del robot (activo)
 ├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
 ├── Documents/            # Documentación

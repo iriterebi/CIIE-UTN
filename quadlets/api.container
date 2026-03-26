@@ -1,0 +1,26 @@
+[Unit]
+Description=API FastAPI — Backend principal de Labs Remoto
+After=network-online.target
+Requires=db.service rosbridge.service
+After=db.service rosbridge.service
+
+[Container]
+Image=localhost/labs-remoto/api
+ContainerName=api
+
+# Variables de entorno desde archivo externo
+# Debe incluir: POSTGRES_*, ROSBRIDGE_URL, JWT_SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+EnvironmentFile=/etc/containers/env/api.env
+
+# Red interna — accesible por otros contenedores como "api"
+Network=labs-remoto.network
+NetworkAlias=api
+
+# No publicamos puerto — solo accesible via proxy por la red interna
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target default.target
