@@ -1,0 +1,3 @@
+[Volume]
+# Volumen persistente para los datos de PostgreSQL.
+# Los datos sobreviven reinicios y recreaciones del contenedor.

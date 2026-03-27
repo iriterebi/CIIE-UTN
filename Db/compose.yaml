@@ -1,5 +1,8 @@
 networks:
   inter-tier:
+    external: true
+    name: ciie-test
+  idk:
 
 volumes:
   db_dev_data:
@@ -19,6 +22,9 @@ x-db-dev-template: &db-dev-template
     - ./.env
   networks:
     inter-tier:
+      aliases:
+        - db-dev
+    idk:
       aliases:
         - db-dev
   ports:
@@ -43,10 +49,14 @@ services:
     image: ghcr.io/amacneil/dbmate
     networks:
       - inter-tier
+      - idk
     volumes:
       - ./def:/db
+      - ./seed:/seed
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-dev:5432/${POSTGRES_DB}?sslmode=disable
+    profiles:
+      - manual_start
 
   # db-prod:
   #   profiles: ['prod']

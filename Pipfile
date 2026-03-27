@@ -5,9 +5,24 @@ name = "pypi"
 
 [packages]
 requests = "*"
-serial = "*"
+pyserial = "*"
+python-dotenv = "*"
+fastapi = {extras = ["standard"], version = "*"}
+sqlmodel = "*"
+psycopg2-binary = "*"
+bcrypt = "*"
+pyjwt = "*"
+passlib = {extras = ["bcrypt"], version = "*"}
+uvicorn = {extras = ["standard"], version = "*"}
+websockets = "*"
+reactivex = "*"
 
 [dev-packages]
+pylint = "*"
+mypy = "*"
+types-requests = "*"
+types-pyserial = "*"
+autopep8 = "*"
 
 [requires]
-python_version = "3.12"
+python_version = ">=3.11"

@@ -1,35 +1,69 @@
 ## Docker Deploy (dev)
 
-Por ahora necesitamos dos shells
+### Primera vez con Docker
 
-### First time using docker
-1. Copy .env.example file, change the name to .env and complete it with your db data {Jesus always has the answer, amen}, DO THIS BOTH FOR YOUR .env IN DB AND IN WEB
-2. Do this:
+1. Copiar los archivos `.env.example` a `.env` en cada subproyecto que lo requiera (`Api/`, `Db/`) y completar con los datos correspondientes (ver sección de variables de entorno en `README.es.md`).
+2. Crear la red Docker compartida:
 ```shell
-        docker network create ciie-test1
+docker network create ciie-test
 ```
 
-### Para la Db
+### Levantar todo el sistema
+
+Desde la raíz del proyecto:
 ```shell
-cd Db && docker compose up
-# o puedes corriendolo en segundo plano
-cd Db && docker compose up -d
+# Levantar DB (background) + WebClient + RosBridge (background) + API (foreground)
+make up.all
 
-# si es primera vez que se corre la Db habrá que crear las tablas,
-# para ello, es necesario correr el siguiente script (en la carpeta Db/)
-
-./migrate.sh
+# O solo DB + API (lo mínimo para desarrollo backend)
+make up
 ```
 
-### Para el PHP
+Para detener los servicios en background:
 ```shell
-cd Web && docker compose up
-# o puedes corriendolo en segundo plano
-cd Web && docker compose up -d
-```
-IF you get an error trying to build the web docker, run the following command and then try again...
-```shell
-docker pull php:8.2-apache-bookworm
+make down
 ```
 
-y luego abrir http://localhost:8080 en el browser para ver la página
+### Servicios individuales
+
+#### Base de datos
+```shell
+make db.up                    # Foreground
+make db.up.detached           # Background
+make db.down                  # Detener
+
+# Primera vez: ejecutar migraciones y datos semilla
+make db.migrate
+make db.seed
+```
+
+#### API (FastAPI)
+```shell
+make api.up                   # Ejecuta: uv run fastapi dev src/server.py
+```
+
+#### WebClient (Vue 3)
+```shell
+make webclient.build          # Construir imagen Docker
+make webclient.up             # Foreground
+make webclient.up.detached    # Background
+make webclient.down           # Detener
+```
+
+#### RosBridge
+```shell
+make rosbridge.up             # Foreground
+make rosbridge.up.detached    # Background
+make rosbridge.down           # Detener
+```
+
+### Acceso
+
+- **WebClient**: http://localhost:3000
+- **API**: http://localhost:8000
+- **RosBridge WS**: ws://localhost:9090
+
+### Ver todos los comandos disponibles
+```shell
+make help
+```

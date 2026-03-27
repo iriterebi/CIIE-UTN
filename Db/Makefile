@@ -32,6 +32,10 @@ down_db.ephimeral.detached:		## Detiene el contenedor db-dev-ephimeral ejecutand
 migrate_db:				## Crea o actualiza la base de datos
 	docker compose run --rm --remove-orphans -i dbmate up
 
+.PHONY: seed_apply
+seed_apply:
+	docker compose run --rm --remove-orphans -i dbmate --migrations-dir "/seed/migrations" --migrations-table "seeds_schema_migrations" migrate
+
 .PHONY: help
 help:					## Show this help.
 	@sed -ne '/@sed/!s/## //p' $(MAKEFILE_LIST)

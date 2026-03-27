@@ -1,0 +1,32 @@
+[Unit]
+Description=PostgreSQL 17.5 — Base de datos de Labs Remoto
+After=network-online.target
+
+[Container]
+Image=docker.io/library/postgres:17.5-alpine
+ContainerName=db
+
+# Variables de entorno desde archivo externo
+EnvironmentFile=/etc/containers/env/db.env
+
+# Volumen persistente para datos
+Volume=db-data.volume:/var/lib/postgresql/data
+
+# Red interna — accesible por otros contenedores como "db"
+Network=labs-remoto.network:alias=db
+
+# Puerto expuesto solo en localhost (para migraciones con dbmate)
+PublishPort=127.0.0.1:5432:5432
+
+# Healthcheck para que los servicios dependientes esperen a que Postgres esté listo
+HealthCmd=pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+HealthInterval=5s
+HealthRetries=5
+HealthStartPeriod=10s
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target default.target

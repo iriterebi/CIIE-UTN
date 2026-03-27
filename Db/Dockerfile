@@ -33,7 +33,7 @@
 # ==================================
 # Stage para el entorno de desarrollo.
 # NO copia la carpeta /def, ya que se montará como un volumen.
-FROM postgres:17.5 AS dev
+FROM docker.io/library/postgres:17.5 AS dev
 
 # # Copia dbmate desde el builder
 # COPY --from=dbmate-builder /dbmate /usr/local/bin/dbmate
