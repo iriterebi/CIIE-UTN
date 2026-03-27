@@ -19,7 +19,7 @@ COPY Api/src /app/Api/src
 RUN uv sync --package ciie-remote-lab-api --no-dev
 
 
-FROM python:3.13-slim-bookworm
+FROM docker.io/library/python:3.13-slim-bookworm
 
 WORKDIR /app
 

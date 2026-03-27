@@ -1,4 +1,4 @@
-FROM nginx:alpine
+FROM docker.io/library/nginx:alpine
 
 COPY nginx.container.conf /etc/nginx/conf.d/default.conf
 

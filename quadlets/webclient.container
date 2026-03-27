@@ -7,8 +7,7 @@ Image=localhost/labs-remoto/webclient
 ContainerName=webclient
 
 # Red interna — accesible por el proxy como "webclient"
-Network=labs-remoto.network
-NetworkAlias=webclient
+Network=labs-remoto.network:alias=webclient
 
 # No publicamos puerto — solo accesible via proxy por la red interna
 

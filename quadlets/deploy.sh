@@ -8,7 +8,6 @@ set -euo pipefail
 # --- Configuración -----------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="${REPO_ROOT}/quadlets/.build-cache"
 
 # Imágenes disponibles: servicio → contexto:dockerfile
 declare -A IMAGES=(
@@ -20,8 +19,6 @@ declare -A IMAGES=(
 
 # Todos los servicios válidos (los que tienen imagen compilable)
 ALL_SERVICES=(api webclient rosbridge proxy)
-
-# Orden de reinicio (incluye db que no se compila pero sí se reinicia)
 RESTART_ORDER=(db rosbridge api webclient proxy)
 
 IMAGE_PREFIX="localhost/labs-remoto"
@@ -29,15 +26,15 @@ IMAGE_PREFIX="localhost/labs-remoto"
 # --- Funciones ---------------------------------------------------------------
 
 log() {
-    echo -e "\n\033[1;34m==>\033[0m \033[1m$1\033[0m"
+    echo -e "\n\033[1;34m==>\033[0m \033[1m$1\033[0m";
 }
 
 log_ok() {
-    echo -e "  \033[1;32m✓\033[0m $1"
+    echo -e "  \033[1;32m✓\033[0m $1";
 }
 
 log_err() {
-    echo -e "  \033[1;31m✗\033[0m $1" >&2
+    echo -e "  \033[1;31m✗\033[0m $1" >&2;
 }
 
 show_help() {
@@ -57,11 +54,8 @@ OPCIONES:
                           Si no se especifica, se procesan todos.
 
     -b, --build-only      Solo compilar las imágenes localmente.
-                          No transfiere ni reinicia nada en el servidor.
 
-    -d, --deploy-only     Solo transferir y cargar imágenes ya compiladas.
-                          Requiere que las imágenes existan localmente
-                          (haber ejecutado -b previamente).
+    -d, --deploy-only     Solo transferir imágenes ya compiladas al servidor.
 
     --no-reload           No reiniciar servicios tras cargar las imágenes.
                           Solo válido con -d/--deploy-only.
@@ -71,23 +65,11 @@ OPCIONES:
 DESCRIPCIÓN:
     Sin flags, ejecuta el flujo completo:
       1. podman build   — compila las imágenes localmente
-      2. podman save    — exporta a archivos .tar
-      3. scp            — transfiere los .tar al servidor
-      4. podman load    — carga las imágenes en el servidor
-      5. systemctl      — reinicia los servicios
+      2. podman save | gzip | ssh | gunzip | podman load
+                        — transfiere via stream (sin archivos intermedios)
+      3. systemctl      — reinicia los servicios
 
-    Con -b solo ejecuta los pasos 1-2. Con -d solo ejecuta 2-5.
-    Con -d --no-reload ejecuta 2-4 (sin reiniciar).
-
-REQUISITOS:
-    Local:
-      - podman
-      - ssh y scp configurados con acceso al servidor
-
-    Servidor:
-      - podman
-      - Quadlets instalados en /etc/containers/systemd/
-      - Env files en /etc/containers/env/ (db.env, api.env)
+    Con -b solo ejecuta el paso 1. Con -d solo los pasos 2-3.
 
 IMÁGENES:
     localhost/labs-remoto/api          Api/Dockerfile        (contexto: raíz)
@@ -151,22 +133,10 @@ while [[ $# -gt 0 ]]; do
             SELECTED_SERVICES+=("$2")
             shift 2
             ;;
-        -b|--build-only)
-            BUILD_ONLY=true
-            shift
-            ;;
-        -d|--deploy-only)
-            DEPLOY_ONLY=true
-            shift
-            ;;
-        --no-reload)
-            NO_RELOAD=true
-            shift
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
+        -b|--build-only)  BUILD_ONLY=true; shift ;;
+        -d|--deploy-only) DEPLOY_ONLY=true; shift ;;
+        --no-reload)      NO_RELOAD=true; shift ;;
+        -h|--help)        show_help; exit 0 ;;
         *)
             log_err "Opción desconocida: '$1'"
             echo "  Ejecutá ./deploy.sh --help para ver las opciones" >&2
@@ -201,7 +171,6 @@ fi
 
 do_build() {
     log "Compilando imágenes localmente"
-    mkdir -p "$BUILD_DIR"
 
     for svc in "${SELECTED_SERVICES[@]}"; do
         IFS=':' read -r context dockerfile <<< "${IMAGES[$svc]}"
@@ -210,122 +179,64 @@ do_build() {
             context="${REPO_ROOT}/${context}"
         fi
 
-        local image="${IMAGE_PREFIX}/${svc}"
         log "  Compilando ${svc}..."
-
         podman build \
-            -t "$image" \
+            -t "${IMAGE_PREFIX}/${svc}" \
             -f "${REPO_ROOT}/${dockerfile}" \
             "$context"
-
         log_ok "${svc}"
     done
 }
 
-# --- Export ------------------------------------------------------------------
-
-do_export() {
-    log "Exportando imágenes a archivos .tar"
-    mkdir -p "$BUILD_DIR"
-
-    for svc in "${SELECTED_SERVICES[@]}"; do
-        local image="${IMAGE_PREFIX}/${svc}"
-        local tar_file="${BUILD_DIR}/${svc}.tar"
-
-        podman save -o "$tar_file" "$image"
-        log_ok "${svc}.tar ($(du -h "$tar_file" | cut -f1))"
-    done
-}
-
-# --- Transfer ----------------------------------------------------------------
+# --- Transfer (stream comprimido via SSH) ------------------------------------
 
 do_transfer() {
     log "Transfiriendo imágenes al servidor (${SSH_TARGET})"
 
     for svc in "${SELECTED_SERVICES[@]}"; do
-        local tar_file="${BUILD_DIR}/${svc}.tar"
-
-        if [[ ! -f "$tar_file" ]]; then
-            log_err "${svc}.tar no existe. Ejecutá con -b primero."
-            exit 1
-        fi
-
-        scp "$tar_file" "${SSH_TARGET}:/tmp/${svc}.tar"
-        log_ok "${svc}.tar"
+        local image="${IMAGE_PREFIX}/${svc}"
+        log "  Enviando ${svc}..."
+        podman save "$image" | gzip | ssh "$SSH_TARGET" "gunzip | podman load"
+        log_ok "${svc}"
     done
 }
 
-# --- Load + Restart ----------------------------------------------------------
+# --- Restart -----------------------------------------------------------------
 
-do_load() {
-    log "Cargando imágenes en el servidor"
+do_restart() {
+    log "Reiniciando servicios en el servidor"
 
-    local REMOTE_SCRIPT='set -euo pipefail
-'
-
-    for svc in "${SELECTED_SERVICES[@]}"; do
-        REMOTE_SCRIPT+="
-echo \"Cargando ${svc}...\"
-podman load -i /tmp/${svc}.tar
-rm /tmp/${svc}.tar
-"
-    done
-
-    if ! $NO_RELOAD; then
-        REMOTE_SCRIPT+='
-echo "Reiniciando servicios..."
-'
-        # Reiniciar solo los servicios seleccionados, en orden de dependencias
-        for svc in "${RESTART_ORDER[@]}"; do
-            for selected in "${SELECTED_SERVICES[@]}"; do
-                if [[ "$svc" == "$selected" ]]; then
-                    REMOTE_SCRIPT+="systemctl restart ${svc}
-"
-                    break
-                fi
-            done
+    local cmds=""
+    for svc in "${RESTART_ORDER[@]}"; do
+        for selected in "${SELECTED_SERVICES[@]}"; do
+            if [[ "$svc" == "$selected" ]]; then
+                cmds+="systemctl restart ${svc} && "
+                break
+            fi
         done
-    fi
+    done
 
-    REMOTE_SCRIPT+='
-echo "Estado de los servicios:"
-systemctl --no-pager status db api rosbridge webclient proxy || true
-'
-
-    ssh "$SSH_TARGET" "sudo bash -c '${REMOTE_SCRIPT}'"
-}
-
-# --- Limpieza ----------------------------------------------------------------
-
-do_cleanup() {
-    log "Limpiando archivos temporales"
-    rm -rf "$BUILD_DIR"
-    log_ok "Cache de build eliminada"
+    cmds+="echo 'Estado de los servicios:' && systemctl --no-pager status db api rosbridge webclient proxy || true"
+    ssh "$SSH_TARGET" "sudo bash -c '${cmds}'"
 }
 
 # --- Ejecución ---------------------------------------------------------------
 
 if $BUILD_ONLY; then
     do_build
-    do_export
     log "Build completado (solo local)"
     echo "  Imágenes: ${SELECTED_SERVICES[*]}"
-    echo "  Cache: ${BUILD_DIR}/"
 elif $DEPLOY_ONLY; then
-    do_export
     do_transfer
-    do_load
-    do_cleanup
+    $NO_RELOAD || do_restart
     log "Deploy completado (sin build)"
     echo "  Servidor: ${SSH_TARGET}"
     echo "  Servicios: ${SELECTED_SERVICES[*]}"
     $NO_RELOAD && echo "  Reload: omitido (--no-reload)"
 else
     do_build
-    do_export
     do_transfer
-    do_load
-    do_cleanup
+    do_restart
     log "Deploy completado"
     echo "  Servidor: ${SSH_TARGET}"
     echo "  Servicios: ${SELECTED_SERVICES[*]}"

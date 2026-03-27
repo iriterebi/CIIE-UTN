@@ -13,8 +13,7 @@ ContainerName=api
 EnvironmentFile=/etc/containers/env/api.env
 
 # Red interna — accesible por otros contenedores como "api"
-Network=labs-remoto.network
-NetworkAlias=api
+Network=labs-remoto.network:alias=api
 
 # No publicamos puerto — solo accesible via proxy por la red interna
 

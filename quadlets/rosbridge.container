@@ -7,8 +7,7 @@ Image=localhost/labs-remoto/rosbridge
 ContainerName=rosbridge
 
 # Red interna — accesible por otros contenedores como "rosbridge"
-Network=labs-remoto.network
-NetworkAlias=rosbridge
+Network=labs-remoto.network:alias=rosbridge
 
 # Puerto expuesto en localhost (para RaspberryPis en la intranet via proxy)
 PublishPort=127.0.0.1:9090:9090

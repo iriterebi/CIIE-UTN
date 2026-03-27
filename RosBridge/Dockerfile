@@ -1,4 +1,4 @@
-FROM ros:humble-ros-base-jammy
+FROM docker.io/library/ros:humble-ros-base-jammy
 
 # Instalar rosbridge_suite
 RUN apt-get update && \

@@ -9,8 +9,7 @@ Image=localhost/labs-remoto/proxy
 ContainerName=proxy
 
 # Red interna — resuelve api, webclient, rosbridge por hostname
-Network=labs-remoto.network
-NetworkAlias=proxy
+Network=labs-remoto.network:alias=proxy
 
 # Punto de entrada público
 PublishPort=80:80
