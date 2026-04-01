@@ -154,14 +154,14 @@ quadlets/
 
 ### Archivos de soporte
 
-Además de los quadlets, hay dos archivos nuevos en `Proxy/` para la versión containerizada del proxy:
+Además de los quadlets, hay dos archivos en `services/Proxy/` para la versión containerizada del proxy:
 
 | Archivo | Descripción |
 |---------|-------------|
-| `Proxy/Dockerfile` | `nginx:alpine` con la config de producción |
-| `Proxy/nginx.container.conf` | nginx.conf adaptada para red de contenedores |
+| `services/Proxy/Dockerfile` | `nginx:alpine` con la config de producción |
+| `services/Proxy/nginx.container.conf` | nginx.conf adaptada para red de contenedores |
 
-La config original `Proxy/nginx.conf` se mantiene como referencia de la versión para host (con TLS, archivos estáticos, etc.).
+La config original `services/Proxy/nginx.conf` se mantiene como referencia de la versión para host (con TLS, archivos estáticos, etc.).
 
 ---
 
@@ -177,31 +177,31 @@ La config original `Proxy/nginx.conf` se mantiene como referencia de la versión
 
 ### api — FastAPI
 
-- **Imagen**: `localhost/labs-remoto/api` (compilada desde `Api/Dockerfile`)
-- **Contexto de build**: raíz del repositorio (necesita `pyproject.toml` de raíz + `Api/`)
+- **Imagen**: `localhost/labs-remoto/api` (compilada desde `services/Api/Dockerfile`)
+- **Contexto de build**: raíz del repositorio (necesita `pyproject.toml` de raíz + `services/Api/`)
 - **Puerto**: no publicado — solo accesible por el proxy a través de la red interna
 - **Env file**: `/etc/containers/env/api.env`
 - **Depende de**: db, rosbridge
 
 ### rosbridge — RosBridge
 
-- **Imagen**: `localhost/labs-remoto/rosbridge` (compilada desde `RosBridge/Dockerfile`)
+- **Imagen**: `localhost/labs-remoto/rosbridge` (compilada desde `services/RosBridge/Dockerfile`)
 - **Puerto**: `127.0.0.1:9090` (localhost para acceso de las RaspberryPi vía proxy)
 - **Environment**: `ROS_DOMAIN_ID=0`
 - **Comando**: `ros2 launch /ros_bridge_ws/launch/bridge.launch.py`
 
 ### webclient — SPA Vue 3
 
-- **Imagen**: `localhost/labs-remoto/webclient` (compilada desde `WebClient/Dockerfile`)
+- **Imagen**: `localhost/labs-remoto/webclient` (compilada desde `services/WebClient/Dockerfile`)
 - **Build**: multi-stage — `node:22-alpine` compila la SPA, `nginx:alpine` la sirve
 - **Puerto**: no publicado — solo accesible por el proxy
 - **Sin env file**: las variables de Vite (`VITE_*`) se resuelven en tiempo de compilación
 
 ### proxy — nginx reverse proxy
 
-- **Imagen**: `localhost/labs-remoto/proxy` (compilada desde `Proxy/Dockerfile`)
+- **Imagen**: `localhost/labs-remoto/proxy` (compilada desde `services/Proxy/Dockerfile`)
 - **Puerto**: `80` (punto de entrada público)
-- **Config**: `Proxy/nginx.container.conf`
+- **Config**: `services/Proxy/nginx.container.conf`
 - **Depende de**: api, webclient, rosbridge
 
 El proxy reemplaza al nginx instalado en el host. Rutea tráfico a los demás servicios por hostname:
@@ -322,10 +322,10 @@ Cuando se ejecuta `deploy.sh` sin flags, el flujo es:
  LOCAL                                          SERVIDOR
  ─────                                          ────────
  1. podman build
-    Api/Dockerfile         → localhost/labs-remoto/api
-    WebClient/Dockerfile   → localhost/labs-remoto/webclient
-    RosBridge/Dockerfile   → localhost/labs-remoto/rosbridge
-    Proxy/Dockerfile       → localhost/labs-remoto/proxy
+    services/Api/Dockerfile         → localhost/labs-remoto/api
+    services/WebClient/Dockerfile   → localhost/labs-remoto/webclient
+    services/RosBridge/Dockerfile   → localhost/labs-remoto/rosbridge
+    services/Proxy/Dockerfile       → localhost/labs-remoto/proxy
 
  2. podman save
     Exporta cada imagen a quadlets/.build-cache/<servicio>.tar
@@ -406,7 +406,7 @@ sudo systemctl stop proxy api webclient rosbridge db
 sudo journalctl -u db -u api -u rosbridge -u webclient -u proxy -f
 
 # Ejecutar migraciones de base de datos
-cd Db
+cd services/Db
 DATABASE_URL="postgres://<usuario>:<contraseña>@127.0.0.1:5432/ciie_db?sslmode=disable" \
     dbmate up
 ```
@@ -420,7 +420,7 @@ La documentación en [`red_y_despliegue.md`](./red_y_despliegue.md) describe la 
 | Aspecto | Antes (host) | Ahora (contenedor) |
 |---------|-------------|-------------------|
 | **Instalación** | `apt install nginx` + `systemctl` | Imagen `nginx:alpine` via quadlet |
-| **Config** | `Proxy/nginx.conf` | `Proxy/nginx.container.conf` |
+| **Config** | `services/Proxy/nginx.conf` | `services/Proxy/nginx.container.conf` |
 | **TLS** | certbot + Let's Encrypt | No (por ahora) |
 | **SPA** | Archivos estáticos en `/var/www/labs-remoto/` | `proxy_pass http://webclient:80` |
 | **Upstreams** | `127.0.0.1:8000`, `127.0.0.1:9090` | `api:8000`, `rosbridge:9090` |

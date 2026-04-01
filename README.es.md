@@ -37,16 +37,17 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 
 | Directorio | Estado | Descripción |
 |------------|--------|-------------|
-| `Api/` | Activo (WIP) | Backend FastAPI — punto de entrada principal al sistema |
-| `RaspberryPi/` | Activo | Controlador del lado del robot (comportamiento + comunicación) |
-| `Db/` | Activo | Esquema PostgreSQL, migraciones (dbmate), datos semilla |
-| `Arduino/` | Activo | Firmware del robot (control de brazo con 7 servos) |
+| `services/Api/` | Activo (WIP) | Backend FastAPI — punto de entrada principal al sistema |
+| `services/RaspberryPi/` | Activo | Controlador del lado del robot (comportamiento + comunicación) |
+| `services/Db/` | Activo | Esquema PostgreSQL, migraciones (dbmate), datos semilla |
+| `services/Arduino/` | Activo | Firmware del robot (control de brazo con 7 servos) |
+| `services/WebClient/` | Activo | Frontend Vue 3 + TypeScript + PicoCSS |
+| `services/RosBridge/` | Activo | rosbridge_suite — puente WebSocket/JSON entre API y ROS 2 |
+| `services/Proxy/` | Activo | Reverse proxy nginx — punto de entrada único del servidor de despliegue |
+| `packages/` | Activo | Paquetes compartidos (vacío por ahora) |
+| `quadlets/` | Activo | Deploy de producción con Podman Quadlets — archivos de systemd, script de deploy |
 | `ros_tryouts/` | Activo | Workspace ROS 2 para gestión de robots |
 | `Documents/` | Activo | Documentación general del sistema |
-| `WebClient/` | Activo | Frontend Vue 3 + TypeScript + PicoCSS |
-| `RosBridge/` | Activo | rosbridge_suite — puente WebSocket/JSON entre API y ROS 2 |
-| `Proxy/` | Activo | Reverse proxy nginx — punto de entrada único del servidor de despliegue (instalado en el host, no en Docker) |
-| `quadlets/` | Activo | Deploy de producción con Podman Quadlets — archivos de systemd, script de deploy |
 
 ## Stack Tecnológico
 
@@ -77,7 +78,7 @@ docker network create ciie-test
 ### 2. Iniciar la base de datos
 
 ```bash
-cd Db
+cd services/Db
 make up_db.dev.detached    # Iniciar PostgreSQL en background
 make migrate_db            # Ejecutar migraciones
 make seed_apply            # Aplicar datos semilla
@@ -86,14 +87,14 @@ make seed_apply            # Aplicar datos semilla
 ### 3. Iniciar la API
 
 ```bash
-cd Api
+cd services/Api
 make up_dev
 ```
 
 ### 4. Iniciar RosBridge
 
 ```bash
-cd RosBridge
+cd services/RosBridge
 make build                # Construir imagen Docker (primera vez)
 make up                   # Ejecutar rosbridge (foreground)
 ```
@@ -101,7 +102,7 @@ make up                   # Ejecutar rosbridge (foreground)
 ### 5. Iniciar el frontend
 
 ```bash
-cd WebClient
+cd services/WebClient
 npm install
 npm run dev               # Servidor Vite en :5173
 ```

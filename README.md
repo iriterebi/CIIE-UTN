@@ -37,16 +37,17 @@ For a detailed description of the system architecture, communication flows, data
 
 | Directory | Status | Description |
 |-----------|--------|-------------|
-| `Api/` | Active (WIP) | FastAPI backend — main system entry point |
-| `RaspberryPi/` | Active | Robot-side controller (behavior + communication) |
-| `Db/` | Active | PostgreSQL schema, migrations (dbmate), seed data |
-| `Arduino/` | Active | Robot firmware (7-servo arm control) |
+| `services/Api/` | Active (WIP) | FastAPI backend — main system entry point |
+| `services/RaspberryPi/` | Active | Robot-side controller (behavior + communication) |
+| `services/Db/` | Active | PostgreSQL schema, migrations (dbmate), seed data |
+| `services/Arduino/` | Active | Robot firmware (7-servo arm control) |
+| `services/WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
+| `services/RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
+| `services/Proxy/` | Active | nginx reverse proxy — single entry point for the deployment server |
+| `packages/` | Active | Shared packages (empty for now) |
+| `quadlets/` | Active | Production deployment with Podman Quadlets — systemd unit files, deploy script |
 | `ros_tryouts/` | Active | ROS 2 workspace for robot management |
 | `Documents/` | Active | General system documentation |
-| `WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
-| `RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
-| `Proxy/` | Active | nginx reverse proxy — single entry point for the deployment server (installed on host, not Docker) |
-| `quadlets/` | Active | Production deployment with Podman Quadlets — systemd unit files, deploy script |
 
 ## Tech Stack
 
@@ -77,7 +78,7 @@ docker network create ciie-test
 ### 2. Start the database
 
 ```bash
-cd Db
+cd services/Db
 make up_db.dev.detached    # Start PostgreSQL in background
 make migrate_db            # Run migrations
 make seed_apply            # Apply seed data
@@ -86,14 +87,14 @@ make seed_apply            # Apply seed data
 ### 3. Start the API
 
 ```bash
-cd Api
+cd services/Api
 make up_dev
 ```
 
 ### 4. Start RosBridge
 
 ```bash
-cd RosBridge
+cd services/RosBridge
 make build                # Build the Docker image (first time)
 make up                   # Start rosbridge (foreground)
 ```
@@ -101,7 +102,7 @@ make up                   # Start rosbridge (foreground)
 ### 5. Start the frontend
 
 ```bash
-cd WebClient
+cd services/WebClient
 npm install
 npm run dev               # Vite dev server on :5173
 ```

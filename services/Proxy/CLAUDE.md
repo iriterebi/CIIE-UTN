@@ -78,7 +78,7 @@ deny all;
 Los archivos estáticos de Vue 3 se copian manualmente al host:
 
 ```bash
-cd ../WebClient && npm ci && npm run build
+cd ../WebClient && npm ci && npm run build   # desde services/Proxy/
 sudo cp -r dist/* /var/www/labs-remoto/
 ```
 

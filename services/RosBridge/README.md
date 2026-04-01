@@ -56,7 +56,7 @@ Message type: `std_msgs/String` with JSON-RPC 2.0 payload.
 
 ## Demo Mode
 
-To test without physical hardware, run the RaspberryPi controller in mock mode (`MOCK_ROBOT=1`) connected to rosbridge. See `RaspberryPi/CLAUDE.md` for details.
+To test without physical hardware, run the RaspberryPi controller in mock mode (`MOCK_ROBOT=1`) connected to rosbridge. See `../RaspberryPi/CLAUDE.md` for details.
 
 ## rosbridge Protocol
 

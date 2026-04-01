@@ -7,13 +7,13 @@ WORKDIR /app
 
 # Copiar archivos de workspace (raíz + Api)
 COPY pyproject.toml /app/pyproject.toml
-COPY Api/pyproject.toml /app/Api/pyproject.toml
+COPY services/Api/pyproject.toml /app/services/Api/pyproject.toml
 
 # Instalar dependencias sin el código fuente (cacheo de capas)
 RUN uv sync --package ciie-remote-lab-api --no-dev --no-install-workspace
 
 # Copiar código fuente de la Api
-COPY Api/src /app/Api/src
+COPY services/Api/src /app/services/Api/src
 
 # Instalar el paquete del workspace
 RUN uv sync --package ciie-remote-lab-api --no-dev
@@ -27,7 +27,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copiar código fuente
-COPY Api/src /app/src
+COPY services/Api/src /app/src
 
 ENV PATH="/app/.venv/bin:$PATH"
 

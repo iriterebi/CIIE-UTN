@@ -12,14 +12,15 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
               [PostgreSQL]      [ROS / DDS]
 ```
 
-- **WebClient/**: Frontend Vue 3 + TypeScript + PicoCSS — SPA servida con nginx
-- **Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket con usuarios, publica/suscribe comandos JSON-RPC a rosbridge
-- **RosBridge/**: Servicio rosbridge_suite — puente WebSocket/JSON entre clientes (API y RaspberryPi) y ROS 2
+- **services/WebClient/**: Frontend Vue 3 + TypeScript + PicoCSS — SPA servida con nginx
+- **services/Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket con usuarios, publica/suscribe comandos JSON-RPC a rosbridge
+- **services/RosBridge/**: Servicio rosbridge_suite — puente WebSocket/JSON entre clientes (API y RaspberryPi) y ROS 2
 - **ROS** (`ros_tryouts/`): Sistema de control y gestión de robots. No lo modificamos nosotros — lo maneja otro miembro del equipo
-- **RaspberryPi/**: Se ejecuta en cada robot. Se registra en la API, luego se conecta a rosbridge para recibir comandos y publicar respuestas/estado. Controla el Arduino vía serial
-- **Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
-- **Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
-- **Proxy/**: Configuración de nginx como reverse proxy principal. En dev se instala en el host; en prod corre containerizado via quadlet. Punto de entrada para todo el tráfico — proxea la SPA, API y RosBridge, restringe rutas internas (`/m2m`, `/rosbridge`) a intranet
+- **services/RaspberryPi/**: Se ejecuta en cada robot. Se registra en la API, luego se conecta a rosbridge para recibir comandos y publicar respuestas/estado. Controla el Arduino vía serial
+- **services/Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
+- **services/Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
+- **services/Proxy/**: Configuración de nginx como reverse proxy principal. En dev se instala en el host; en prod corre containerizado via quadlet. Punto de entrada para todo el tráfico — proxea la SPA, API y RosBridge, restringe rutas internas (`/m2m`, `/rosbridge`) a intranet
+- **packages/**: Paquetes compartidos entre servicios (vacío por ahora)
 - **quadlets/**: Configuración de deploy de producción con Podman Quadlets. Incluye archivos `.container`, `.network`, `.volume` y el script `deploy.sh` para compilar localmente y desplegar via SSH
 - **Documents/**: Documentación general del sistema
 
@@ -38,47 +39,49 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 ## Estructura del Proyecto
 
 ```
-├── Api/                  # Backend FastAPI (activo, WIP)
-│   ├── src/
-│   │   ├── server.py     # Punto de entrada, monta los routers
-│   │   ├── config.py     # Carga de variables de entorno
-│   │   ├── auth/         # Auth JWT, servicio de usuarios, encriptación
-│   │   ├── robot/        # Rutas de robot, WS, handshake, JSON-RPC
-│   │   └── db_connection/
-│   ├── Makefile          # `make up_dev` → fastapi dev src/server.py
-│   └── pyproject.toml
-├── RaspberryPi/          # Controlador del lado del robot (activo)
-│   ├── controller/
-│   │   ├── main.py       # Punto de entrada
-│   │   ├── config.py     # Carga de .env
-│   │   ├── server/       # Registro y handshake con la API
-│   │   ├── rosbridge/    # Cliente WS a rosbridge (comandos JSON-RPC vía ROS)
-│   │   └── robot/        # Controlador serial (real + mock)
-│   └── pyproject.toml
-├── Db/                   # Base de datos (activo)
-│   ├── def/migrations/   # Migraciones de esquema
-│   ├── seed/migrations/  # Datos semilla
-│   ├── compose.yaml      # Servicios de DB (dev, ephemeral, dbmate)
-│   └── Makefile          # make migrate_db, make seed_apply, etc.
-├── RosBridge/            # rosbridge_suite — puente WS/JSON↔ROS (activo)
-│   ├── Dockerfile        # ROS Humble + rosbridge_suite
-│   ├── compose.yaml      # Servicio rosbridge
-│   ├── launch/           # Launch file ROS 2
-│   └── Makefile          # make up, make down, etc.
-├── Proxy/                # nginx reverse proxy (activo)
-│   ├── nginx.conf        # Config para instalación en host (dev/legacy)
-│   ├── nginx.container.conf  # Config para contenedor (producción)
-│   └── Dockerfile        # nginx:alpine con config de producción
-├── quadlets/             # Deploy de producción con Podman Quadlets (activo)
-│   ├── *.container       # Definición de cada servicio
-│   ├── *.network, *.volume  # Red y volúmenes
-│   └── deploy.sh         # Script: build local → transfer SSH → reload
-├── Arduino/              # Firmware del robot (activo)
-├── ros_tryouts/          # Workspace ROS 2 (activo, no tocar)
-├── Documents/            # Documentación
-├── WebClient/            # Frontend Vue 3 + TypeScript + PicoCSS (activo)
-├── compose.yaml          # Compose raíz (incluye Db + WebClient + RosBridge)
-└── pyproject.toml        # Raíz del workspace uv
+├── services/                 # Servicios y subproyectos
+│   ├── Api/                  # Backend FastAPI (activo, WIP)
+│   │   ├── src/
+│   │   │   ├── server.py     # Punto de entrada, monta los routers
+│   │   │   ├── config.py     # Carga de variables de entorno
+│   │   │   ├── auth/         # Auth JWT, servicio de usuarios, encriptación
+│   │   │   ├── robot/        # Rutas de robot, WS, handshake, JSON-RPC
+│   │   │   └── db_connection/
+│   │   ├── Makefile          # `make up_dev` → fastapi dev src/server.py
+│   │   └── pyproject.toml
+│   ├── RaspberryPi/          # Controlador del lado del robot (activo)
+│   │   ├── controller/
+│   │   │   ├── main.py       # Punto de entrada
+│   │   │   ├── config.py     # Carga de .env
+│   │   │   ├── server/       # Registro y handshake con la API
+│   │   │   ├── rosbridge/    # Cliente WS a rosbridge (comandos JSON-RPC vía ROS)
+│   │   │   └── robot/        # Controlador serial (real + mock)
+│   │   └── pyproject.toml
+│   ├── Db/                   # Base de datos (activo)
+│   │   ├── def/migrations/   # Migraciones de esquema
+│   │   ├── seed/migrations/  # Datos semilla
+│   │   ├── compose.yaml      # Servicios de DB (dev, ephemeral, dbmate)
+│   │   └── Makefile          # make migrate_db, make seed_apply, etc.
+│   ├── RosBridge/            # rosbridge_suite — puente WS/JSON↔ROS (activo)
+│   │   ├── Dockerfile        # ROS Humble + rosbridge_suite
+│   │   ├── compose.yaml      # Servicio rosbridge
+│   │   ├── launch/           # Launch file ROS 2
+│   │   └── Makefile          # make up, make down, etc.
+│   ├── Proxy/                # nginx reverse proxy (activo)
+│   │   ├── nginx.conf        # Config para instalación en host (dev/legacy)
+│   │   ├── nginx.container.conf  # Config para contenedor (producción)
+│   │   └── Dockerfile        # nginx:alpine con config de producción
+│   ├── WebClient/            # Frontend Vue 3 + TypeScript + PicoCSS (activo)
+│   └── Arduino/              # Firmware del robot (activo)
+├── packages/                 # Paquetes compartidos (vacío por ahora)
+├── quadlets/                 # Deploy de producción con Podman Quadlets (activo)
+│   ├── *.container           # Definición de cada servicio
+│   ├── *.network, *.volume   # Red y volúmenes
+│   └── deploy.sh             # Script: build local → transfer SSH → reload
+├── ros_tryouts/              # Workspace ROS 2 (activo, no tocar)
+├── Documents/                # Documentación
+├── compose.yaml              # Compose raíz (incluye Db + WebClient + RosBridge)
+└── pyproject.toml            # Raíz del workspace uv
 ```
 
 ## Setup de Desarrollo
@@ -92,14 +95,14 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 ### Ejecutar la API
 
 ```bash
-cd Api && make up_dev
+cd services/Api && make up_dev
 # o: fastapi dev src/server.py
 ```
 
 ### Base de Datos
 
 ```bash
-cd Db
+cd services/Db
 make up_db.dev              # Iniciar PostgreSQL (foreground)
 make up_db.dev.detached     # Iniciar PostgreSQL (background)
 make migrate_db             # Ejecutar migraciones
@@ -111,7 +114,7 @@ La DB efímera (`make up_db.ephimeral`) usa tmpfs — los datos se pierden al de
 ### RosBridge
 
 ```bash
-cd RosBridge
+cd services/RosBridge
 make build                # Construir imagen Docker
 make up                   # Ejecutar rosbridge (foreground)
 make up.detached          # Ejecutar rosbridge (background)

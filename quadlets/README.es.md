@@ -119,7 +119,7 @@ webclient ──────────────────┘
 La base de datos está accesible en `127.0.0.1:5432` para ejecutar migraciones con dbmate:
 
 ```bash
-cd Db
+cd services/Db
 DATABASE_URL="postgres://<usuario>:<contraseña>@127.0.0.1:5432/ciie_db?sslmode=disable" \
     dbmate up
 ```

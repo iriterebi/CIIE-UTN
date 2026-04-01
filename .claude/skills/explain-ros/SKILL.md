@@ -13,7 +13,7 @@ Buscá contexto actual del proyecto para que tu explicación sea relevante y no 
 
 1. **Documentación de investigación previa**: leé los archivos en `Documents/` — puede haber documentación de ROS ya escrita que debas mantener coherente o referenciar
 2. **Estado del proyecto**: leé `CLAUDE.md` (raíz y de cada subproyecto relevante) para entender la arquitectura actual, stack, convenciones y decisiones vigentes
-3. **READMEs**: leé `README.md` o `README.es.md` del proyecto raíz y de los subproyectos relevantes (Api/, RaspberryPi/, RosBridge/, etc.) para entender qué está implementado y cómo
+3. **READMEs**: leé `README.md` o `README.es.md` del proyecto raíz y de los subproyectos relevantes (services/Api/, services/RaspberryPi/, services/RosBridge/, etc.) para entender qué está implementado y cómo
 
 No asumas el estado actual del proyecto — siempre verificalo leyendo estos archivos. La arquitectura, los protocolos y las decisiones pueden haber cambiado desde la última conversación.
 

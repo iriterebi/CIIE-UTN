@@ -7,73 +7,73 @@
 
 .PHONY: api.up
 api.up:					## Ejecuta la API en modo desarrollo.
-	$(MAKE) -C Api up_dev
+	$(MAKE) -C services/Api up_dev
 
 ## --- Db ---
 
 .PHONY: db.up
 db.up:					## Ejecuta la base de datos en foreground.
-	$(MAKE) -C Db up_db.dev
+	$(MAKE) -C services/Db up_db.dev
 
 .PHONY: db.up.detached
 db.up.detached:				## Ejecuta la base de datos en background.
-	$(MAKE) -C Db up_db.dev.detached
+	$(MAKE) -C services/Db up_db.dev.detached
 
 .PHONY: db.down
 db.down:				## Detiene la base de datos en background.
-	$(MAKE) -C Db down_db.dev.detached
+	$(MAKE) -C services/Db down_db.dev.detached
 
 .PHONY: db.up.ephimeral
 db.up.ephimeral:			## Ejecuta la base de datos efímera (tmpfs) en foreground.
-	$(MAKE) -C Db up_db.ephimeral
+	$(MAKE) -C services/Db up_db.ephimeral
 
 .PHONY: db.up.ephimeral.detached
 db.up.ephimeral.detached:		## Ejecuta la base de datos efímera en background.
-	$(MAKE) -C Db up_db.ephimeral.detached
+	$(MAKE) -C services/Db up_db.ephimeral.detached
 
 .PHONY: db.down.ephimeral
 db.down.ephimeral:			## Detiene la base de datos efímera en background.
-	$(MAKE) -C Db down_db.ephimeral.detached
+	$(MAKE) -C services/Db down_db.ephimeral.detached
 
 .PHONY: db.migrate
 db.migrate:				## Ejecuta las migraciones de la base de datos.
-	$(MAKE) -C Db migrate_db
+	$(MAKE) -C services/Db migrate_db
 
 .PHONY: db.seed
 db.seed:				## Aplica los datos semilla.
-	$(MAKE) -C Db seed_apply
+	$(MAKE) -C services/Db seed_apply
 
 ## --- WebClient ---
 
 .PHONY: webclient.build
 webclient.build:			## Construye la imagen Docker del frontend Vue.
-	$(MAKE) -C WebClient build
+	$(MAKE) -C services/WebClient build
 
 .PHONY: webclient.up
 webclient.up:				## Ejecuta el frontend Vue en foreground.
-	$(MAKE) -C WebClient up_dev
+	$(MAKE) -C services/WebClient up_dev
 
 .PHONY: webclient.up.detached
 webclient.up.detached:			## Ejecuta el frontend Vue en background.
-	$(MAKE) -C WebClient up_dev.detached
+	$(MAKE) -C services/WebClient up_dev.detached
 
 .PHONY: webclient.down
 webclient.down:				## Detiene el frontend Vue.
-	$(MAKE) -C WebClient down_dev
+	$(MAKE) -C services/WebClient down_dev
 
 ## --- RosBridge ---
 
 .PHONY: rosbridge.up
 rosbridge.up:				## Ejecuta rosbridge en foreground.
-	$(MAKE) -C RosBridge up
+	$(MAKE) -C services/RosBridge up
 
 .PHONY: rosbridge.up.detached
 rosbridge.up.detached:			## Ejecuta rosbridge en background.
-	$(MAKE) -C RosBridge up.detached
+	$(MAKE) -C services/RosBridge up.detached
 
 .PHONY: rosbridge.down
 rosbridge.down:				## Detiene rosbridge.
-	$(MAKE) -C RosBridge down
+	$(MAKE) -C services/RosBridge down
 
 ## --- Compuestos ---
 

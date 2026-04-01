@@ -82,7 +82,7 @@ Usuario → Frontend → API → RosBridge ← RaspberryPi → Arduino → Robot
 
 ### Frontend
 
-- **Directorio**: `WebClient/`
+- **Directorio**: `services/WebClient/`
 - **Tecnología**: Vue 3, TypeScript, Vite, PicoCSS, Vue Router, Pinia
 - **Responsabilidad**: Interfaz de usuario para autenticación, selección de robot y envío de comandos de control
 - **Comunicación con API**: HTTP para auth y CRUD, WebSocket para comandos en tiempo real
@@ -90,7 +90,7 @@ Usuario → Frontend → API → RosBridge ← RaspberryPi → Arduino → Robot
 
 ### API (Backend)
 
-- **Directorio**: `Api/`
+- **Directorio**: `services/Api/`
 - **Tecnología**: Python 3.13.7+, FastAPI, SQLModel
 - **Tipo**: Monolito modular
 - **Responsabilidad**: Punto central del sistema. Maneja:
@@ -128,7 +128,7 @@ Usuario ──WS──► API ──WS:9090──► RosBridge ◄──WS:9090�
 
 ### Base de Datos
 
-- **Directorio**: `Db/`
+- **Directorio**: `services/Db/`
 - **Tecnología**: PostgreSQL 17.5 (Alpine)
 - **Migraciones**: dbmate
 - **Responsabilidad**: Persistencia de usuarios, robots y auditoría de cambios de estado
@@ -142,7 +142,7 @@ Usuario ──WS──► API ──WS:9090──► RosBridge ◄──WS:9090�
 
 ### RaspberryPi (Controlador del Robot)
 
-- **Directorio**: `RaspberryPi/`
+- **Directorio**: `services/RaspberryPi/`
 - **Tecnología**: Python 3.13.7+
 - **Responsabilidad**: Se ejecuta en cada robot físico. Maneja:
   - Registro y handshake con la API (HTTP Basic → JWT + topic base)
@@ -153,7 +153,7 @@ Usuario ──WS──► API ──WS:9090──► RosBridge ◄──WS:9090�
 
 ### Arduino (Firmware)
 
-- **Directorio**: `Arduino/`
+- **Directorio**: `services/Arduino/`
 - **Tecnología**: Arduino C++
 - **Responsabilidad**: Control directo del hardware — 7 servomotores del brazo robótico (base, cuerpo, hombro, brazo, antebrazo×2, mano)
 - **Comunicación**: Serial USB con la RaspberryPi

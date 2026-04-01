@@ -2,7 +2,7 @@
 
 ### Primera vez con Docker
 
-1. Copiar los archivos `.env.example` a `.env` en cada subproyecto que lo requiera (`Api/`, `Db/`) y completar con los datos correspondientes (ver sección de variables de entorno en `README.es.md`).
+1. Copiar los archivos `.env.example` a `.env` en cada subproyecto que lo requiera (`services/Api/`, `services/Db/`) y completar con los datos correspondientes (ver sección de variables de entorno en `README.es.md`).
 2. Crear la red Docker compartida:
 ```shell
 docker network create ciie-test

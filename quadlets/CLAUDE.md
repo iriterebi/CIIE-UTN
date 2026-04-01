@@ -82,14 +82,14 @@ Los archivos `.env` no están en el repositorio — se configuran manualmente en
 
 | Tag | Dockerfile | Contexto de build |
 |-----|------------|-------------------|
-| `localhost/labs-remoto/api` | `Api/Dockerfile` | Raíz del repo (necesita `pyproject.toml` de raíz) |
-| `localhost/labs-remoto/webclient` | `WebClient/Dockerfile` | `WebClient/` |
-| `localhost/labs-remoto/rosbridge` | `RosBridge/Dockerfile` | `RosBridge/` |
-| `localhost/labs-remoto/proxy` | `Proxy/Dockerfile` | `Proxy/` |
+| `localhost/labs-remoto/api` | `services/Api/Dockerfile` | Raíz del repo (necesita `pyproject.toml` de raíz) |
+| `localhost/labs-remoto/webclient` | `services/WebClient/Dockerfile` | `services/WebClient/` |
+| `localhost/labs-remoto/rosbridge` | `services/RosBridge/Dockerfile` | `services/RosBridge/` |
+| `localhost/labs-remoto/proxy` | `services/Proxy/Dockerfile` | `services/Proxy/` |
 
 ## Proxy (nginx containerizado)
 
-El proxy usa `Proxy/nginx.container.conf` (no `Proxy/nginx.conf`, que es la versión para host). Diferencias clave:
+El proxy usa `services/Proxy/nginx.container.conf` (no `services/Proxy/nginx.conf`, que es la versión para host). Diferencias clave:
 
 - Sin TLS (se agregará después)
 - Upstreams apuntan a hostnames de contenedores (`api:8000`, `rosbridge:9090`)

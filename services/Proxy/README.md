@@ -75,4 +75,4 @@ sudo cp -r dist/* /var/www/labs-remoto/
 
 ## Why nginx over HAProxy
 
-See [Documents/red_y_despliegue.md](../Documents/red_y_despliegue.md) for the full comparison. Summary: nginx serves the SPA natively, has simpler path-based routing, and integrates with certbot out of the box. HAProxy's advantages (advanced load balancing, circuit breaking) aren't needed at this scale.
+See [Documents/red_y_despliegue.md](../../Documents/red_y_despliegue.md) for the full comparison. Summary: nginx serves the SPA natively, has simpler path-based routing, and integrates with certbot out of the box. HAProxy's advantages (advanced load balancing, circuit breaking) aren't needed at this scale.

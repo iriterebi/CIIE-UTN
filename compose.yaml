@@ -1,5 +1,5 @@
 include:
-  - ./Db/compose.yaml
-  - ./WebClient/compose.yaml
-  - ./RosBridge/compose.yaml
-  - ./Api/compose.yaml
+  - ./services/Db/compose.yaml
+  - ./services/WebClient/compose.yaml
+  - ./services/RosBridge/compose.yaml
+  - ./services/Api/compose.yaml

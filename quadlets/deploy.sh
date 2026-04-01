@@ -11,10 +11,10 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Imágenes disponibles: servicio → contexto:dockerfile
 declare -A IMAGES=(
-    ["api"]="${REPO_ROOT}:Api/Dockerfile"
-    ["webclient"]="WebClient:WebClient/Dockerfile"
-    ["rosbridge"]="RosBridge:RosBridge/Dockerfile"
-    ["proxy"]="Proxy:Proxy/Dockerfile"
+    ["api"]="${REPO_ROOT}:services/Api/Dockerfile"
+    ["webclient"]="services/WebClient:services/WebClient/Dockerfile"
+    ["rosbridge"]="services/RosBridge:services/RosBridge/Dockerfile"
+    ["proxy"]="services/Proxy:services/Proxy/Dockerfile"
 )
 
 # Todos los servicios válidos (los que tienen imagen compilable)
@@ -72,10 +72,10 @@ DESCRIPCIÓN:
     Con -b solo ejecuta el paso 1. Con -d solo los pasos 2-3.
 
 IMÁGENES:
-    localhost/labs-remoto/api          Api/Dockerfile        (contexto: raíz)
-    localhost/labs-remoto/webclient    WebClient/Dockerfile  (contexto: WebClient/)
-    localhost/labs-remoto/rosbridge    RosBridge/Dockerfile  (contexto: RosBridge/)
-    localhost/labs-remoto/proxy        Proxy/Dockerfile      (contexto: Proxy/)
+    localhost/labs-remoto/api          services/Api/Dockerfile        (contexto: raíz)
+    localhost/labs-remoto/webclient    services/WebClient/Dockerfile  (contexto: services/WebClient/)
+    localhost/labs-remoto/rosbridge    services/RosBridge/Dockerfile  (contexto: services/RosBridge/)
+    localhost/labs-remoto/proxy        services/Proxy/Dockerfile      (contexto: services/Proxy/)
 
 EJEMPLOS:
     # Deploy completo de todos los servicios

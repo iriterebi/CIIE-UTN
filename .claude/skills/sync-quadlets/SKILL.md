@@ -32,11 +32,11 @@ Para cada servicio, leer la configuración fuente y actualizar el quadlet corres
 
 | Servicio | Fuentes a revisar | Quadlet |
 |----------|------------------|---------|
-| **db** | `Db/compose.yaml`, `Db/Dockerfile`, `Db/.env.example` | `quadlets/db.container`, `quadlets/db-data.volume` |
-| **api** | `Api/Dockerfile`, `Api/compose.yaml`, `Api/.env.example`, `Api/src/config.py` | `quadlets/api.container` |
-| **webclient** | `WebClient/Dockerfile`, `WebClient/compose.yaml`, `WebClient/nginx.conf`, `WebClient/.env.production` | `quadlets/webclient.container` |
-| **rosbridge** | `RosBridge/Dockerfile`, `RosBridge/compose.yaml`, `RosBridge/config/` | `quadlets/rosbridge.container` |
-| **proxy** | `Proxy/Dockerfile`, `Proxy/nginx.container.conf` | `quadlets/proxy.container` |
+| **db** | `services/Db/compose.yaml`, `services/Db/Dockerfile`, `services/Db/.env.example` | `quadlets/db.container`, `quadlets/db-data.volume` |
+| **api** | `services/Api/Dockerfile`, `services/Api/compose.yaml`, `services/Api/.env.example`, `services/Api/src/config.py` | `quadlets/api.container` |
+| **webclient** | `services/WebClient/Dockerfile`, `services/WebClient/compose.yaml`, `services/WebClient/nginx.conf`, `services/WebClient/.env.production` | `quadlets/webclient.container` |
+| **rosbridge** | `services/RosBridge/Dockerfile`, `services/RosBridge/compose.yaml`, `services/RosBridge/config/` | `quadlets/rosbridge.container` |
+| **proxy** | `services/Proxy/Dockerfile`, `services/Proxy/nginx.container.conf` | `quadlets/proxy.container` |
 | **(red)** | — | `quadlets/labs-remoto.network` |
 
 Además, revisar `quadlets/deploy.sh` si cambió algún Dockerfile o contexto de build.
