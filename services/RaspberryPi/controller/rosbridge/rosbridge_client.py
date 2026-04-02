@@ -50,11 +50,16 @@ class PiRosBridgeClient:
         )
 
     async def connect(self):
+        logging.info("Conectando a rosbridge en %s", self._url)
         """Conectar al rosbridge WebSocket."""
-        self._ws = await connect(self._url)
-        await self._advertise_topics()
-        await self._subscribe_commands()
-        logger.info("Conectado a rosbridge en %s", self._url)
+        try:
+            self._ws = await connect(self._url)
+            await self._advertise_topics()
+            await self._subscribe_commands()
+            logger.info("Conectado a rosbridge en %s", self._url)
+        except (OSError, InvalidURI) as e:
+            logger.error("Error conectando a rosbridge: %s", e)
+            raise
 
     async def disconnect(self):
         """Cancelar tasks y cerrar conexión."""

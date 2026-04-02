@@ -46,3 +46,9 @@ def login(
         access_token=accessToken,
         topic=f"/robot/r{uuid_to_crockford_base32(robot.id)}"
     )
+
+# @router.websocket('/connect')
+# async def robot_connection(
+#     websocket: WebSocket
+# ):
+

@@ -26,11 +26,15 @@ export function useRobotSocket() {
 
     ws.onopen = () => {
       status.value = 'authenticating'
-      ws!.send(JSON.stringify({ token: authToken }))
+      ws!.send(JSON.stringify({ token: authToken, robot_id: robotId }))
     }
 
-    ws.onmessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data)
+    ws.onmessage = async (event: MessageEvent) => {
+      const data = JSON.parse(
+        event.data instanceof Blob
+        ? await event.data.text()
+        : event.data
+      )
 
       if (status.value === 'authenticating') {
         if (data.message === 'success auth') {

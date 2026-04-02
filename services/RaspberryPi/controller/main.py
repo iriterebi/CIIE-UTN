@@ -12,6 +12,12 @@ import asyncio
 import logging
 import sys
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+)
+
 from .config import config
 from .server.server_service import ServerServices
 from .robot import RobotController
@@ -33,6 +39,7 @@ def parse_args() -> argparse.Namespace:
 
 
 async def async_main(credentials: RobotCredentials, robot):
+    logging.info("Iniciando comunicación con rosbridge vía WebSocket. %s", config.rosbridge_url)
     """Fase operativa: comunicación con rosbridge vía WebSocket."""
     async with PiRosBridgeClient(config.rosbridge_url, credentials) as client:
         await client.run(
@@ -43,12 +50,6 @@ async def async_main(credentials: RobotCredentials, robot):
 
 def main():
     args = parse_args()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        stream=sys.stdout,
-    )
 
     with (
         ServerServices(

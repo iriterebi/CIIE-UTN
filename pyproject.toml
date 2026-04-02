@@ -14,6 +14,7 @@ exclude = []
 [dependency-groups]
 dev = [
     "autopep8>=2.3.2",
+    "basedpyright>=1.39.0",
     "mypy>=1.18.2",
     "pylint>=3.3.9",
 ]

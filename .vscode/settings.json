@@ -3,5 +3,5 @@
         ".venv/**/*": true,
         ".mypy_cache/**/*": true,
     },
-    "python.languageServer": "Jedi"
+    "python.languageServer": "None"
 }

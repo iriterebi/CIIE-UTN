@@ -14,7 +14,7 @@ volumes:
       o: 'size=500m' # Opciones de montaje: tamaño de 100MB y UID del propietario
 
 x-db-dev-template: &db-dev-template
-  image: postgres:17.5-alpine
+  image: docker.io/library/postgres:17.5-alpine
   restart: unless-stopped
   cap_add:
     - SYS_NICE  # CAP_SYS_NICE
@@ -54,7 +54,7 @@ services:
       - ./def:/db
       - ./seed:/seed
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-dev:5432/${POSTGRES_DB}?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_dbmate}@db-dev:5432/${POSTGRES_DB}?sslmode=disable
     profiles:
       - manual_start
 

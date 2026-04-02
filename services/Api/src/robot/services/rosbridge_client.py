@@ -7,7 +7,7 @@ publica comandos a topics ROS y rutea respuestas a las queues de los usuarios.
 import asyncio
 import json
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Depends
@@ -107,7 +107,7 @@ class RosBridgeClient:
             except asyncio.QueueFull:
                 logger.warning("Queue llena, descartando mensaje para %s", base32_id)
 
-    async def publish_command(self, robor: Robot, command_payload: dict):
+    async def publish_command(self, robor: Robot, command_payload: dict[str, Any]):
         """Publicar comando al topic /robot/<base32>/command."""
         b32 = uuid_to_crockford_base32(robor.id)
         await self._ensure_advertised(b32)
@@ -118,13 +118,13 @@ class RosBridgeClient:
         }
         await self._ws.send(json.dumps(msg))
 
-    async def subscribe_robot(self, robot: Robot, queue: asyncio.Queue):
+    async def subscribe_robot(self, robot: Robot, queue: asyncio.Queue[dict[str, Any]]):
         """Registrar una queue para recibir respuestas/status de un robot."""
         b32 = uuid_to_crockford_base32(robot.id)
         await self._ensure_subscribed(b32)
         self._response_queues.setdefault(b32, set()).add(queue)
 
-    async def unsubscribe_robot(self, robot: Robot, queue: asyncio.Queue):
+    async def unsubscribe_robot(self, robot: Robot, queue: asyncio.Queue[dict[str, Any]]):
         """Desregistrar una queue de un robot."""
         b32 = uuid_to_crockford_base32(robot.id)
         if b32 in self._response_queues:

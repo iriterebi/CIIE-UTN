@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from uuid import UUID
+from warnings import deprecated
 
 from ..entities.errors import RobotAccessException
 from ..entities.json_rpc_commands import UserWsAuthentication
@@ -23,8 +24,9 @@ class UserRobotAccessSession:
     username: str
     expiration_time: datetime
 
-    def __init__(self, username: str):
+    def __init__(self, username: str, expiration_time: datetime):
         self.username = username
+        self.expiration_time = expiration_time
 
 
 class AccessValidator:
@@ -62,9 +64,14 @@ class AccessValidator:
         if not self.grant_access(token, robot_id, user_session):
             raise RobotAccessException(robot_id)
 
+    @deprecated("Use Auth service instead")
     def create_robot_access_session(self, user_auth: UserWsAuthentication) -> UserRobotAccessSession:
         token = user_auth.token
 
-        username = self.encryption_service.decode_token(token).get("sub")
+        decoded_payload = self.encryption_service.decode_token(token)
 
-        return UserRobotAccessSession(username)
+        username: str = decoded_payload.get("sub")
+        expiration = datetime.fromtimestamp(decoded_payload.get("exp"))
+
+
+        return UserRobotAccessSession(username, expiration)

@@ -1,8 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(frozen=True)
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        frozen=True,
+        extra='ignore',
+    )
 
     server_url: str
     rosbridge_url: str
@@ -13,3 +19,6 @@ class Config(BaseSettings):
 
 
 config = Config()  # type: ignore[call-arg]
+
+
+logging.debug(config)
