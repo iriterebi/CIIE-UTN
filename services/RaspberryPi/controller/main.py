@@ -36,7 +36,7 @@ async def async_main():
         create_default_metadata=config.create_default_metadata,
     )
 
-    core = MicroCore(local=local, remote=remote)
+    core = MicroCore(local=local, remote=remote, socket_path=config.socket_path)
     await core.run()
 
 

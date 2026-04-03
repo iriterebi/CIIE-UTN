@@ -12,6 +12,16 @@ from typing import Any
 class Strategy(ABC):
     """Interfaz base que todo strategy debe implementar."""
 
+    @property
+    def name(self) -> str:
+        """Nombre legible del strategy."""
+        return type(self).__name__
+
+    @property
+    def status(self) -> str:
+        """Estado actual del strategy."""
+        return "unknown"
+
     @abstractmethod
     async def start(self) -> None:
         """Inicializa y conecta el strategy."""

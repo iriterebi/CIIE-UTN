@@ -47,6 +47,12 @@ class Config(BaseSettings):
         description="Ruta al archivo de credenciales del robot"
     )
 
+    socket_path: str = Field(
+        default='/tmp/robot-controller.sock',
+        validation_alias=AliasChoices('socket_path'),
+        description="Ruta del Unix socket para gestión (CLI)"
+    )
+
 
 config = Config() # pyright: ignore[reportCallIssue]
 
