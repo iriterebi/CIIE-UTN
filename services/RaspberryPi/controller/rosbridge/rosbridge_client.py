@@ -9,7 +9,7 @@ TODO: Reemplazar por nodo ROS 2 real (rclpy) en el futuro.
 import asyncio
 import json
 import logging
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from websockets.asyncio.client import connect, ClientConnection
 from websockets.exceptions import ConnectionClosed, InvalidURI
@@ -86,7 +86,7 @@ class PiRosBridgeClient:
     async def run(
         self,
         on_command: Callable[[JsonRpcCommand], Awaitable[JsonRpcResponse]],
-        get_status: Callable[[], dict],
+        get_status: Callable[[], dict[Any, Any]],
     ):
         """Loop principal: escucha comandos y publica estado periódico.
 
@@ -105,7 +105,7 @@ class PiRosBridgeClient:
             )
             for task in done:
                 if task.exception():
-                    raise task.exception()
+                    raise task.exception()  # pyright: ignore[reportGeneralTypeIssues]
         except asyncio.CancelledError:
             pass
 

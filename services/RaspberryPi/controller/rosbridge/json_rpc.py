@@ -8,7 +8,7 @@ y retorna respuestas JSON-RPC tipadas.
 import asyncio
 import logging
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ TODO
 """
 
 import time
-from typing import List
+from typing import Any
 import logging
 import serial
 
@@ -59,7 +59,7 @@ class RobotController:
         except serial.SerialException as e:
             raise EnvironmentError(f"Error reading response from Arduino: {e}") from e
 
-    def execute_sequence(self, commands: List[str]):
+    def execute_sequence(self, commands: list[str]):
         self.logger.info("Executing command sequence...")
         for command in commands:
             if command:
@@ -67,7 +67,7 @@ class RobotController:
                 response = self.read_response()
                 self.logger.info("Response for '%s': %s", command, response)
 
-    def get_status(self) -> dict:
+    def get_status(self) -> dict[str, Any]:
         """Retorna el estado actual del robot para publicar vía rosbridge."""
         return {
             "status": "online" if self.ser and self.ser.is_open else "disconnected",
