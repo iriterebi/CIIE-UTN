@@ -41,3 +41,9 @@ class Strategy(ABC):
     async def send(self, message: Any) -> None:
         """Envía un mensaje (formato interno) por el canal."""
         ...
+
+class LocalStrategy(Strategy, ABC):
+    @abstractmethod
+    def set_telemetry(self, enabled: bool) -> None:
+        """Habilita/deshabilita el loop de telemetría periódica."""
+        ...

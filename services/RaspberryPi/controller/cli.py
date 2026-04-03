@@ -25,15 +25,19 @@ from textwrap import dedent
 DEFAULT_SOCKET_PATH = "/tmp/robot-controller.sock"
 
 
-async def send_request(socket_path: str, method: str) -> dict:
+async def send_request(socket_path: str, method: str, params: dict | None = None) -> dict:
     """Conecta al socket, envía un request JSON-RPC y retorna la respuesta."""
     reader, writer = await asyncio.open_unix_connection(socket_path)
 
-    request = json.dumps({
+    payload: dict = {
         "jsonrpc": "2.0",
         "method": method,
         "id": 1,
-    })
+    }
+    if params:
+        payload["params"] = params
+
+    request = json.dumps(payload)
     writer.write((request + "\n").encode())
     await writer.drain()
 
@@ -101,9 +105,23 @@ async def main(args: list[str]) -> None:
                 response = await send_request(socket_path, "status")
                 print_status(response)
 
+            case "switch":
+                arg = args[1] if len(args) > 1 else None
+                if arg not in ("on", "off"):
+                    print("Uso: switch <on|off>")
+                    sys.exit(1)
+                enabled = arg == "on"
+                response = await send_request(socket_path, "switch", {"enabled": enabled})
+                if "error" in response:
+                    err = response["error"]
+                    print(f"Error [{err['code']}]: {err['message']}")
+                else:
+                    state = "habilitada" if response.get("result", {}).get("telemetry") else "deshabilitada"
+                    print(f"Telemetría {state}")
+
             case _:
                 print(f"Comando desconocido: {command}")
-                print("Comandos disponibles: status")
+                print_usage_help()
                 sys.exit(1)
     except (ConnectionRefusedError, FileNotFoundError):
                 print("Error: no se pudo conectar al controlador.")

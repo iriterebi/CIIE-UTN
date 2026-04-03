@@ -19,7 +19,7 @@ class SocketServer:
     def __init__(self, socket_path: str):
         self._socket_path = socket_path
         self._server: asyncio.Server | None = None
-        self._methods: dict[str, Callable[[], Any]] = {}
+        self._methods: dict[str, Callable[..., Any]] = {}
 
         self.register_method("help", self._help_handler)  # pyright: ignore[reportUnusedCallResult]
 
@@ -34,7 +34,7 @@ class SocketServer:
         return _help
 
 
-    def register_method(self, name: str, handler: Callable[[], Any]) -> Self:
+    def register_method(self, name: str, handler: Callable[..., Any]) -> Self:
         """Registra un método JSON-RPC que el server puede despachar."""
         self._methods[name] = handler
 
@@ -93,6 +93,7 @@ class SocketServer:
 
         request_id = request.get("id")
         method = request.get("method")
+        params = request.get("params", {})
 
         if not method or not isinstance(method, str):
             return self._error(request_id, -32600, "Invalid request")
@@ -102,7 +103,7 @@ class SocketServer:
             return self._error(request_id, -32601, f"Method not found: {method}")
 
         try:
-            result = handler()
+            result = handler(**params) if params else handler()
             return {
                 "jsonrpc": "2.0",
                 "result": result,

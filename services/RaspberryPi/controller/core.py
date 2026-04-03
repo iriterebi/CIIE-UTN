@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Any
 
-from .strategy.base import Strategy
+from .strategy.base import Strategy, LocalStrategy
 from .socket_server import SocketServer
 
 logger = logging.getLogger(__name__)
@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 class MicroCore:
 
-    def __init__(self, *, local: Strategy, remote: Strategy, socket_path: str = "/tmp/robot-controller.sock"):
-        self.local: Strategy = local
+    def __init__(self, *, local: LocalStrategy, remote: Strategy, socket_path: str = "/tmp/robot-controller.sock"):
+        self.local: LocalStrategy = local
         self.remote: Strategy = remote
         self._running: bool = False
 
         self._socket: SocketServer = (SocketServer(socket_path)
             .register_method("status", self._handle_status)
+            .register_method("switch", self._handle_switch)
         )
 
     async def run(self) -> None:
@@ -71,6 +72,11 @@ class MicroCore:
                 "status": self.remote.status,
             },
         }
+
+    def _handle_switch(self, enabled: bool) -> dict[str, Any]:
+        """Habilita/deshabilita la telemetría del strategy local."""
+        self.local.set_telemetry(enabled)
+        return {"telemetry": enabled}
 
     async def _route_remote_to_local(self) -> None:
         """Remoto → Local: comandos de la API/rosbridge al robot."""
