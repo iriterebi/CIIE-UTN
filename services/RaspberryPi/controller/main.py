@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-# pyright: reportUnusedCallResult=false
 
 """Punto de entrada del controlador de robot.
 
-Flujo:
-1. (sync) Carga config, registra el robot en la API, handshake con retry
-2. (async) Conecta a rosbridge, escucha comandos y publica estado
+Crea los strategies (local + remoto), los inyecta en el micro core y arranca.
 """
 
 import asyncio
@@ -19,33 +16,29 @@ logging.basicConfig(
 )
 
 from .config import config
-from .server.server_service import ServerServices
-from .robot import RobotController
-from .rosbridge import PiRosBridgeClient
-from .rosbridge.json_rpc import handle_json_rpc
-from .server.server_service import RobotCredentials
+from .core import MicroCore
+from .strategy.local.mock_strategy import MockStrategy
+from .strategy.local.serial_strategy import SerialStrategy
+from .strategy.remote.rosbridge_strategy import RosbridgeStrategy
 
 
-async def async_main(credentials: RobotCredentials, robot: RobotController):
-    """Fase operativa: comunicación con rosbridge vía WebSocket."""
+async def async_main():
+    local = (
+        MockStrategy(config.arduino_port)
+        if config.mock_robot
+        else SerialStrategy(config.arduino_port)
+    )
 
-    logging.info("Iniciando comunicación con rosbridge vía WebSocket. %s", config.rosbridge_url)
+    remote = RosbridgeStrategy(
+        server_url=config.server_url,
+        rosbridge_url=config.rosbridge_url,
+        metadata_file=config.metadata_file,
+        create_default_metadata=config.create_default_metadata,
+    )
 
-    async with PiRosBridgeClient(config.rosbridge_url, credentials) as client:
-
-        await client.run(
-            on_command=lambda cmd: handle_json_rpc(cmd, robot),
-            get_status=robot.get_status,
-        )
+    core = MicroCore(local=local, remote=remote)
+    await core.run()
 
 
 def main():
-    with (
-        ServerServices(
-            base_url=config.server_url,
-            metadata_file=config.metadata_file,
-            create_default_config=config.create_default_metadata,
-        ) as service,
-        RobotController(config.arduino_port) as robot,
-    ):
-        asyncio.run(async_main(service.credentials, robot))  # pyright: ignore[reportArgumentType]
+    asyncio.run(async_main())
