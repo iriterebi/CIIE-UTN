@@ -5,7 +5,7 @@
 Monolito modular en FastAPI (Python 3.13.7+). Cumple dos roles:
 
 1. **Punto de entrada para usuarios** — autenticación, gestión de sesiones, envío de comandos a robots vía WebSocket
-2. **Punto de entrada para robots** — registro y handshake M2M (la comunicación de comandos pasa por ROS vía RosBridge)
+2. **Punto de entrada para robots** — registro, handshake M2M y conexión WebSocket directa para comunicación bidireccional
 
 ## Ejecución
 
@@ -41,20 +41,24 @@ src/
 │
 ├── robot/                             # Módulo de robots
 │   ├── entities/                      # Modelos de dominio, DTOs, excepciones, constantes
-│   │   ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum
-│   │   ├── json_rpc_commands.py       # Modelos: RobotCommand, RobotCommandExtended, RobotResponse, UserWsAuthentication
+│   │   ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum + RobotStreamAutentication
+│   │   ├── json_rpc_commands.py       # Modelos: RRobotCommand, RobotCommand, RobotResponse, UserWsAuthentication
 │   │   └── errors.py                 # Excepciones serializables + códigos de error JSON-RPC
+│   ├── adapters/                      # Implementaciones concretas de StreamSource (ver Arquitectura de Comunicación)
+│   │   ├── user_stream_source.py      # UserStreamSource — adapta WS del usuario a StreamSource (valida payload)
+│   │   └── robot_stream_source.py     # RobotScopedStreamSource (rosbridge), RobotWsStreamSource (WS directo), ProxyStreamSource (callback-based)
 │   ├── services/                      # Lógica de negocio (clases con estado/dependencias inyectadas)
 │   │   ├── robot_service.py           # RobotService — CRUD, registro, aprobación/rechazo, get_robot_by_token
-│   │   ├── rosbridge_client.py        # RosBridgeClient — WS persistente a rosbridge, pub/sub de topics ROS
-│   │   ├── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes
+│   │   ├── rosbridge_client.py        # RosBridgeClient — WS persistente a rosbridge, pub/sub de topics ROS (en deprecación)
+│   │   ├── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes + get_robot_by_token
 │   │   ├── access_validator.py        # Valida token robot_access contra robot_id y sesión de usuario
-│   │   └── ipc_user_robot_comunication.py  # UserToRobotCommunication — WS del usuario, publica/suscribe vía RosBridge
+│   │   └── ipc_user_robot_comunication.py  # UserToRobotComunication — orquestador de la conexión usuario↔robot
 │   ├── repositories/                  # Acceso a datos (queries, persistencia, transacciones)
-│   │   └── robot.py                   # RobotRepository — CRUD de robots en DB
+│   │   ├── robot.py                   # RobotRepository — CRUD de robots en DB
+│   │   └── robot_connection.py        # RobotConnectionRepository — registro y gestión de conexiones activas (StreamConnection, pipes)
 │   ├── routes/                        # Endpoints HTTP/WS (routers FastAPI)
 │   │   ├── admin.py                   # /admin/robot — CRUD + aprobación/rechazo + send_command
-│   │   ├── m2m.py                     # /m2m/robot — registro y handshake
+│   │   ├── m2m.py                     # /m2m/robot — registro, handshake y conexión WS del robot
 │   │   └── user.py                    # /user/robot — WebSocket para usuarios
 │   └── utils/                         # Funciones stateless auxiliares
 │       └── crockford_base32.py        # UUID → Crockford Base32 (para nombres de topics ROS)

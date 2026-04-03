@@ -7,21 +7,20 @@ y rutea las respuestas de vuelta al usuario.
 
 import asyncio
 import logging
-from typing import Annotated, Any, final, override
+from typing import Annotated, final
 import functools
-import json
 
 from fastapi import Depends
-from pydantic import ValidationError
-from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from ..entities.errors import SerializableException, UserValidationTimeoutException
-from ..entities.json_rpc_commands import RRobotCommand, UserWsAuthentication
+from ..entities.json_rpc_commands import UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
 from .access_validator import AccessValidator
 from .rosbridge_client import RosBridgeClient, RosBridgeClientDep
 from ..entities import Robot
-from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep, StreamSource
+from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep
+from ..adapters import UserStreamSource, RobotScopedStreamSource
 from ...auth.entities import User
 from ...auth.services import UserService, UserServiceDep
 
@@ -55,7 +54,7 @@ class UserToRobotComunication:
 
             userConnection = self.robot_connection_repository.addUserConnection(
                 user,
-                UserToRobotComunication.UserStreamSource(websocket)
+                UserStreamSource(websocket)
             )
 
             robotConnection = self.robot_connection_repository.getRobotConnection(robot)
@@ -63,10 +62,8 @@ class UserToRobotComunication:
             if robotConnection is None:
                 robotConnection = self.robot_connection_repository.addRobotConnection(
                     robot,
-                    UserToRobotComunication.RobotScopedStreamSource(self.rosbridge, robot)
+                    RobotScopedStreamSource(self.rosbridge, robot)
                 )
-
-
 
             bidirectionalPipe = self.robot_connection_repository.addUserXRobotConnection(userConnection, robotConnection)
 
@@ -120,85 +117,6 @@ class UserToRobotComunication:
         except asyncio.TimeoutError as e:
             logger.error(e)
             raise UserValidationTimeoutException() from e
-
-    @final
-    class UserStreamSource(StreamSource):
-        # TODO: manejar cuestiones relacionadas a la sesión del usuario (ejemplo: expiración)
-        # TODO: validación profunda del payload — ampliar más allá de RRobotCommand
-        # TODO: verificación del access_token per-sesión
-        def __init__(self, websocket: WebSocket):
-            self.websocket = websocket
-
-        @override
-        async def accept(self):
-            if self.websocket.application_state != WebSocketState.CONNECTED:
-                return await self.websocket.accept()
-
-        @override
-        async def disconnect(self):
-            return await self.websocket.close()
-
-        @override
-        async def receive_bytes(self) -> bytes:
-            while True:
-                try:
-                    text = await self.websocket.receive_text()
-                    command = RRobotCommand.model_validate_json(text)
-                    return command.model_dump_json().encode()
-                except ValidationError as e:
-                    logger.error(f"Payload validation error: {e}")
-                    await self.websocket.send_json({
-                        "status": "error",
-                        "message": f"Invalid payload: {e.errors()}"
-                    })
-                except json.JSONDecodeError as e:
-                    logger.error(f"Invalid JSON: {e}")
-                    await self.websocket.send_json({
-                        "status": "error",
-                        "message": f"Invalid JSON: {e}"
-                    })
-
-        @override
-        async def send_bytes(self, data: bytes):
-            await self.websocket.send_text(data.decode())
-
-    class RobotScopedStreamSource(StreamSource):
-        def __init__(self, rosbridge: RosBridgeClient, robot: Robot):
-            self.rosbridge: RosBridgeClient = rosbridge
-            self.robot: Robot = robot
-            self.queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
-            self._idle: bool = True
-
-        @override
-        async def accept(self):
-            """Suscribirse a los topics ROS del robot via rosbridge."""
-            await self.rosbridge.subscribe_robot(self.robot, self.queue)
-
-        @override
-        async def disconnect(self):
-            """Desuscribirse de los topics ROS del robot."""
-            await self.rosbridge.unsubscribe_robot(self.robot, self.queue)
-
-        async def on_idle_changed(self, idle: bool):
-            self._idle = idle
-            if idle:
-                # Descartar mensajes acumulados que nadie va a leer
-                while not self.queue.empty():
-                    _ = self.queue.get_nowait()
-
-
-        @override
-        async def receive_bytes(self) -> bytes:
-            """Esperar respuesta del robot desde ROS, retornar como bytes."""
-            response = await self.queue.get()
-            return json.dumps(response).encode()
-
-        @override
-        async def send_bytes(self, data: bytes):
-            """Publicar comando al topic ROS del robot via rosbridge."""
-            payload: dict[str, Any] = json.loads(data)
-            await self.rosbridge.publish_command(self.robot, payload)
-
 
 
 @functools.cache

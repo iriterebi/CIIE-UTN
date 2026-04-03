@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
 from ...auth.services import EncryptionServiceDep
@@ -41,6 +41,20 @@ class HandshakeService:
             "scope": "broker:report_log broker:listen_commands"
         })
         return token
+
+    def get_robot_by_token(self, token: str) -> Robot | None:
+        data: dict[str, Any] = self.encryption_service.decode_token(token)
+
+        role = data.get("role", None)
+        if role != "robot":
+            return None
+
+        sub = data.get("sub", None)
+        if not sub: return None
+
+        return self.robot_service.get_robot_by_id(sub)
+
+
 
 
 HandshakeServiceDep = Annotated[HandshakeService, Depends(HandshakeService)]

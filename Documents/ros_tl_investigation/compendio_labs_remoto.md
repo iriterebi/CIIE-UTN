@@ -275,8 +275,6 @@ Desventajas:
 
 Cambio de código necesario: mínimo. `ROSBRIDGE_URL` pasaría de ser fijo a ser dinámico por robot.
 
-**Estado**: no se migra ahora, pero es la dirección natural para cuando haya múltiples robots físicos.
-
 ---
 
 ## Cambios Aplicables (Priorización)
@@ -312,6 +310,49 @@ Requiere que la abstracción `RobotChannel` esté implementada (punto anterior).
 - Separación del proxy de transporte de la lógica de sesión/orquestación
 - Decisión de lenguaje para el proxy (Go sería relevante aquí)
 - Recursos adicionales de hardware disponibles para esa etapa
+
+---
+
+## Decisión: rclpy directo en la Pi (sin rosbridge como intermediario WAN)
+
+### Contexto
+
+Con la migración al Escenario 1 (rosbridge local en la Pi), la topología inicialmente propuesta era:
+
+```
+[nodos ROS] ←DDS→ [rosbridge local] ←WS local→ [código proxy] ←WS WAN→ [API]
+```
+
+Rosbridge actuaría como nodo ROS que traduce a su protocolo WS propietario (`op: subscribe`, `op: publish`, mensajes envueltos en `std_msgs/String`). Nuestro código luego parsea ese protocolo, re-empaqueta los mensajes y los reenvía por WS a la API.
+
+### Problema
+
+Dos hops WebSocket en la Pi para hacer lo que es esencialmente un proxy. Rosbridge agrega un protocolo intermedio (el protocolo rosbridge) que nuestro código tiene que traducir de vuelta. Es boilerplate sin valor: rosbridge fue la solución cuando su WS *era* la conexión WAN (Escenario 2), pero ahora que la conexión WAN es nuestro WS a la API, rosbridge pasa de ser la solución a ser una capa extra.
+
+### Decisión
+
+Usar **rclpy directamente** — nuestro código en la Pi es un nodo ROS 2 nativo que también habla WS con la API:
+
+```
+[nodos ROS] ←DDS local→ [nuestro código (nodo ROS + cliente WS)] ←WS WAN→ [API]
+```
+
+### Razones
+
+- **Elimina un hop WS completo** y el protocolo rosbridge como intermediario
+- **Subscribe/publish directo a topics** sin traducción de protocolos
+- **El formato de mensajes lo definimos nosotros** — JSON-RPC directo sobre WS, sin wrapping en `std_msgs/String`
+- **Un solo proceso, un solo WS** (el WAN a la API)
+- **ROS 2 ya debe estar instalado en la Pi** (los nodos del otro equipo lo requieren), así que rclpy está disponible
+- **rosbridge hacía exactamente lo que necesitamos** (nodo ROS + cliente WS traduciendo protocolos), pero de forma genérica. Con rclpy hacemos lo mismo pero a medida y sin la capa extra
+
+### Implicaciones
+
+- `services/RaspberryPi/` pasa a depender de rclpy (ROS 2 Python client)
+- Se elimina rosbridge como servicio/container en la Pi
+- El módulo `controller/rosbridge/` se reemplaza por integración rclpy directa
+- `crockford_base32.py` se mantiene (los topics ROS siguen usando el encoding `r<base32>`)
+- Los nodos ROS del otro equipo (`ros_tryouts/`) no se ven afectados — siguen publicando/suscribiendo los mismos topics
 
 ---
 

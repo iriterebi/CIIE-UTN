@@ -1,7 +1,18 @@
-from .robot_service import RobotService, RobotServiceDep
-from ..entities import (
-    Robot, RobotInput, RobotOutput,
-    RobotStatus, RobotRegistrationInput, RobotRegistrationOutput, RobotApprovalInput,
-    RobotHandshakeResult
+from .robot_service import (
+    RobotService as RobotService,
+    RobotServiceDep as RobotServiceDep
 )
-from ..entities.json_rpc_commands import RobotCommand, RobotResponse
+from ..entities import (
+    Robot as Robot,
+    RobotInput as RobotInput,
+    RobotOutput as RobotOutput,
+    RobotStatus as RobotStatus,
+    RobotRegistrationInput as RobotRegistrationInput,
+    RobotRegistrationOutput as RobotRegistrationOutput,
+    RobotApprovalInput as RobotApprovalInput,
+    RobotHandshakeResult as RobotHandshakeResult
+)
+from ..entities.json_rpc_commands import (
+    RobotCommand as RobotCommand,
+    RobotResponse as RobotResponse
+)
