@@ -32,8 +32,7 @@ class SerialStrategy(LocalStrategy):
     @override
     def status(self) -> str:
         telemetry = "on" if self._telemetry_enabled else "off"
-        connected = "online" if self._robot.ser and self._robot.ser.is_open else "disconnected"
-        return f"{connected}, telemetry: {telemetry}"
+        return f"{self._state}, telemetry: {telemetry}"
 
     @override
     def set_telemetry(self, enabled: bool) -> None:
@@ -50,6 +49,7 @@ class SerialStrategy(LocalStrategy):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.connect)
         self._telemetry_task = asyncio.create_task(self._telemetry_loop())
+        self._state = "running"
         logger.info("SerialStrategy iniciado (puerto: %s)", self._robot.arduino_port)
 
     @override
@@ -58,7 +58,20 @@ class SerialStrategy(LocalStrategy):
             self._telemetry_task.cancel()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.disconnect)
+        self._state = "stopped"
         logger.info("SerialStrategy detenido")
+
+    @override
+    async def pause(self) -> None:
+        self.set_telemetry(False)
+        await super().pause()
+        logger.info("SerialStrategy pausado")
+
+    @override
+    async def resume(self) -> None:
+        self.set_telemetry(True)
+        await super().resume()
+        logger.info("SerialStrategy reanudado")
 
     @override
     async def receive(self) -> Any:

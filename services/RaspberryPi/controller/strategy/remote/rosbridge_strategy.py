@@ -68,6 +68,7 @@ class RosbridgeStrategy(Strategy):
 
         # Conectar a rosbridge
         await self._connect_rosbridge()
+        self._state = "running"
         logger.info("RosbridgeStrategy iniciado (topics: %s)", self._credentials.topic)
 
     @override
@@ -75,6 +76,7 @@ class RosbridgeStrategy(Strategy):
         if self._ws:
             await self._ws.close()
             self._ws = None
+        self._state = "stopped"
         logger.info("RosbridgeStrategy detenido")
 
     @override

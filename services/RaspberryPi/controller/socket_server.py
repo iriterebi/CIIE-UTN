@@ -75,7 +75,7 @@ class SocketServer:
                 if not line:
                     break
 
-                response = self._dispatch(line.decode().strip())
+                response = await self._dispatch(line.decode().strip())
                 writer.write((json.dumps(response) + "\n").encode())
                 await writer.drain()
         except ConnectionResetError:
@@ -84,7 +84,7 @@ class SocketServer:
             writer.close()
             await writer.wait_closed()
 
-    def _dispatch(self, raw: str) -> dict[str, Any]:
+    async def _dispatch(self, raw: str) -> dict[str, Any]:
         """Parsea un request JSON-RPC y despacha al handler."""
         try:
             request = json.loads(raw)
@@ -104,6 +104,8 @@ class SocketServer:
 
         try:
             result = handler(**params) if params else handler()
+            if asyncio.iscoroutine(result):
+                result = await result
             return {
                 "jsonrpc": "2.0",
                 "result": result,

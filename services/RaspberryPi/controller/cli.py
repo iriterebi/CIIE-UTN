@@ -90,13 +90,29 @@ def print_controller_help(response: dict) -> None:
         print(f"  {method:15s} {description}")
 
 
+def print_response(response: dict) -> None:
+    """Imprime una respuesta JSON-RPC genérica."""
+    if "error" in response:
+        err = response["error"]
+        print(f"Error [{err['code']}]: {err['message']}")
+    else:
+        result = response.get("result", {})
+        if isinstance(result, dict):
+            for key, value in result.items():
+                print(f"  {key}: {value}")
+        else:
+            print(f"  {result}")
+
+
+BUILTIN_COMMANDS = {"help", "status", "switch"}
+
+
 async def main(args: list[str]) -> None:
     socket_path = DEFAULT_SOCKET_PATH
     command = args[0] if args else "help"
     try:
         match command:
             case "help":
-
                 print_usage_help()
                 response = await send_request(socket_path, "help")
                 print_controller_help(response)
@@ -120,9 +136,11 @@ async def main(args: list[str]) -> None:
                     print(f"Telemetría {state}")
 
             case _:
-                print(f"Comando desconocido: {command}")
-                print_usage_help()
-                sys.exit(1)
+                # Scoped command: joinear args con ::
+                method = "::".join(args)
+                response = await send_request(socket_path, method)
+                print_response(response)
+
     except (ConnectionRefusedError, FileNotFoundError):
                 print("Error: no se pudo conectar al controlador.")
                 print(f"  ¿Está corriendo? Socket: {socket_path}")

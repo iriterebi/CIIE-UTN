@@ -31,7 +31,7 @@ class MockStrategy(LocalStrategy):
     @override
     def status(self) -> str:
         telemetry = "on" if self._telemetry_enabled else "off"
-        return f"running, telemetry: {telemetry}"
+        return f"{self._state}, telemetry: {telemetry}"
 
     @override
     def set_telemetry(self, enabled: bool) -> None:
@@ -47,6 +47,7 @@ class MockStrategy(LocalStrategy):
     async def start(self) -> None:
         self._robot.connect()
         self._telemetry_task = asyncio.create_task(self._telemetry_loop())
+        self._state = "running"
         logger.info("MockStrategy iniciado")
 
     @override
@@ -54,7 +55,20 @@ class MockStrategy(LocalStrategy):
         if self._telemetry_task and not self._telemetry_task.done():
             self._telemetry_task.cancel()
         self._robot.disconnect()
+        self._state = "stopped"
         logger.info("MockStrategy detenido")
+
+    @override
+    async def pause(self) -> None:
+        self.set_telemetry(False)
+        await super().pause()
+        logger.info("MockStrategy pausado")
+
+    @override
+    async def resume(self) -> None:
+        self.set_telemetry(True)
+        await super().resume()
+        logger.info("MockStrategy reanudado")
 
     @override
     async def receive(self) -> Any:
