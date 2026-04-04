@@ -21,19 +21,6 @@ class SocketServer:
         self._server: asyncio.Server | None = None
         self._methods: dict[str, Callable[..., Any]] = {}
 
-        self.register_method("help", self._help_handler)  # pyright: ignore[reportUnusedCallResult]
-
-    def _help_handler(self) -> dict[str, str]:
-        """Lista los comandos disponibles y su descripción."""
-        _help: dict[str, str] = {}
-
-        for handler in self._methods.items():
-            _help[handler[0]] = handler[1].__doc__ or ""
-
-
-        return _help
-
-
     def register_method(self, name: str, handler: Callable[..., Any]) -> Self:
         """Registra un método JSON-RPC que el server puede despachar."""
         self._methods[name] = handler

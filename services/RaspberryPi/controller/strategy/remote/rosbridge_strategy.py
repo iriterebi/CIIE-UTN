@@ -15,7 +15,7 @@ from websockets.exceptions import ConnectionClosed, InvalidURI
 
 from pydantic import ValidationError
 
-from ..base import Strategy
+from ..base import Strategy, State
 from ...server.server_service import ServerServices, RobotCredentials
 from ...rosbridge.json_rpc import parse_command, _error_response
 
@@ -68,7 +68,7 @@ class RosbridgeStrategy(Strategy):
 
         # Conectar a rosbridge
         await self._connect_rosbridge()
-        self._state = "running"
+        self._state = State.RUNNING
         logger.info("RosbridgeStrategy iniciado (topics: %s)", self._credentials.topic)
 
     @override
@@ -76,7 +76,7 @@ class RosbridgeStrategy(Strategy):
         if self._ws:
             await self._ws.close()
             self._ws = None
-        self._state = "stopped"
+        self._state = State.STOPPED
         logger.info("RosbridgeStrategy detenido")
 
     @override

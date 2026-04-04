@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, override
 
-from ..base import LocalStrategy
+from ..base import LocalStrategy, State
 from ...robot.robot_mock_controller import RobotMockController
 from ...rosbridge.json_rpc import (
     JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
@@ -27,11 +27,10 @@ class MockStrategy(LocalStrategy):
         self._telemetry_enabled: bool = True
         self._telemetry_task: asyncio.Task | None = None
 
-    @property
     @override
-    def status(self) -> str:
-        telemetry = "on" if self._telemetry_enabled else "off"
-        return f"{self._state}, telemetry: {telemetry}"
+    def get_telemetry_enabled(self):
+        return self._telemetry_enabled
+
 
     @override
     def set_telemetry(self, enabled: bool) -> None:
@@ -47,7 +46,7 @@ class MockStrategy(LocalStrategy):
     async def start(self) -> None:
         self._robot.connect()
         self._telemetry_task = asyncio.create_task(self._telemetry_loop())
-        self._state = "running"
+        self._state = State.RUNNING
         logger.info("MockStrategy iniciado")
 
     @override
@@ -55,7 +54,7 @@ class MockStrategy(LocalStrategy):
         if self._telemetry_task and not self._telemetry_task.done():
             self._telemetry_task.cancel()
         self._robot.disconnect()
-        self._state = "stopped"
+        self._state = State.STOPPED
         logger.info("MockStrategy detenido")
 
     @override

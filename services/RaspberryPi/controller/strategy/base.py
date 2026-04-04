@@ -6,13 +6,20 @@ que el micro core entiende y enruta.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from enum import StrEnum
+from typing import Any, override
+
+class State(StrEnum):
+    RUNNING = "running"
+    PAUSED = "paused"
+    STOPPED = "stopped"
+
 
 
 class Strategy(ABC):
     """Interfaz base que todo strategy debe implementar."""
 
-    _state: str = "stopped"
+    _state: State = State.STOPPED
 
     @property
     def name(self) -> str:
@@ -20,7 +27,7 @@ class Strategy(ABC):
         return type(self).__name__
 
     @property
-    def status(self) -> str:
+    def status(self) -> State:
         """Estado actual del strategy."""
         return self._state
 
@@ -36,11 +43,11 @@ class Strategy(ABC):
 
     async def pause(self) -> None:
         """Pausa el strategy. running → paused."""
-        self._state = "paused"
+        self._state = State.PAUSED
 
     async def resume(self) -> None:
         """Reanuda el strategy. paused → running."""
-        self._state = "running"
+        self._state = State.RUNNING
 
     @abstractmethod
     async def receive(self) -> Any:
@@ -52,9 +59,25 @@ class Strategy(ABC):
         """Envía un mensaje (formato interno) por el canal."""
         ...
 
+    def get_status_data(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+        }
+
 
 class LocalStrategy(Strategy, ABC):
+
+    @abstractmethod
+    def get_telemetry_enabled(self) -> bool:
+        ...
+
     @abstractmethod
     def set_telemetry(self, enabled: bool) -> None:
         """Habilita/deshabilita el loop de telemetría periódica."""
         ...
+
+    @override
+    def get_status_data(self) -> dict[str, Any]:
+        return super().get_status_data() | {
+            "telemetry": self.get_telemetry_enabled(),
+        }

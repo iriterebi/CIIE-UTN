@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, override
 
-from ..base import LocalStrategy
+from ..base import LocalStrategy, State
 from ...robot.robot_controller import RobotController
 from ...rosbridge.json_rpc import (
     JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
@@ -26,13 +26,11 @@ class SerialStrategy(LocalStrategy):
         self._robot = RobotController(arduino_port)
         self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._telemetry_enabled: bool = True
-        self._telemetry_task: asyncio.Task | None = None
+        self._telemetry_task: asyncio.Task[None] | None = None
 
-    @property
     @override
-    def status(self) -> str:
-        telemetry = "on" if self._telemetry_enabled else "off"
-        return f"{self._state}, telemetry: {telemetry}"
+    def get_telemetry_enabled(self):
+        return self._telemetry_enabled
 
     @override
     def set_telemetry(self, enabled: bool) -> None:
@@ -49,7 +47,7 @@ class SerialStrategy(LocalStrategy):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.connect)
         self._telemetry_task = asyncio.create_task(self._telemetry_loop())
-        self._state = "running"
+        self._state = State.RUNNING
         logger.info("SerialStrategy iniciado (puerto: %s)", self._robot.arduino_port)
 
     @override
@@ -58,7 +56,7 @@ class SerialStrategy(LocalStrategy):
             self._telemetry_task.cancel()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.disconnect)
-        self._state = "stopped"
+        self._state = State.STOPPED
         logger.info("SerialStrategy detenido")
 
     @override

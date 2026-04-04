@@ -7,13 +7,25 @@ Expone un Unix socket para gestión externa (CLI).
 
 import asyncio
 import logging
-from typing import Any
+from enum import StrEnum
+from functools import partial
+from typing import TypedDict
 
-from .strategy.base import Strategy, LocalStrategy
+from .strategy.base import Strategy, LocalStrategy, State as StrategyState
 from .strategy.registry import StrategyRegistry
 from .socket_server import SocketServer
+from .type_defs import StatusData, CoreStatusData
 
 logger = logging.getLogger(__name__)
+
+
+class Side(StrEnum):
+    LOCAL = "local"
+    REMOTE = "remote"
+
+class Strategies(TypedDict):
+    local: LocalStrategy
+    remote: Strategy
 
 
 class MicroCore:
@@ -27,17 +39,31 @@ class MicroCore:
         self._socket: SocketServer = (SocketServer(socket_path)
             .register_method("status", self._handle_status)
             .register_method("switch", self._handle_switch)
-            .register_method("connection::local::status", self._handle_connection_local_status)
-            .register_method("connection::local::start", self._handle_connection_local_start)
-            .register_method("connection::local::stop", self._handle_connection_local_stop)
-            .register_method("connection::local::pause", self._handle_connection_local_pause)
-            .register_method("connection::local::resume", self._handle_connection_local_resume)
-            .register_method("connection::remote::status", self._handle_connection_remote_status)
-            .register_method("connection::remote::start", self._handle_connection_remote_start)
-            .register_method("connection::remote::stop", self._handle_connection_remote_stop)
-            .register_method("connection::remote::pause", self._handle_connection_remote_pause)
-            .register_method("connection::remote::resume", self._handle_connection_remote_resume)
         )
+
+        for side in Side:
+            for action, handler in [
+                ("status", self._handle_connection_status),
+                ("start", self._handle_connection_start),
+                ("stop", self._handle_connection_stop),
+                ("pause", self._handle_connection_pause),
+                ("resume", self._handle_connection_resume),
+            ]:
+                self._socket.register_method(  # pyright: ignore[reportUnusedCallResult]
+                    f"connection::{side}::{action}",
+                    partial(handler, side),
+                )
+
+    def _get_strategy(self, side: Side) -> Strategy:
+        match side:
+            case Side.LOCAL:
+                return self.local
+            case Side.REMOTE:
+                return self.remote
+            case _:
+                raise ValueError(f"Side desconocido: {side}")  # pyright: ignore[reportUnreachable]
+
+    # --- lifecycle ---
 
     async def run(self) -> None:
         """Arranca socket server, strategies, y enruta mensajes.
@@ -71,98 +97,68 @@ class MicroCore:
             await self.remote.stop()
             logger.info("Micro core detenido")
 
-    def _handle_status(self) -> dict[str, Any]:
-        """Muestra el estado del core y los strategies."""
-        return {
-            "core": "running" if self._running else "starting",
-            "local": {
-                "name": self.local.name,
-                "status": self.local.status,
-            },
-            "remote": {
-                "name": self.remote.name,
-                "status": self.remote.status,
-            },
-        }
+    # --- global handlers ---
 
-    def _handle_switch(self, enabled: bool) -> dict[str, Any]:
+    def _handle_status(self) -> CoreStatusData:
+        """Muestra el estado del core y los strategies."""
+
+        return CoreStatusData(
+            core = "running" if self._running else "starting",
+            local = self._handle_connection_status(Side.LOCAL),
+            remote = self._handle_connection_status(Side.REMOTE),
+        )
+
+    def _handle_switch(self, enabled: bool) -> StatusData:
         """Habilita/deshabilita la telemetría del strategy local."""
         self.local.set_telemetry(enabled)
-        return {"telemetry": enabled}
+        return self._get_strategy_staus(self.local)
 
-    # --- connection::local handlers ---
+    # --- connection handlers (parametrizados por side) ---
 
-    def _handle_connection_local_status(self) -> dict[str, Any]:
-        """Muestra el estado del strategy local."""
-        return {"name": self.local.name, "status": self.local.status}
+    def _handle_connection_status(self, side: Side) -> StatusData:
+        """Muestra el estado de un strategy."""
+        return self._get_strategy_staus(self._get_strategy(side))
 
-    async def _handle_connection_local_start(self) -> dict[str, Any]:
-        """Arranca el strategy local."""
-        if self.local._state == "running":
-            raise RuntimeError("Strategy local ya está corriendo")
-        if self.local._state == "paused":
-            await self.local.resume()
-        else:
-            await self.local.start()
-        return {"name": self.local.name, "status": self.local.status}
+    def _get_strategy_staus(self, s: Strategy) -> StatusData:
+        return s.get_status_data() | {"name": s.name}
 
-    async def _handle_connection_local_stop(self) -> dict[str, Any]:
-        """Detiene el strategy local."""
-        if self.local._state == "stopped":
-            raise RuntimeError("Strategy local ya está detenido")
-        await self.local.stop()
-        return {"name": self.local.name, "status": self.local.status}
+    async def _handle_connection_start(self, side: Side) -> StatusData:
+        """Arranca un strategy."""
+        s = self._get_strategy(side)
 
-    async def _handle_connection_local_pause(self) -> dict[str, Any]:
-        """Pausa el strategy local."""
-        if self.local._state != "running":
-            raise RuntimeError(f"Strategy local no puede pausarse (estado: {self.local._state})")
-        await self.local.pause()
-        return {"name": self.local.name, "status": self.local.status}
+        match s.status:
+            case StrategyState.RUNNING:
+                raise RuntimeError(f"Strategy {side} ya está corriendo")
+            case StrategyState.PAUSED:
+                await s.resume()
+            case _:
+                await s.start()
 
-    async def _handle_connection_local_resume(self) -> dict[str, Any]:
-        """Reanuda el strategy local."""
-        if self.local._state != "paused":
-            raise RuntimeError(f"Strategy local no puede reanudarse (estado: {self.local._state})")
-        await self.local.resume()
-        return {"name": self.local.name, "status": self.local.status}
+        return self._get_strategy_staus(s)
 
-    # --- connection::remote handlers ---
+    async def _handle_connection_stop(self, side: Side) -> StatusData:
+        """Detiene un strategy."""
+        s = self._get_strategy(side)
+        if s.status == StrategyState.STOPPED:
+            raise RuntimeError(f"Strategy {side} ya está detenido")
+        await s.stop()
+        return self._get_strategy_staus(s)
 
-    def _handle_connection_remote_status(self) -> dict[str, Any]:
-        """Muestra el estado del strategy remoto."""
-        return {"name": self.remote.name, "status": self.remote.status}
+    async def _handle_connection_pause(self, side: Side) -> StatusData:
+        """Pausa un strategy."""
+        s = self._get_strategy(side)
+        if s.status != StrategyState.RUNNING:
+            raise RuntimeError(f"Strategy {side} no puede pausarse (estado: {s.status})")
+        await s.pause()
+        return self._get_strategy_staus(s)
 
-    async def _handle_connection_remote_start(self) -> dict[str, Any]:
-        """Arranca el strategy remoto."""
-        if self.remote._state == "running":
-            raise RuntimeError("Strategy remoto ya está corriendo")
-        if self.remote._state == "paused":
-            await self.remote.resume()
-        else:
-            await self.remote.start()
-        return {"name": self.remote.name, "status": self.remote.status}
-
-    async def _handle_connection_remote_stop(self) -> dict[str, Any]:
-        """Detiene el strategy remoto."""
-        if self.remote._state == "stopped":
-            raise RuntimeError("Strategy remoto ya está detenido")
-        await self.remote.stop()
-        return {"name": self.remote.name, "status": self.remote.status}
-
-    async def _handle_connection_remote_pause(self) -> dict[str, Any]:
-        """Pausa el strategy remoto."""
-        if self.remote._state != "running":
-            raise RuntimeError(f"Strategy remoto no puede pausarse (estado: {self.remote._state})")
-        await self.remote.pause()
-        return {"name": self.remote.name, "status": self.remote.status}
-
-    async def _handle_connection_remote_resume(self) -> dict[str, Any]:
-        """Reanuda el strategy remoto."""
-        if self.remote._state != "paused":
-            raise RuntimeError(f"Strategy remoto no puede reanudarse (estado: {self.remote._state})")
-        await self.remote.resume()
-        return {"name": self.remote.name, "status": self.remote.status}
+    async def _handle_connection_resume(self, side: Side) -> StatusData:
+        """Reanuda un strategy."""
+        s = self._get_strategy(side)
+        if s.status != StrategyState.PAUSED:
+            raise RuntimeError(f"Strategy {side} no puede reanudarse (estado: {s.status})")
+        await s.resume()
+        return self._get_strategy_staus(s)
 
     # --- routing ---
 
