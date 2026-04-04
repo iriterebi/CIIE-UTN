@@ -2,7 +2,7 @@
 
 """Punto de entrada del controlador de robot.
 
-Crea los strategies (local + remoto), los inyecta en el micro core y arranca.
+Construye el registro de strategies, selecciona por config, inyecta en el core y arranca.
 """
 
 import asyncio
@@ -17,26 +17,56 @@ logging.basicConfig(
 
 from .config import config
 from .core import MicroCore
+from .strategy.base import Strategy, LocalStrategy
+from .strategy.registry import StrategyRegistry
 from .strategy.local.mock_strategy import MockStrategy
 from .strategy.local.serial_strategy import SerialStrategy
 from .strategy.remote.rosbridge_strategy import RosbridgeStrategy
 
 
+registry = StrategyRegistry(
+    remote=[RosbridgeStrategy],
+    local=[MockStrategy, SerialStrategy],
+)
+
+
+def create_local(name: str) -> LocalStrategy:
+    """Factory: instancia un strategy local por nombre."""
+    match name:
+        case "MockStrategy":
+            return MockStrategy(config.arduino_port)
+        case "SerialStrategy":
+            return SerialStrategy(config.arduino_port)
+        case _:
+            available = ", ".join(registry.list_local())
+            raise ValueError(f"Strategy local desconocido: '{name}'. Disponibles: {available}")
+
+
+def create_remote(name: str) -> Strategy:
+    """Factory: instancia un strategy remoto por nombre."""
+    match name:
+        case "RosbridgeStrategy":
+            return RosbridgeStrategy(
+                server_url=config.server_url,
+                rosbridge_url=config.rosbridge_url,
+                metadata_file=config.metadata_file,
+                create_default_metadata=config.create_default_metadata,
+            )
+        case _:
+            available = ", ".join(registry.list_remote())
+            raise ValueError(f"Strategy remoto desconocido: '{name}'. Disponibles: {available}")
+
+
 async def async_main():
-    local = (
-        MockStrategy(config.arduino_port)
-        if config.mock_robot
-        else SerialStrategy(config.arduino_port)
-    )
+    local = create_local(config.local_strategy)
+    remote = create_remote(config.remote_strategy)
 
-    remote = RosbridgeStrategy(
-        server_url=config.server_url,
-        rosbridge_url=config.rosbridge_url,
-        metadata_file=config.metadata_file,
-        create_default_metadata=config.create_default_metadata,
+    core = MicroCore(
+        local=local,
+        remote=remote,
+        registry=registry,
+        socket_path=config.socket_path,
     )
-
-    core = MicroCore(local=local, remote=remote, socket_path=config.socket_path)
     await core.run()
 
 

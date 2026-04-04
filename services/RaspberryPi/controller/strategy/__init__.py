@@ -1,3 +1,4 @@
-from .base import Strategy
+from .base import Strategy, LocalStrategy
+from .registry import StrategyRegistry
 
-__all__ = ["Strategy"]
+__all__ = ["Strategy", "LocalStrategy", "StrategyRegistry"]

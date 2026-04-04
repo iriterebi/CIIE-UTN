@@ -57,11 +57,31 @@ Estado de conexión
 - strategy local: [CONECTADO/DESCONECTADO] [<strategy seleccionado>|<NONE>]
 ```
 
-### 4.2.1 boot: seleeción de los strategies al inicio
+### 4.2.1 boot: selección de los strategies al inicio
 se selecciona según config (.env)
 
-### 4.2.2 loop: seleeción en vuelo
-Se selecciona en vuelo con el cli. Para ello hay que agregar dos subcomandos al cli, uno para cambiar el strategy remoto y otro para el local. El cambio implica "apagar" el strategy (deben tener una subrutinna start, stop, y pause), desconectar el enrutado (romper el pipe), Conectar el nuevo strategy y start
+### 4.2.2 loop: selección en vuelo
+Se selecciona en vuelo con el cli. Para ello hay que agregar dos subcomandos al cli, uno para cambiar el strategy remoto y otro para el local. El cambio implica "apagar" el strategy (deben tener una subrutinna start, stop, y pause), desconectar el enrutado (romper el pipe), Conectar el nuevo strategy y start.
+
+El cli tendrá el formato:
+```bash
+# para conección remota
+cli.py coneccion remota [...]
+
+# para conección local
+cli.py coneccion local [...]
+
+# el lenguaje es el siguiente
+cli.py coneccion [remota|local] [status|start|stop|pause]
+cli.py coneccion [remota|local] [select] [list|<strategy_name>] [[<argumentos del strategy>...]]
+```
+
+esto agrega varios conceptos:
+- un strategy puede ser pausado (no se desconecta pero se interrumpe el envío y recerpción de mensajes (se encolan))
+- select list: lista los strategies disponibles, esto involucra un registro de strategies disponibles en lugar de simples if/else
+- los strategies pueden revcibir argumentos propios para su start
+- un strategy no puede ser cambiado si está runing o pausado (el cambio de debe lanzar error)
+- el registro de argumentos ahora introduce el concepto de subargumentos (o scoped args)
 
 
 

@@ -53,6 +53,18 @@ class Config(BaseSettings):
         description="Ruta del Unix socket para gestión (CLI)"
     )
 
+    local_strategy: str = Field(
+        default='MockStrategy',
+        validation_alias=AliasChoices('local_strategy'),
+        description="Strategy local a usar al arrancar"
+    )
+
+    remote_strategy: str = Field(
+        default='RosbridgeStrategy',
+        validation_alias=AliasChoices('remote_strategy'),
+        description="Strategy remoto a usar al arrancar"
+    )
+
 
 config = Config() # pyright: ignore[reportCallIssue]
 

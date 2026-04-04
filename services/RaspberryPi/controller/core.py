@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from .strategy.base import Strategy, LocalStrategy
+from .strategy.registry import StrategyRegistry
 from .socket_server import SocketServer
 
 logger = logging.getLogger(__name__)
@@ -17,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 class MicroCore:
 
-    def __init__(self, *, local: LocalStrategy, remote: Strategy, socket_path: str = "/tmp/robot-controller.sock"):
+    def __init__(self, *, local: LocalStrategy, remote: Strategy, registry: StrategyRegistry, socket_path: str = "/tmp/robot-controller.sock"):
         self.local: LocalStrategy = local
         self.remote: Strategy = remote
+        self.registry: StrategyRegistry = registry
         self._running: bool = False
 
         self._socket: SocketServer = (SocketServer(socket_path)
