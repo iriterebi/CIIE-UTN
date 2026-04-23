@@ -1,3 +1,7 @@
+"""
+Dummy publisher node. Publishes fake fluctuating sensor data to /inorbit/custom_data.
+Use this to test the InOrbit data pipeline without any hardware connected.
+"""
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String

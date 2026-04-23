@@ -9,11 +9,11 @@ tmux send-keys -t $SESSION:0 "source /opt/ros/humble/setup.bash && /root/.inorbi
 
 # Second window: Arduino scrapper
 tmux new-window -t $SESSION:1 -n "Arduino Scrapper"
-#tmux send-keys -t $SESSION:1 "cd agent/serial_scraper/ && python3 scraper.py" Enter
+tmux send-keys -t $SESSION:1 "source /opt/ros/humble/setup.bash && cd agent/serial_scraper/ && python3 scraper.py" Enter
 
 # Third window: Listener
 tmux new-window -t $SESSION:2 -n "Agent Listener"
-#tmux send-keys -t $SESSION:2 "cd agent/ && python3 listener.py" Enter
+tmux send-keys -t $SESSION:2 "source /opt/ros/humble/setup.bash && cd agent/ && python3 listener.py" Enter
 
 
 # Fourth window: Camera node

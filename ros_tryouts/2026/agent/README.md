@@ -1,38 +1,32 @@
-Agent test:
-Test for publishing:
+# Agent
 
-## start publishing
-python3 publisher.py   
+ROS 2 nodes that bridge the robot hardware and the InOrbit platform.
 
-##python3 listener.py
+## Files
 
-AL TERMINAR USAR ./stop.sh
+| File | Description |
+|---|---|
+| `serial_scraper/scraper.py` | Main production node. Reads serial data from Arduino and publishes to `/inorbit/custom_data`. Also subscribes to `/inorbit/custom_command` and writes commands to serial. |
+| `listener.py` | Test/debug node. Subscribes to `/inorbit/custom_command` and writes received commands to serial. Use this to verify the command pipeline without running the full scraper. |
+| `publisher.py` | Dummy node that publishes fake sensor data to `/inorbit/custom_data`. Use this to test the InOrbit data pipeline without hardware. |
+| `camera/camera_node.py` | Captures frames from a USB camera and publishes to `usb_cam/image_raw`. |
 
-Si no tenes el arduino comenta linea 12 y linea 16 de tmux-start.sh
-
-ros2 topic echo /inorbit/custom_data 
-
-ros2 topic pub --once /inorbit/custom_command std_msgs/msg/String "data: 'your_command_here'"
-
-## Camera setup
-
-Plug in the USB camera, then run on the **host** to find the device:
+## Running manually
 
 ```bash
-ls /dev/video*
+source /opt/ros/humble/setup.bash
+
+# Serial scraper (production)
+cd serial_scraper && python3 scraper.py
+
+# Command listener (testing only)
+python3 listener.py
+
+# Dummy publisher (testing without hardware)
+python3 publisher.py
+
+# Camera
+cd camera && python3 camera_node.py
 ```
 
-You will see one or two new entries (e.g. `/dev/video4` and `/dev/video5`). Use the lower-numbered one.
-
-Update `camera/.env`:
-
-```
-CAMERA_DEVICE=/dev/video4   # replace with your actual device
-```
-
-Then source it so the variable is available in your shell:
-
-```bash
-set -a && source camera/.env && set +a
-```
-
+> **Note:** `listener.py` and `scraper.py` both open the serial port. Do not run them at the same time.

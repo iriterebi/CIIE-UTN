@@ -1,3 +1,7 @@
+"""
+Camera node. Captures frames from a USB camera at ~30 fps and publishes them
+to usb_cam/image_raw as ROS sensor_msgs/Image messages.
+"""
 import os
 import cv2
 import rclpy
