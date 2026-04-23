@@ -1,0 +1,14 @@
+apiVersion: v0.1
+kind: RobotCamera
+metadata:
+  id: '0'
+  scope: account/QsFNvNwHSHvgnhYmT
+spec:
+  enabled: true
+  height: 380
+  label: camera 0
+  outputEncoding: bgr8
+  quality: 30
+  rate: 0.2
+  rosTopic: usb_cam/image_raw
+  width: 720
