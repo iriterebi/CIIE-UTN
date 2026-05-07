@@ -86,7 +86,7 @@ class WsStrategy(Strategy):
         delay = _MIN_RECONNECT_DELAY
         while True:
             try:
-                async for raw in self._ws:  # type: ignore[union-attr]
+                async for raw in self._ws:  # type: ignore[union-attr]  # pyright: ignore[reportOptionalIterable]
                     delay = _MIN_RECONNECT_DELAY
                     msg = self._parse_message(raw)
                     if msg is not None:
@@ -108,7 +108,7 @@ class WsStrategy(Strategy):
     async def send(self, message: Any) -> None:
         """Envía un mensaje JSON-RPC por el WS (sin wrapping rosbridge)."""
         try:
-            await self._ws.send(json.dumps(message))  # type: ignore[union-attr]
+            await self._ws.send(json.dumps(message))  # type: ignore[union-attr]  # pyright: ignore[reportOptionalMemberAccess]
         except ConnectionClosed:
             logger.warning("No se pudo enviar mensaje (conexión perdida)")
 

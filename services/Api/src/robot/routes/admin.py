@@ -1,30 +1,28 @@
 from uuid import UUID as PythonUUID
 
 from fastapi import APIRouter
-from typing import Annotated, List
+from typing import Annotated
 from fastapi import Depends
 
-from ..services.rosbridge_client import RosBridgeClientDep
-
 from ..services import (
-    RobotService, RobotServiceDep, Robot, RobotInput, RobotOutput, RobotCommand,
+    RobotService, RobotServiceDep, Robot, RobotInput, RobotOutput,
     RobotStatus, RobotApprovalInput,
 )
 
 router = APIRouter(tags=["robots", "admin"])
 
 
-@router.get("/list", response_model=List[RobotOutput])
+@router.get("/list", response_model=list[RobotOutput])
 def list_robots(
     robot_service: Annotated[RobotService, Depends(RobotService)]
-) -> List[RobotOutput]:
+) -> list[RobotOutput]:
     return robot_service.list_robots()
 
 
-@router.get("/pending", response_model=List[RobotOutput])
+@router.get("/pending", response_model=list[RobotOutput])
 def list_pending_robots(
     robot_service: RobotServiceDep,
-) -> List[RobotOutput]:
+) -> list[RobotOutput]:
     return robot_service.list_robots_by_status(RobotStatus.PENDING_APPROVAL)
 
 
@@ -57,14 +55,3 @@ def reject_robot(
 ) -> Robot:
     return robot_service.reject_robot(PythonUUID(robot_id))
 
-# deprecado
-@router.post("/send_command")
-async def send_command(
-    rosbridge: RosBridgeClientDep,
-    robot_service: RobotServiceDep,
-    command: RobotCommand
-):
-    robot_service.validate_exists_robot(command.robot_id)
-    robot = robot_service.get_robot_by_id(command.robot_id)
-    await rosbridge.publish_command(robot, command.args.model_dump())
-    return {"message": "Command sent"}

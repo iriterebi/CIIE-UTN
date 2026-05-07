@@ -17,16 +17,21 @@ from ..entities.errors import SerializableException, UserValidationTimeoutExcept
 from ..entities.json_rpc_commands import UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
 from .access_validator import AccessValidator
-from .rosbridge_client import RosBridgeClient, RosBridgeClientDep
 from ..entities import Robot
 from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep
 from ..repositories.stream_entities import UserSideClosed
-from ..adapters import UserStreamSource, RobotScopedStreamSource
+from ..adapters import UserStreamSource
 from ...auth.entities import User
 from ...auth.services import UserService, UserServiceDep
 
 
 logger = logging.getLogger(__name__)
+
+class RobotConnectionNotFound(Exception):
+    def __init__(self, robot: Robot) -> None:
+        super().__init__("Robot is Disconnected")
+        self.robot = robot
+
 
 
 @final
@@ -38,13 +43,11 @@ class UserToRobotComunication:
         access_validator: AccessValidator,
         robot_connection_repository: RobotConnectionRepository,
         user_service: UserService,
-        rosbridge: RosBridgeClient,
     ):
         self.robot_service = robot_service
         self.access_validator = access_validator
         self.robot_connection_repository = robot_connection_repository
         self.user_service = user_service
-        self.rosbridge = rosbridge
 
     async def connect_ws(self, websocket: WebSocket):
         await websocket.accept()
@@ -63,11 +66,7 @@ class UserToRobotComunication:
             robotConnection = self.robot_connection_repository.getRobotConnection(robot)
 
             if robotConnection is None:
-                logger.warning("creating rosbrdige robot connection fallback")
-                robotConnection = self.robot_connection_repository.addRobotConnection(
-                    robot,
-                    RobotScopedStreamSource(self.rosbridge, robot)
-                )
+                raise RobotConnectionNotFound(robot)
 
             logger.info("creating User-robot comunication pipe")
             bidirectionalPipe = self.robot_connection_repository.addUserXRobotConnection(userConnection, robotConnection)
@@ -91,6 +90,9 @@ class UserToRobotComunication:
             for exc in eg.exceptions:
                 logger.error(f"TaskGroup sub-exception: {exc}", exc_info=exc)
             await websocket.send_json({"status": "error", "message": "Internal Server Error"})
+            await websocket.close()
+        except RobotConnectionNotFound as e:
+            await websocket.send_json({"status": "error", "message": "Robot is Disconnected"})
             await websocket.close()
         except Exception as e:
             logger.error(f"Exception {e}", exc_info=e)
@@ -133,7 +135,6 @@ class UserToRobotComunication:
 
 @functools.cache
 def create_user_robot_communication(
-        rosbridge: RosBridgeClientDep,
         robot_service: RobotServiceDep,
         access_validator: Annotated[AccessValidator, Depends(AccessValidator)],
         robot_connection_repository: RobotConnectionRepositoryDep,
@@ -143,8 +144,7 @@ def create_user_robot_communication(
         robot_service,
         access_validator,
         robot_connection_repository,
-        user_service,
-        rosbridge
+        user_service
     )
 
 

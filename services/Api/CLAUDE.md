@@ -127,13 +127,6 @@ modulo/
 4. Loop: recibe comandos JSON-RPC → valida que el robot existe → valida acceso → publica al topic ROS vía RosBridgeClient
 5. RosBridgeClient rutea respuestas del robot de vuelta al usuario vía `asyncio.Queue`
 
-### Comunicación vía RosBridge
-- `RosBridgeClient` (singleton) mantiene una conexión WS persistente a rosbridge (`ws://rosbridge:9090`)
-- Publica comandos a `/robot/r<base32>/command` (UUIDs codificados en Crockford Base32 con prefijo `r`)
-- Se suscribe lazy a `/robot/r<base32>/response` y `/robot/r<base32>/status`
-- Fan-out de respuestas: cada usuario tiene su propia `asyncio.Queue`, el listener rutea mensajes por robot_id
-- Reconexión automática con backoff exponencial si se pierde la conexión
-
 ## Variables de Entorno
 
 | Variable | Uso |

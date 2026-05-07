@@ -47,7 +47,6 @@ make up_dev
 | `POSTGRES_USER` | `myuser` | Usuario de PostgreSQL |
 | `POSTGRES_DB` | `ciie_db` | Nombre de la base de datos |
 | `POSTGRES_URL` | `db-dev:5432` | Host de PostgreSQL (sin protocolo) |
-| `ROSBRIDGE_URL` | `ws://rosbridge:9090` | URL WebSocket de RosBridge |
 | `JWT_SECRET_KEY` | `secret` | Secret para firmar JWTs |
 | `JWT_ALGORITHM` | `HS256` | Algoritmo JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Expiración del token en minutos |
@@ -65,7 +64,7 @@ make up_dev
 
 ```
 src/
-├── server.py              # Punto de entrada — monta routers, lifespan gestiona RosBridgeClient
+├── server.py              # Punto de entrada — monta routers
 ├── config.py              # Carga y valida env vars (falla al iniciar si faltan)
 ├── db_connection/         # Engine SQLModel + dependencia de sesión
 ├── auth/                  # Módulo de autenticación
@@ -75,7 +74,7 @@ src/
 │   └── routes/            # Endpoints /auth
 └── robot/                 # Módulo de robots
     ├── entities/          # Modelo Robot, DTOs, comandos JSON-RPC, errores
-    ├── services/          # RobotService, RosBridgeClient, HandshakeService, AccessValidator, UserToRobotCommunication
+    ├── services/          # RobotService, HandshakeService, AccessValidator, UserToRobotCommunication
     ├── repositories/      # RobotRepository — acceso a DB
     ├── routes/            # Endpoints /admin/robot, /m2m/robot, /user/robot
     └── utils/             # Codificación Crockford Base32 (UUID → nombres de topics ROS)
