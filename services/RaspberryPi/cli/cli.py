@@ -7,13 +7,13 @@ Protocolo: JSON-RPC 2.0 delimitado por newlines.
 
 Uso:
     directamente desde CLI:
-        controller.cli
-        controller.cli help
-        controller.cli status
+        cli
+        cli help
+        cli status
 
     o como módulo de python:
-        python -m controller.cli help
-        python -m controller.cli status
+        python -m cli help
+        python -m cli status
 """
 
 import asyncio
@@ -22,7 +22,7 @@ import sys
 from textwrap import dedent
 from typing import Any
 import uuid
-from .type_defs import CoreStatusData, StatusData, JsonRpcRequest, JsonRpcResponse
+from controller.type_defs import CoreStatusData, StatusData, JsonRpcRequest, JsonRpcResponse
 
 DEFAULT_SOCKET_PATH = "/tmp/robot-controller.sock"
 
