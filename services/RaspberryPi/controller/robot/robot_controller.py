@@ -68,7 +68,7 @@ class RobotController:
                 self.logger.info("Response for '%s': %s", command, response)
 
     def get_status(self) -> dict[str, Any]:
-        """Retorna el estado actual del robot para publicar vía rosbridge."""
+        """Retorna el estado actual del robot."""
         return {
             "status": "online" if self.ser and self.ser.is_open else "disconnected",
             "mock": False,

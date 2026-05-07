@@ -28,8 +28,8 @@ este es un plan general para el refactor del subporyecto, para movernos a la nue
 
 Cambiaremos al estructura del código a la nueva arquitectura, procurando mantener la funcionalidad actual. Para ello replantearmoes lo que tenemos:
 
-- Strategy Interno: @controller/robot/ tiene la impleemntación de la comuniación interna, tanto serial como mock.
-- Strategy Externo: @controller/rosbrdige/ tiene la implementación para conectarse con rosbridge, la trabajaremos para llevarla la strategy que necesitamos
+- Strategy Interno: @controller/robot/ tiene la implementación de la comunicación interna, tanto serial como mock.
+- Strategy Externo: la conexión remota vive en @controller/strategy/remote/ — actualmente WS directo a la API (`ws_strategy.py`).
 
 Como no tenemos "micro core", esto será lo nuevo, para esta etapa conectará los strategies y escuchará el Unix Socket (y nada más)
 

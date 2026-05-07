@@ -1,7 +1,8 @@
 """Servicio de comunicación con la API central.
 
 Maneja el registro del robot y el handshake (autenticación).
-La comunicación de comandos se hace vía rosbridge (ver rosbridge/).
+La comunicación de comandos se hace vía WS directo a la API
+(ver strategy/remote/ws_strategy.py).
 """
 
 import secrets

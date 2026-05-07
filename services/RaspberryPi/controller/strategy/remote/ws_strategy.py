@@ -2,7 +2,7 @@
 
 Gestiona sus propias credenciales (registro + handshake HTTP con la API)
 y se conecta al endpoint WS /m2m/robot/connect. Los mensajes son
-JSON-RPC 2.0 directo — sin protocolo rosbridge de por medio.
+JSON-RPC 2.0 directo.
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from ..base import Strategy, State
 from ...server.server_service import ServerServices, RobotCredentials
-from ...rosbridge.json_rpc import parse_command, _error_response
+from ...json_rpc import parse_command, _error_response
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class WsStrategy(Strategy):
 
     @override
     async def send(self, message: Any) -> None:
-        """Envía un mensaje JSON-RPC por el WS (sin wrapping rosbridge)."""
+        """Envía un mensaje JSON-RPC por el WS."""
         try:
             await self._ws.send(json.dumps(message))  # type: ignore[union-attr]  # pyright: ignore[reportOptionalMemberAccess]
         except ConnectionClosed:

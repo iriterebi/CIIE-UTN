@@ -5,7 +5,7 @@ import logging
 
 class Config(BaseSettings):
     """
-    Controlador de robot — se registra en la API y escucha comandos vía rosbridge.
+    Controlador de robot — se registra en la API y escucha comandos vía WS directo a la API.
     """
 
     model_config = SettingsConfigDict(  # pyright: ignore[reportUnannotatedClassAttribute]
@@ -19,10 +19,6 @@ class Config(BaseSettings):
 
     server_url: str = Field(
         validation_alias=AliasChoices('s', 'server_url')
-    )
-
-    rosbridge_url: str = Field(
-        validation_alias=AliasChoices('r', 'rosbridge_url')
     )
 
     arduino_port: str = Field(
@@ -60,7 +56,7 @@ class Config(BaseSettings):
     )
 
     remote_strategy: str = Field(
-        default='RosbridgeStrategy',
+        default='WsStrategy',
         validation_alias=AliasChoices('remote_strategy'),
         description="Strategy remoto a usar al arrancar"
     )

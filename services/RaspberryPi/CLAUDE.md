@@ -2,9 +2,9 @@
 
 ## Descripción General
 
-Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego se conecta a rosbridge vía WebSocket para recibir comandos ROS y publicar respuestas/estado. Controla el Arduino vía puerto serial.
+Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego abre un WebSocket directo a la API (endpoint `/m2m/robot/connect`) para recibir comandos JSON-RPC 2.0 y publicar respuestas/estado. Controla el Arduino vía puerto serial.
 
-**TODO**: Reemplazar la conexión WebSocket directa a rosbridge por un nodo ROS 2 real (rclpy).
+**Arquitectura interna**: micro core asyncio + strategies intercambiables (local/remoto) + Unix socket para gestión vía CLI. Ver `ARQUITECTURA.md`.
 
 ## Ejecución
 
@@ -18,20 +18,27 @@ uv run python -m controller
 ```
 controller/
 ├── __main__.py              # Entry point (python -m controller)
-├── main.py                  # Flujo principal: config → registro → handshake → rosbridge
+├── main.py                  # Registry + factory de strategies, arranca el core
 ├── config.py                # Carga de variables de entorno (.env.defaults + .env)
+├── core.py                  # MicroCore: enruta entre strategies + socket de gestión
+├── socket_server.py         # Unix socket JSON-RPC 2.0 (CLI ↔ core)
+├── cli.py                   # CLI independiente (proceso separado)
+├── type_defs.py             # TypedDicts compartidos
+├── json_rpc.py              # Modelos pydantic + handler de comandos JSON-RPC 2.0
+├── strategy/
+│   ├── base.py              # ABC Strategy + LocalStrategy (telemetry)
+│   ├── registry.py          # StrategyRegistry (lista por nombre)
+│   ├── local/
+│   │   ├── serial_strategy.py    # Wrappea RobotController (Arduino real)
+│   │   └── mock_strategy.py      # Wrappea RobotMockController (sin hardware)
+│   └── remote/
+│       └── ws_strategy.py        # WS directo a /m2m/robot/connect (JSON-RPC 2.0)
 ├── server/
-│   ├── __init__.py
-│   └── server_service.py    # ServerServices — registro y handshake con la API
-├── robot/
-│   ├── __init__.py           # Exporta RobotController (real o mock según MOCK_ROBOT)
-│   ├── robot_controller.py   # Controlador real — comunicación serial con Arduino
-│   └── robot_mock_controller.py  # Controlador mock — simula respuestas sin hardware
-└── rosbridge/
-    ├── __init__.py           # Re-exporta PiRosBridgeClient
-    ├── crockford_base32.py   # UUID → Crockford Base32 (para nombres de topics ROS)
-    ├── rosbridge_client.py   # Cliente WebSocket a rosbridge: subscribe, publish, reconnect
-    └── json_rpc.py           # Mapeo de comandos JSON-RPC 2.0 → acciones del robot
+│   └── server_service.py    # ServerServices — registro y handshake HTTP con la API
+└── robot/
+    ├── __init__.py          # Exporta RobotController (real o mock según MOCK_ROBOT)
+    ├── robot_controller.py  # Comunicación serial con Arduino
+    └── robot_mock_controller.py  # Mock sin hardware
 ```
 
 ## Variables de Entorno
@@ -41,44 +48,37 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | Variable | Descripción | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | URL base de la API M2M | `http://localhost:8000/m2m/robot/` |
-| `ROSBRIDGE_URL` | URL WebSocket de rosbridge | `ws://localhost:9090` |
 | `ARDUINO_PORT` | Puerto serial del Arduino | (ruta USB específica) |
 | `CREATE_DEFAULT_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
+| `METADATA_FILE` | Ruta al archivo de credenciales | `./robot-metadata.json` |
+| `LOCAL_STRATEGY` | Strategy local al arrancar | `MockStrategy` |
+| `REMOTE_STRATEGY` | Strategy remoto al arrancar | `WsStrategy` |
+| `SOCKET_PATH` | Ruta del Unix socket de gestión | `/tmp/robot-controller.sock` |
 
 ## Flujo Principal
 
 ### 1. Inicialización
 1. Carga variables de entorno (`config.py`)
-2. Crea instancia de `ServerServices`
-3. Intenta cargar `robot-metadata.json` — si no existe y `CREATE_DEFAULT_METADATA=1`, genera credenciales nuevas (UUID + password aleatorio de 24 chars)
+2. `main.py` arma el `StrategyRegistry`, instancia local y remoto por nombre y los inyecta en el `MicroCore`
+3. El core arranca el Unix socket (gestión vía CLI), arranca los strategies y enruta mensajes en ambas direcciones
 
-### 2. Registro y conexión (self-registration con aprobación)
-1. `register()` — `POST /m2m/robot/register` con `{external_identifier, psw}` (idempotente)
-2. `connect_with_retry()` — reintenta `POST /m2m/robot/handshake` (HTTP Basic) con backoff exponencial:
+### 2. WsStrategy: registro y conexión
+1. **Registro HTTP** (`POST /m2m/robot/register`): idempotente, con `{external_identifier, psw}` cargados/generados desde `robot-metadata.json`
+2. **Handshake HTTP** (`POST /m2m/robot/handshake` con HTTP Basic) — backoff exponencial:
    - 403 → robot pendiente de aprobación, espera y reintenta (5s → 10s → 20s... hasta 300s max)
-   - 200 → handshake exitoso
-   - Otro error → log warning + retry con backoff
+   - 200 → retorna JWT
 3. Un admin debe aprobar el robot vía `POST /admin/robot/{id}/approve` para que el handshake retorne 200
+4. **Apertura del WS** a `/m2m/robot/connect`:
+   - El servidor envía challenge `{method: "send_credentials"}`
+   - La Pi responde `{token: <JWT>}`
+   - El servidor confirma con `{status: "success auth"}`
 
-### 3. Operación (async, vía rosbridge)
-1. Entra al context manager del robot (abre puerto serial o mock)
-2. `PiRosBridgeClient` conecta a rosbridge vía WebSocket
-3. Se suscribe al topic `/robot/r<base32>/command` para recibir comandos JSON-RPC 2.0
-4. Al recibir un comando, lo ejecuta en el robot (serial I/O vía `run_in_executor`)
-5. Publica la respuesta en `/robot/r<base32>/response`
-6. Publica estado periódico (cada 5s) en `/robot/r<base32>/status`
-
-### Comunicación con rosbridge
-
-La Pi se conecta directamente al WebSocket de rosbridge (puerto 9090) usando el protocolo JSON de rosbridge_suite:
-
-- **Subscribe**: `{"op": "subscribe", "topic": "/robot/r<b32>/command", "type": "std_msgs/String"}`
-- **Publish**: `{"op": "publish", "topic": "/robot/r<b32>/response", "msg": {"data": "<json>"}}`
-
-Los UUIDs se codifican en Crockford Base32 para los nombres de topics (misma implementación que en Api/ y RosBridge/).
-
-Reconexión automática con backoff exponencial (1s → 30s) si se pierde la conexión.
+### 3. Operación
+1. La strategy local entra al context manager del robot (abre puerto serial o mock)
+2. La `WsStrategy` lee mensajes JSON-RPC 2.0 del WS y los entrega al core
+3. El core enruta los comandos a la strategy local; las respuestas y la telemetría periódica (cada 5s) vuelven al WS por el mismo camino
+4. Reconexión automática con backoff exponencial (1s → 30s) si se pierde la conexión WS
 
 ## Archivo `robot-metadata.json`
 
@@ -100,8 +100,9 @@ Generado automáticamente o provisto manualmente. Contiene las credenciales del 
 
 - **python-dotenv** — carga de `.env`
 - **requests** — HTTP client para registro y handshake con la API
-- **websockets** — cliente WebSocket para comunicación con rosbridge
-- **serial** / **types-pyserial** — comunicación serial con Arduino
+- **websockets** — cliente WebSocket para `/m2m/robot/connect`
+- **pyserial** / **types-pyserial** — comunicación serial con Arduino
+- **pydantic** / **pydantic-settings** — modelos JSON-RPC y carga de configuración
 
 ## Modo Demo
 

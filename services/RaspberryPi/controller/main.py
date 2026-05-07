@@ -21,12 +21,11 @@ from .strategy.base import Strategy, LocalStrategy
 from .strategy.registry import StrategyRegistry
 from .strategy.local.mock_strategy import MockStrategy
 from .strategy.local.serial_strategy import SerialStrategy
-from .strategy.remote.rosbridge_strategy import RosbridgeStrategy
 from .strategy.remote.ws_strategy import WsStrategy
 
 
 registry = StrategyRegistry(
-    remote=[RosbridgeStrategy, WsStrategy],
+    remote=[WsStrategy],
     local=[MockStrategy, SerialStrategy],
 )
 
@@ -46,13 +45,6 @@ def create_local(name: str) -> LocalStrategy:
 def create_remote(name: str) -> Strategy:
     """Factory: instancia un strategy remoto por nombre."""
     match name:
-        case "RosbridgeStrategy":
-            return RosbridgeStrategy(
-                server_url=config.server_url,
-                rosbridge_url=config.rosbridge_url,
-                metadata_file=config.metadata_file,
-                create_default_metadata=config.create_default_metadata,
-            )
         case "WsStrategy":
             return WsStrategy(
                 server_url=config.server_url,

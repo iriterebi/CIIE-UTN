@@ -6,7 +6,7 @@ from typing import Any, override
 
 from ..base import LocalStrategy, State
 from ...robot.robot_mock_controller import RobotMockController
-from ...rosbridge.json_rpc import (
+from ...json_rpc import (
     JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
 )
 

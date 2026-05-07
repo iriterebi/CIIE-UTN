@@ -163,13 +163,13 @@ class MicroCore:
     # --- routing ---
 
     async def _route_remote_to_local(self) -> None:
-        """Remoto → Local: comandos de la API/rosbridge al robot."""
+        """Remoto → Local: comandos de la API al robot."""
         while True:
             message = await self.remote.receive()
             await self.local.send(message)
 
     async def _route_local_to_remote(self) -> None:
-        """Local → Remoto: respuestas/status del robot a la API/rosbridge."""
+        """Local → Remoto: respuestas/status del robot a la API."""
         while True:
             message = await self.local.receive()
             await self.remote.send(message)
