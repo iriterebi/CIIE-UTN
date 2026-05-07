@@ -60,8 +60,16 @@ Estado de conexión
 ### 4.2.1 boot: selección de los strategies al inicio
 se selecciona según config (.env)
 
-### 4.2.2 loop: selección en vuelo
-Se selecciona en vuelo con el cli. Para ello hay que agregar dos subcomandos al cli, uno para cambiar el strategy remoto y otro para el local. El cambio implica "apagar" el strategy (deben tener una subrutinna start, stop, y pause), desconectar el enrutado (romper el pipe), Conectar el nuevo strategy y start.
+
+## 5. WS
+
+Crearemos el strategy remoto para el WS
+
+NOTA: Cada strategy debe pedir sus propias credenciales, ya que las credenciales provistas por la API son diferentes según el mecanismo de comunicación.
+
+## 6. Select + hot-swap
+
+Selección de strategies en vuelo desde el CLI. Se agregan subcomandos para cambiar el strategy remoto y el local. El cambio implica "apagar" el strategy (deben tener una subrutinna start, stop, y pause), desconectar el enrutado (romper el pipe), Conectar el nuevo strategy y start.
 
 El cli tendrá el formato:
 ```bash
@@ -79,15 +87,7 @@ cli.py coneccion [remota|local] [select] [list|<strategy_name>] [[<argumentos de
 esto agrega varios conceptos:
 - un strategy puede ser pausado (no se desconecta pero se interrumpe el envío y recerpción de mensajes (se encolan))
 - select list: lista los strategies disponibles, esto involucra un registro de strategies disponibles en lugar de simples if/else
-- los strategies pueden revcibir argumentos propios para su start
-- un strategy no puede ser cambiado si está runing o pausado (el cambio de debe lanzar error)
+- los strategies pueden recibir argumentos propios para su start
+- un strategy no puede ser cambiado si está running o pausado (el cambio debe lanzar error)
 - el registro de argumentos ahora introduce el concepto de subargumentos (o scoped args)
-
-
-
-## 5. WS
-
-Crearemos el strategy remoto para el WS
-
-NOTA: Cada strategy debe pedir sus propias credenciales, ya que las credenciales provistas por la API son diferentes según el mecanismo de comunicación.
 

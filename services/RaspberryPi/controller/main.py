@@ -22,10 +22,11 @@ from .strategy.registry import StrategyRegistry
 from .strategy.local.mock_strategy import MockStrategy
 from .strategy.local.serial_strategy import SerialStrategy
 from .strategy.remote.rosbridge_strategy import RosbridgeStrategy
+from .strategy.remote.ws_strategy import WsStrategy
 
 
 registry = StrategyRegistry(
-    remote=[RosbridgeStrategy],
+    remote=[RosbridgeStrategy, WsStrategy],
     local=[MockStrategy, SerialStrategy],
 )
 
@@ -49,6 +50,12 @@ def create_remote(name: str) -> Strategy:
             return RosbridgeStrategy(
                 server_url=config.server_url,
                 rosbridge_url=config.rosbridge_url,
+                metadata_file=config.metadata_file,
+                create_default_metadata=config.create_default_metadata,
+            )
+        case "WsStrategy":
+            return WsStrategy(
+                server_url=config.server_url,
                 metadata_file=config.metadata_file,
                 create_default_metadata=config.create_default_metadata,
             )

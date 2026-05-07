@@ -20,6 +20,7 @@ from .access_validator import AccessValidator
 from .rosbridge_client import RosBridgeClient, RosBridgeClientDep
 from ..entities import Robot
 from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep
+from ..repositories.stream_entities import UserSideClosed
 from ..adapters import UserStreamSource, RobotScopedStreamSource
 from ...auth.entities import User
 from ...auth.services import UserService, UserServiceDep
@@ -49,25 +50,35 @@ class UserToRobotComunication:
         await websocket.accept()
         user = None
         try:
-
+            logger.info("valdating user")
             user, robot = await self._validate_user_session(websocket)
 
+            logger.info("stabilicing user connection")
             userConnection = self.robot_connection_repository.addUserConnection(
                 user,
                 UserStreamSource(websocket)
             )
 
+            logger.info("obtaining robot connection")
             robotConnection = self.robot_connection_repository.getRobotConnection(robot)
 
             if robotConnection is None:
+                logger.warning("creating rosbrdige robot connection fallback")
                 robotConnection = self.robot_connection_repository.addRobotConnection(
                     robot,
                     RobotScopedStreamSource(self.rosbridge, robot)
                 )
 
+            logger.info("creating User-robot comunication pipe")
             bidirectionalPipe = self.robot_connection_repository.addUserXRobotConnection(userConnection, robotConnection)
 
-            await bidirectionalPipe.connect()
+            logger.info("connecting pipe")
+            try:
+                await bidirectionalPipe.connect()
+            except* UserSideClosed:
+                logger.info("user closed websocket, ending session")
+            # RobotSideClosed se deja propagar al handler de ExceptionGroup;
+            # su manejo dedicado se definirá más adelante.
 
         except WebSocketDisconnect:
             print("Client disconnected")
@@ -76,6 +87,7 @@ class UserToRobotComunication:
             await websocket.send_json(e.to_jsonrpc())
             await websocket.close()
         except ExceptionGroup as eg:
+            logger.error("connect user ws error:")
             for exc in eg.exceptions:
                 logger.error(f"TaskGroup sub-exception: {exc}", exc_info=exc)
             await websocket.send_json({"status": "error", "message": "Internal Server Error"})

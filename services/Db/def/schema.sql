@@ -124,6 +124,15 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: seeds_schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.seeds_schema_migrations (
+    version character varying NOT NULL
+);
+
+
+--
 -- Name: usuarios; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -206,6 +215,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: seeds_schema_migrations seeds_schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.seeds_schema_migrations
+    ADD CONSTRAINT seeds_schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
 -- Name: usuarios usuarios_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -271,7 +288,5 @@ ALTER TABLE ONLY public.robots
 -- Dbmate schema migrations
 --
 
-INSERT INTO public.schema_migrations (version) VALUES
-    ('20250714193959'),
-    ('20250829021010'),
-    ('20260312000000');
+INSERT INTO public.seeds_schema_migrations (version) VALUES
+    ('20250828234956');
