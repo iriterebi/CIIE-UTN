@@ -1,12 +1,8 @@
 #!/bin/bash
-set -e
 
-IMAGE_NAME="ros_agent"
+DOCKER_NAME="ciie-jazzy-agent"
 
-echo ">>> Deteniendo contenedor: $IMAGE_NAME"
-docker stop $IMAGE_NAME 2>/dev/null || echo ">>> Contenedor no estaba corriendo."
+echo ">>> Stopping container: ${DOCKER_NAME}"
+docker stop "${DOCKER_NAME}" 2>/dev/null || echo ">>> Container was not running."
 
-echo ">>> Eliminando contenedor: $IMAGE_NAME"
-docker rm $IMAGE_NAME 2>/dev/null || echo ">>> Contenedor no existía."
-
-echo ">>> Listo."
+echo ">>> Done."

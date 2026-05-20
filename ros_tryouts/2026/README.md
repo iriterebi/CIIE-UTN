@@ -11,6 +11,32 @@ ROS 2 agent that integrates with the InOrbit platform. Publishes sensor data fro
 | `agent/camera/camera_node.py` | Captures USB camera frames and publishes them as ROS `Image` messages |
 | `agent/publisher.py` | Dummy data publisher for testing (no hardware needed) |
 
+## Docker
+
+Build and run the ROS 2 Jazzy container from the `docker/` directory:
+
+```bash
+cd ros_tryouts/2026/docker
+./build.sh       # builds the image (only needed once, or after Dockerfile changes)
+./run.sh         # starts the container and drops you into a shell
+```
+
+`SOURCES` is automatically set to the repo root via `git rev-parse --show-toplevel`, so the entire CIIE-UTN repo is mounted inside the container at `/home/docker/dev`.
+
+`ADDR` is automatically set to the host machine's primary IP via `hostname -I`.
+
+To expose a specific SSH port on the host instead of a random one:
+
+```bash
+INORBIT_HOST_PORT=2222 ./run.sh
+```
+
+To enable display forwarding (e.g. RViz):
+
+```bash
+WITH_DISPLAY=1 ./run.sh
+```
+
 ## Start
 
 ```bash
