@@ -1,0 +1,20 @@
+[project]
+name = "ciie-remote-lab-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13.7"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "email-validator>=2.3.0",
+    "fastapi[standard]>=0.118.0",
+    "passlib>=1.7.4",
+    "psycopg2-binary>=2.9.10",
+    "pyjwt>=2.10.1",
+    "sqlmodel>=0.0.25",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]

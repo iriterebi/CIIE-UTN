@@ -1,0 +1,16 @@
+networks:
+  inter-tier:
+    external: true
+    name: ciie-test
+
+services:
+  webclient:
+    build: .
+    restart: unless-stopped
+    networks:
+      inter-tier:
+        aliases:
+          - webclient
+    ports:
+      - "3000:80"
+    profiles: ['dev']

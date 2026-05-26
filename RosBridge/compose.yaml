@@ -1,0 +1,21 @@
+networks:
+  inter-tier:
+    external: true
+    name: ciie-test
+
+services:
+  rosbridge:
+    build: .
+    restart: unless-stopped
+    networks:
+      inter-tier:
+        aliases:
+          - rosbridge
+    ports:
+      - "9090:9090"
+    expose:
+      - 9090
+    environment:
+      - ROS_DOMAIN_ID=0
+    command: >
+      ros2 launch /ros_bridge_ws/launch/bridge.launch.py

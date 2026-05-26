@@ -1,0 +1,5 @@
+include:
+  - ./Db/compose.yaml
+  - ./WebClient/compose.yaml
+  - ./RosBridge/compose.yaml
+  - ./Api/compose.yaml

@@ -2,3 +2,8 @@
 tmp/
 .env
 env-test1/*
+**/__pycache__
+.mypy_cache
+*.local.*
+*.docx#
+.build-cache
