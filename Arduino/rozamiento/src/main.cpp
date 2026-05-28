@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 /**
  * mruv_motor_controller.ino
  *
@@ -21,7 +23,6 @@
  */
 
 #include <stdlib.h>
-#include <Arduino.h>
 
 // ── Pines ──────────────────────────────────────────────────────────────────
 static const uint8_t PIN_ENA = 9;   // PWM
@@ -60,7 +61,6 @@ void setup() {
   pinMode(PIN_ENA, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
-  pinMode(13, OUTPUT);
 
   stopMotor();
 
@@ -170,10 +170,9 @@ void setMotorSpeed(int pwm) {
 
   if (pwm <= 0) {
     stopMotor();
-    digitalWrite(13, LOW);
     return;
   }
-  digitalWrite(13,HIGH);
+
   // Dirección forward
   digitalWrite(PIN_IN1, HIGH);
   digitalWrite(PIN_IN2, LOW);
