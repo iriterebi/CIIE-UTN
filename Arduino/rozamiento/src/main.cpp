@@ -56,6 +56,7 @@ int mapToPWM(float value);
 void setMotorSpeed(int pwm, bool forward = true);
 void stopMotor();
 void laserLogic();
+bool delayWithLaserCheck(int ms);
 void runSweep();
 void experimentRestart();
 
@@ -223,12 +224,24 @@ void laserLogic() {
   }
 }
 
-void runSweep() {
-  digitalWrite(PIN_LASER, LOW);
-  Serial.println(F("sweep_start"));
-  for (int pwm = 0; pwm <= 255; pwm += 5) {
-    laserLogic();
+// Waits ms milliseconds, checking IR every 20 ms.
+// Returns false immediately if the laser is triggered.
+bool delayWithLaserCheck(int ms) {
+  for (int elapsed = 0; elapsed < ms; elapsed += 20) {
     if (digitalRead(PIN_IR) == LOW) {
+      stopMotor();
+      return false;
+    }
+    delay(20);
+  }
+  return true;
+}
+
+void runSweep() {
+  Serial.println(F("sweep_start"));
+  for (int pwm = 0; pwm <= 255; pwm += 50) {
+    if (digitalRead(PIN_IR) == LOW) {
+      stopMotor();
       Serial.println(F("sweep_aborted"));
       return;
     }
@@ -238,15 +251,17 @@ void runSweep() {
     Serial.print(pwm);
     Serial.print(F(" tension en gramos="));
     Serial.println(tensionGramos);
-    delay(1000);
+    if (!delayWithLaserCheck(1000)) {
+      Serial.println(F("sweep_aborted"));
+      return;
+    }
   }
-  laserLogic();
   if (digitalRead(PIN_IR) != LOW) {
     setMotorSpeed(255, true);
     int tensionGramos = map(255, 80, 255, 50, 250);
     Serial.print(F("pwm=255 tension en gramos="));
     Serial.println(tensionGramos);
-    delay(600);
+    delayWithLaserCheck(600);
   }
   stopMotor();
   Serial.println(F("sweep_end"));
