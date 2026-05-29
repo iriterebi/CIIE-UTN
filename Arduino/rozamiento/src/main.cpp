@@ -1,5 +1,9 @@
 #include <Arduino.h>
 
+
+## TODO IRI: bajar el tiempo que tarda en sweep por muhco, para darle a inorbit tiempo, ver que devuelta el laser no frena el coso.  
+
+
 /**
  * mruv_motor_controller.ino
  *
@@ -239,7 +243,7 @@ bool delayWithLaserCheck(int ms) {
 
 void runSweep() {
   Serial.println(F("sweep_start"));
-  for (int pwm = 0; pwm <= 255; pwm += 50) {
+  for (int pwm = 0; pwm <= 255; pwm += 5) {
     if (digitalRead(PIN_IR) == LOW) {
       stopMotor();
       Serial.println(F("sweep_aborted"));
