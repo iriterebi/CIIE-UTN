@@ -9,6 +9,6 @@ spec:
   label: camera 0
   outputEncoding: bgr8
   quality: 30
-  rate: 0.2
+  rate: 12.0
   rosTopic: usb_cam/image_raw
   width: 720

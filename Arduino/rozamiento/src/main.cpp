@@ -28,7 +28,8 @@
 static const uint8_t PIN_ENA = 9;   // PWM
 static const uint8_t PIN_IN1 = 7;
 static const uint8_t PIN_IN2 = 8;
-
+static const uint8_t PIN_LASER = 2; 
+static const uint8_t PIN_IR= 6; 
 // ── Configuración ──────────────────────────────────────────────────────────
 static const float INPUT_MIN = 0.0f;
 static const float INPUT_MAX = 10.0f;
@@ -46,13 +47,17 @@ static const uint8_t SERIAL_BUFFER_SIZE = 32;
 char serialBuffer[SERIAL_BUFFER_SIZE];
 uint8_t serialIndex = 0;
 
+
 // ── Prototipos ─────────────────────────────────────────────────────────────
 bool readSerialLine(char* out);
 float parseAndClamp(const char* line);
 int mapToPWM(float value);
 
-void setMotorSpeed(int pwm);
+void setMotorSpeed(int pwm, bool forward = true);
 void stopMotor();
+void laserLogic();
+void runSweep();
+void experimentRestart();
 
 // ───────────────────────────────────────────────────────────────────────────
 void setup() {
@@ -61,37 +66,52 @@ void setup() {
   pinMode(PIN_ENA, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
+  pinMode(PIN_LASER, OUTPUT);
+  pinMode(PIN_IR, INPUT);
 
   stopMotor();
 
   Serial.println(F("MRUV motor controller ready"));
   Serial.println(F("Send value [0-10] + newline"));
+  digitalWrite(PIN_LASER, HIGH);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
 void loop() {
-
+  laserLogic();
   char line[SERIAL_BUFFER_SIZE];
 
   if (!readSerialLine(line)) {
     return;
   }
 
-  float value = parseAndClamp(line);
+  if (strcmp(line, "start") == 0) {
+    runSweep();
+  } else if (strcmp(line, "restart") == 0) {
+    experimentRestart();
+  } else if (strcmp(line, "stop") == 0) {
+    stopMotor();
+    Serial.println(F("motor_stopped"));
+  } else {
+    if (line[0] == '-') {
+      Serial.println(F("error=valor negativo no admitido"));
+      return;
+    }
+    float value = parseAndClamp(line);
+    int pwm = mapToPWM(value);
+    setMotorSpeed(pwm, true);
+    int tensionGramos = map(pwm, 80, 255, 50, 250);
 
-  int pwm = mapToPWM(value);
-
-  setMotorSpeed(pwm);
-
-  // ── Telemetría ──────────────────────────────────────────────────────────
-  Serial.print(F("t="));
-  Serial.print(millis());
-
-  Serial.print(F(" in="));
-  Serial.print(value, 2);
-
-  Serial.print(F(" pwm="));
-  Serial.println(pwm);
+    // ── Telemetría ────────────────────────────────────────────────────────
+    Serial.print(F("t="));
+    Serial.print(millis());
+    Serial.print(F(" in="));
+    Serial.print(value, 2);
+    Serial.print(F(" pwm="));
+    Serial.print(pwm);
+    Serial.print(F(" tension en gramos="));
+    Serial.println(tensionGramos);
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -166,16 +186,20 @@ int mapToPWM(float value) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-void setMotorSpeed(int pwm) {
+void setMotorSpeed(int pwm, bool forward = true) {
 
   if (pwm <= 0) {
     stopMotor();
     return;
   }
 
-  // Dirección forward
-  digitalWrite(PIN_IN1, HIGH);
-  digitalWrite(PIN_IN2, LOW);
+  if (forward) {
+    digitalWrite(PIN_IN1, HIGH);
+    digitalWrite(PIN_IN2, LOW);
+  } else {
+    digitalWrite(PIN_IN1, LOW);
+    digitalWrite(PIN_IN2, HIGH);
+  }
 
   analogWrite(PIN_ENA, pwm);
 }
@@ -188,4 +212,51 @@ void stopMotor() {
   // Freewheel/coast stop
   digitalWrite(PIN_IN1, LOW);
   digitalWrite(PIN_IN2, LOW);
+}
+
+void laserLogic() {
+  int sensorValue = digitalRead(PIN_IR);
+
+  if (sensorValue == LOW) {
+    stopMotor();
+    digitalWrite(PIN_LASER, LOW);
+  }
+}
+
+void runSweep() {
+  digitalWrite(PIN_LASER, LOW);
+  Serial.println(F("sweep_start"));
+  for (int pwm = 0; pwm <= 255; pwm += 5) {
+    laserLogic();
+    if (digitalRead(PIN_IR) == LOW) {
+      Serial.println(F("sweep_aborted"));
+      return;
+    }
+    setMotorSpeed(pwm, true);
+    int tensionGramos = map(pwm, 80, 255, 50, 250);
+    Serial.print(F("pwm="));
+    Serial.print(pwm);
+    Serial.print(F(" tension en gramos="));
+    Serial.println(tensionGramos);
+    delay(1000);
+  }
+  laserLogic();
+  if (digitalRead(PIN_IR) != LOW) {
+    setMotorSpeed(255, true);
+    int tensionGramos = map(255, 80, 255, 50, 250);
+    Serial.print(F("pwm=255 tension en gramos="));
+    Serial.println(tensionGramos);
+    delay(600);
+  }
+  stopMotor();
+  Serial.println(F("sweep_end"));
+}
+
+void experimentRestart()
+{
+  digitalWrite(PIN_LASER, LOW);
+  setMotorSpeed(200, false);
+  delay(200);
+  stopMotor();
+  Serial.println(F("experiment_restart"));
 }
