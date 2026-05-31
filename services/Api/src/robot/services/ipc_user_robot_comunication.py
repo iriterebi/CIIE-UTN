@@ -18,7 +18,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from ..entities.errors import SerializableException, UserValidationTimeoutException
 from ..entities.json_rpc_commands import UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
-from .access_validator import AccessValidator
+from .access_validator import AccessValidator, UserRobotAccessSession
 from ..entities import Robot
 from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep
 from ..repositories.stream_entities import UserSideClosed
@@ -122,7 +122,11 @@ class UserToRobotComunication:
                 # TODO: lanzar un mejor error
                 raise UserValidationTimeoutException()
 
-            # self.access_validator.validate_grant_access(entity.token, entity.robot_id, None)
+            self.access_validator.validate_grant_access(
+                entity.token,
+                entity.robot_id,
+                UserRobotAccessSession(user.usr_name),
+            )
 
             await websocket.send_json({"message": "success auth"})
 

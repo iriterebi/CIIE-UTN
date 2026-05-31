@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel
 
 class RRobotCommand(BaseModel):
@@ -12,4 +14,4 @@ class RobotResponse(BaseModel):
 
 class UserWsAuthentication(BaseModel):
     token: str
-    robot_id: str
+    robot_id: UUID

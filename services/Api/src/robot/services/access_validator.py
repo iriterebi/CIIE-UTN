@@ -1,7 +1,10 @@
+import logging
 from uuid import UUID
 
 from ..entities.errors import RobotAccessException
 from ...auth.services import EncryptionServiceDep
+
+logger = logging.getLogger(__name__)
 
 
 class UserRobotAccessSession:
@@ -17,13 +20,15 @@ class AccessValidator:
 
     def grant_access(self, token: str, robot_id: UUID, user_session: UserRobotAccessSession | None) -> bool:
         try:
-            print(f"Decoding token: {token}")
-            print(f"robot_id: {robot_id}")
-            print(f"user_session", user_session)
+            # TODO: deleteme — logs de debug que exponen el JWT y el payload, eliminar en fases posteriores
+            logger.debug("Decoding token: %s", token)
+            logger.debug("robot_id: %s", robot_id)
+            logger.debug("user_session: %s", user_session)
 
             data = self.encryption_service.decode_token(token)
 
-            print(f"data {data}")
+            # TODO: deleteme — expone el payload decodificado, eliminar en fases posteriores
+            logger.debug("data %s", data)
 
             return (
                     ('type' in data and data['type'] == "robot_access") and
@@ -37,11 +42,12 @@ class AccessValidator:
                          and data.get("sub") == user_session.username) if user_session is not None else True
                     )
             )
-        except Exception as e:
-            print(f"Error decoding token: {token}")
+        except Exception:
+            # TODO: deleteme — log incluye el JWT, eliminar en fases posteriores
+            logger.warning("Error decoding token: %s", token, exc_info=True)
             return False
 
     def validate_grant_access(self, token: str, robot_id: UUID, user_session: UserRobotAccessSession) -> None:
-        print("Validating grant access token")
+        logger.debug("Validating grant access token")
         if not self.grant_access(token, robot_id, user_session):
             raise RobotAccessException(robot_id)
