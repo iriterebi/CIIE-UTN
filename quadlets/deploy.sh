@@ -305,16 +305,18 @@ do_restart() {
     log "Reiniciando servicios en el servidor"
 
     local cmds=""
+    local status_services=""
     for svc in "${RESTART_ORDER[@]}"; do
         for selected in "${SELECTED_SERVICES[@]}"; do
             if [[ "$svc" == "$selected" ]]; then
                 cmds+="systemctl restart ${svc} && "
+                status_services+="${svc} "
                 break
             fi
         done
     done
 
-    cmds+="echo 'Estado de los servicios:' && systemctl --no-pager status db api webclient proxy || true"
+    cmds+="echo 'Estado de los servicios:' && systemctl --no-pager status ${status_services}|| true"
     ssh "$SSH_TARGET" "bash -c '${cmds}'"
 }
 
