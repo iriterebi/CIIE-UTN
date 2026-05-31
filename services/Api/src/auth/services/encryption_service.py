@@ -48,7 +48,7 @@ class EncryptionService:
 
         data.pop("iat")
         nbf = datetime.fromtimestamp(data.pop("nbf"))
-        exp = datetime.fromtimestamp(data["exp"])
+        exp = datetime.fromtimestamp(data.pop("exp"))
 
         if not nbf <= datetime.now() <= exp:
             raise ValueError("Token is not valid")

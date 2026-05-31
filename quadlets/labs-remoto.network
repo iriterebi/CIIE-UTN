@@ -1,4 +1,4 @@
 [Network]
 # Red interna para comunicación entre servicios.
-# Los contenedores se resuelven por nombre (db, api, rosbridge, webclient, proxy).
+# Los contenedores se resuelven por nombre (db, api, webclient, proxy).
 Driver=bridge

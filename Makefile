@@ -61,30 +61,16 @@ webclient.up.detached:			## Ejecuta el frontend Vue en background.
 webclient.down:				## Detiene el frontend Vue.
 	$(MAKE) -C services/WebClient down_dev
 
-## --- RosBridge ---
-
-.PHONY: rosbridge.up
-rosbridge.up:				## Ejecuta rosbridge en foreground.
-	$(MAKE) -C services/RosBridge up
-
-.PHONY: rosbridge.up.detached
-rosbridge.up.detached:			## Ejecuta rosbridge en background.
-	$(MAKE) -C services/RosBridge up.detached
-
-.PHONY: rosbridge.down
-rosbridge.down:				## Detiene rosbridge.
-	$(MAKE) -C services/RosBridge down
-
 ## --- Compuestos ---
 
 .PHONY: up
 up: db.up.detached api.up		## Ejecuta DB (background) + API (foreground).
 
 .PHONY: up.all
-up.all: db.up.detached webclient.up.detached rosbridge.up.detached api.up	## Ejecuta DB + WebClient + RosBridge (background) + API (foreground).
+up.all: db.up.detached webclient.up.detached api.up	## Ejecuta DB + WebClient (background) + API (foreground).
 
 .PHONY: down
-down: db.down webclient.down rosbridge.down	## Detiene todos los servicios en background.
+down: db.down webclient.down		## Detiene todos los servicios en background.
 
 ## --- Help ---
 

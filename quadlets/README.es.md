@@ -7,7 +7,7 @@ Configuración de [Podman Quadlets](https://docs.podman.io/en/latest/markdown/po
 ## Arquitectura
 
 ```
-Internet → [:80] Proxy (nginx) → API (FastAPI) → RosBridge (ROS 2)
+Internet → [:80] Proxy (nginx) → API (FastAPI)
                                 → WebClient (Vue 3 + nginx)
                     ↕
                  PostgreSQL
@@ -21,7 +21,6 @@ Todos los servicios se comunican por una red interna de Podman (`labs-remoto`). 
 |----------|---------|--------|----------------|
 | **Db** | `db.container` | `postgres:17.5-alpine` | `127.0.0.1:5432` |
 | **Api** | `api.container` | `localhost/labs-remoto/api` | — |
-| **RosBridge** | `rosbridge.container` | `localhost/labs-remoto/rosbridge` | `127.0.0.1:9090` |
 | **WebClient** | `webclient.container` | `localhost/labs-remoto/webclient` | — |
 | **Proxy** | `proxy.container` | `localhost/labs-remoto/proxy` | `80` |
 
@@ -53,7 +52,6 @@ POSTGRES_PASSWORD=<contraseña_segura>
 POSTGRES_USER=<usuario>
 POSTGRES_DB=ciie_db
 POSTGRES_URL=db:5432
-ROSBRIDGE_URL=ws://rosbridge:9090
 JWT_SECRET_KEY=<clave_secreta>
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -75,7 +73,7 @@ Las imágenes se compilan localmente y se transfieren al servidor via SSH usando
 ./quadlets/deploy.sh usuario@servidor
 ```
 
-El script compila las 4 imágenes (api, webclient, rosbridge, proxy), las exporta a `.tar`, las transfiere por `scp`, las carga con `podman load` en el servidor, y reinicia todos los servicios.
+El script compila las imágenes (api, webclient, proxy), las exporta a `.tar`, las transfiere por `scp`, las carga con `podman load` en el servidor, y reinicia todos los servicios.
 
 ### 4. Primer arranque (si no se usó deploy.sh)
 
@@ -88,7 +86,7 @@ sudo systemctl start proxy
 
 ```bash
 # Ver estado de todos los servicios
-sudo systemctl status db api rosbridge webclient proxy
+sudo systemctl status db api webclient proxy
 
 # Ver logs de un servicio
 sudo journalctl -u api -f
@@ -97,7 +95,7 @@ sudo journalctl -u api -f
 sudo systemctl restart api
 
 # Detener todo
-sudo systemctl stop proxy api webclient rosbridge db
+sudo systemctl stop proxy api webclient db
 
 # Redesplegar después de cambios en el código
 ./quadlets/deploy.sh usuario@servidor
@@ -106,10 +104,9 @@ sudo systemctl stop proxy api webclient rosbridge db
 ## Cadena de dependencias
 
 ```
-db ─────────┐
-             ├──► api ──────┐
-rosbridge ──┘               ├──► proxy
-webclient ──────────────────┘
+db ──► api ──┐
+              ├──► proxy
+webclient ───┘
 ```
 
 `systemctl start proxy` arranca automáticamente todos los servicios necesarios en el orden correcto.
@@ -127,5 +124,5 @@ DATABASE_URL="postgres://<usuario>:<contraseña>@127.0.0.1:5432/ciie_db?sslmode=
 ## Notas
 
 - **Sin TLS**: esta configuración no incluye TLS. Para producción con HTTPS, agregar un reverse proxy externo con certbot o montar certificados en el contenedor proxy.
-- **Intranet**: las rutas `/m2m/` y `/rosbridge/` están restringidas a IPs privadas en la configuración de nginx. Verificar que las restricciones funcionen correctamente con la red de Podman.
+- **Intranet**: la ruta `/m2m/` (registro, handshake y WS de robots) está restringida a IPs privadas en la configuración de nginx. Verificar que las restricciones funcionen correctamente con la red de Podman.
 - **Logs**: usar `journalctl -u <servicio>` para ver logs, ya que systemd captura stdout/stderr de los contenedores.

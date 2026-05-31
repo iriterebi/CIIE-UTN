@@ -26,10 +26,10 @@ El `loop()` actualmente ejecuta una secuencia de prueba simple, moviendo cada se
 
 ## Comunicación
 
-En el sistema completo, la RaspberryPi envía comandos seriales al Arduino para controlar el brazo. La Pi recibe comandos de la API vía ROS/RosBridge y los traduce en instrucciones seriales para el Arduino.
+En el sistema completo, la RaspberryPi envía comandos seriales al Arduino para controlar el brazo. La Pi recibe comandos de la API vía WebSocket directo y los traduce en instrucciones seriales para el Arduino.
 
 ```
-[API] → [RosBridge/ROS] → [RaspberryPi] → [Serial] → [Arduino] → [Servos]
+[API] ←WS→ [RaspberryPi] → [Serial] → [Arduino] → [Servos]
 ```
 
 ## Dependencias

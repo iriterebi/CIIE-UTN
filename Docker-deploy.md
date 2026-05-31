@@ -12,7 +12,7 @@ docker network create ciie-test
 
 Desde la raíz del proyecto:
 ```shell
-# Levantar DB (background) + WebClient + RosBridge (background) + API (foreground)
+# Levantar DB (background) + WebClient (background) + API (foreground)
 make up.all
 
 # O solo DB + API (lo mínimo para desarrollo backend)
@@ -50,18 +50,10 @@ make webclient.up.detached    # Background
 make webclient.down           # Detener
 ```
 
-#### RosBridge
-```shell
-make rosbridge.up             # Foreground
-make rosbridge.up.detached    # Background
-make rosbridge.down           # Detener
-```
-
 ### Acceso
 
 - **WebClient**: http://localhost:3000
 - **API**: http://localhost:8000
-- **RosBridge WS**: ws://localhost:9090
 
 ### Ver todos los comandos disponibles
 ```shell

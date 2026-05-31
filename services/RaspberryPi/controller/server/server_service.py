@@ -35,7 +35,6 @@ class AccessToken:
 @dataclass(frozen=True)
 class RobotCredentials:
     access_token: AccessToken
-    topic: str
 
 
 

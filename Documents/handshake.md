@@ -173,17 +173,11 @@ El JWT contiene:
 - `role`: `"robot"`
 - `scope`: permisos del robot
 
-El `topic` es el prefijo base para los topics ROS del robot. Los UUIDs se codifican en Crockford Base32 con prefijo `r` (ROS 2 no permite tokens que empiecen con número).
+### 6. Conexión WebSocket persistente
 
-### 6. Conexión a rosbridge
+Tras recibir el JWT, la Pi abre un WebSocket a `WS /m2m/robot/connect` directo contra la API. La API envía un challenge JSON-RPC `{method: "send_credentials"}`; la Pi responde `{token: <JWT>}` y la API confirma con `{status: "success auth"}`. A partir de ese punto la conexión es bidireccional y de larga duración (con reconexión + backoff 1s→30s desde la Pi).
 
-Tras el handshake, la Pi se conecta directamente al WebSocket de rosbridge (`ws://rosbridge:9090`) y se suscribe a su topic de comandos:
-
-- Comandos (recibe): `/robot/r<base32>/command`
-- Respuestas (publica): `/robot/r<base32>/response`
-- Estado (publica): `/robot/r<base32>/status`
-
-Todos los mensajes usan el protocolo JSON-RPC 2.0 dentro de `std_msgs/String`.
+Todos los mensajes son JSON-RPC 2.0 sobre el WebSocket.
 
 ---
 
@@ -221,9 +215,9 @@ RaspberryPi              API                    Admin              DB
     │                      │                      │                 │
     ├──POST /handshake────►│                      │                 │
     │  (HTTP Basic)        │  status == approved  │                 │
-    │◄──200 {JWT, topic}───┤                      │                 │
+    │◄──200 {JWT}──────────┤                      │                 │
     │                      │                      │                 │
-    │  [Pi se conecta a rosbridge, se suscribe a topic de comandos] │
+    │  [Pi abre WS /m2m/robot/connect → challenge "send_credentials" → token] │
 ```
 
 ---
@@ -303,13 +297,12 @@ POST /admin/robot/{id}/reject
 Para probar el flujo completo sin hardware:
 
 1. Iniciar DB: `cd Db && make up_db.dev.detached && make migrate_db`
-2. Iniciar RosBridge: `cd RosBridge && make up.detached`
-3. Iniciar API: `cd Api && make up_dev`
-4. Simular registro: `curl -X POST http://localhost:8000/m2m/robot/register -H 'Content-Type: application/json' -d '{"external_identifier": "550e8400-e29b-41d4-a716-446655440000", "psw": "test123"}'`
-5. Ver pendientes: `curl http://localhost:8000/admin/robot/pending`
-6. Aprobar: `curl -X POST http://localhost:8000/admin/robot/{id}/approve -H 'Content-Type: application/json' -d '{"name": "Demo Robot"}'`
-7. Handshake: `curl -X POST http://localhost:8000/m2m/robot/handshake -u '550e8400-e29b-41d4-a716-446655440000:test123'`
+2. Iniciar API: `cd Api && make up_dev`
+3. Simular registro: `curl -X POST http://localhost:8000/m2m/robot/register -H 'Content-Type: application/json' -d '{"external_identifier": "550e8400-e29b-41d4-a716-446655440000", "psw": "test123"}'`
+4. Ver pendientes: `curl http://localhost:8000/admin/robot/pending`
+5. Aprobar: `curl -X POST http://localhost:8000/admin/robot/{id}/approve -H 'Content-Type: application/json' -d '{"name": "Demo Robot"}'`
+6. Handshake: `curl -X POST http://localhost:8000/m2m/robot/handshake -u '550e8400-e29b-41d4-a716-446655440000:test123'`
 
-El handshake retorna el JWT y el topic base del robot. Tras esto, la Pi se conecta a rosbridge para recibir comandos.
+El handshake retorna el JWT. Tras esto, la Pi abre el WebSocket `/m2m/robot/connect` directamente contra la API para recibir comandos.
 
 Con la Pi en modo mock (`MOCK_ROBOT=1`, `CREATE_DEFAULT_METADATA=1`), el flujo completo se ejecuta automáticamente — solo falta la aprobación manual del admin.

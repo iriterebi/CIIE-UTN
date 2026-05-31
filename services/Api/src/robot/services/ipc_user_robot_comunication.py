@@ -1,8 +1,10 @@
-"""Comunicación usuario ↔ robot vía RosBridge.
+"""Comunicación usuario ↔ robot vía WebSocket directo.
 
 El usuario se conecta por WebSocket a la API, se autentica, y envía
-comandos JSON-RPC. La API los publica al topic ROS del robot vía rosbridge
-y rutea las respuestas de vuelta al usuario.
+comandos JSON-RPC. La API enruta cada mensaje hacia el WebSocket de la
+Pi del robot a través del pipe `UsersXRobotMapType` (ver
+`RobotConnection` / `UserConnection`) y devuelve las respuestas por el
+mismo camino.
 """
 
 import asyncio
@@ -36,7 +38,7 @@ class RobotConnectionNotFound(Exception):
 
 @final
 class UserToRobotComunication:
-    """Gestiona la comunicación WebSocket de un usuario con robots vía RosBridge."""
+    """Gestiona la comunicación WebSocket de un usuario con su robot a través de la API."""
 
     def __init__(self,
         robot_service: RobotService,
@@ -108,8 +110,6 @@ class UserToRobotComunication:
             result = await asyncio.wait_for(websocket.receive_json(), timeout=10)  # pyright: ignore[reportAny]
 
             entity = UserWsAuthentication.model_validate(result)
-
-            # user_session = self.access_validator.create_robot_access_session(entity)
 
             user = self.user_service.get_user_by_token(entity.token)
             robot = self.robot_service.get_robot_by_id(entity.robot_id)

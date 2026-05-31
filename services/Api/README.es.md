@@ -7,14 +7,13 @@ Backend FastAPI para el sistema Labs Remoto. Punto de entrada central para usuar
 ## Qué hace
 
 1. **Para usuarios** — Autenticación (JWT), gestión de sesiones y control de robots en tiempo real vía WebSocket
-2. **Para robots** — Auto-registro y handshake (M2M). La comunicación de comandos pasa por ROS vía RosBridge
+2. **Para robots** — Auto-registro, handshake (M2M) y WebSocket directo a cada Pi para el tráfico de comandos/respuestas
 
 ## Requisitos
 
 - Python 3.13.7+
 - Gestor de paquetes [uv](https://docs.astral.sh/uv/)
 - PostgreSQL (ver `../Db/`)
-- RosBridge (ver `../RosBridge/`)
 
 ## Inicio rápido
 
@@ -76,8 +75,7 @@ src/
     ├── entities/          # Modelo Robot, DTOs, comandos JSON-RPC, errores
     ├── services/          # RobotService, HandshakeService, AccessValidator, UserToRobotCommunication
     ├── repositories/      # RobotRepository — acceso a DB
-    ├── routes/            # Endpoints /admin/robot, /m2m/robot, /user/robot
-    └── utils/             # Codificación Crockford Base32 (UUID → nombres de topics ROS)
+    └── routes/            # Endpoints /admin/robot, /m2m/robot, /user/robot
 ```
 
 ## Tests

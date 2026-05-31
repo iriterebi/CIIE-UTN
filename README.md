@@ -2,7 +2,7 @@
 
 > [Leer en español](./README.es.md)
 
-A university project for remote control of robots in laboratories. Users interact through a web frontend, which communicates with a Python backend (FastAPI) that bridges to robots managed via ROS.
+A university project for remote control of robots in laboratories. Users interact through a web frontend, which communicates with a Python backend (FastAPI) that talks directly to each robot over WebSocket.
 
 ## Table of Contents
 
@@ -28,9 +28,9 @@ A university project for remote control of robots in laboratories. Users interac
 For a detailed description of the system architecture, communication flows, data model, and deployment, see [Documents/arquitectura.md](./Documents/arquitectura.md).
 
 ```
-[Frontend] → [API (FastAPI)] → [ROS] → [RaspberryPi] → [Arduino/Robot]
-                  ↕
-              [PostgreSQL]
+[Frontend] ←WS→ [API (FastAPI)] ←WS→ [RaspberryPi] → [Arduino/Robot]
+                       ↕
+                  [PostgreSQL]
 ```
 
 ## Project Structure
@@ -42,7 +42,6 @@ For a detailed description of the system architecture, communication flows, data
 | `services/Db/` | Active | PostgreSQL schema, migrations (dbmate), seed data |
 | `services/Arduino/` | Active | Robot firmware (7-servo arm control) |
 | `services/WebClient/` | Active | Vue 3 + TypeScript + PicoCSS frontend |
-| `services/RosBridge/` | Active | rosbridge_suite — WebSocket/JSON bridge between API and ROS 2 |
 | `services/Proxy/` | Active | nginx reverse proxy — single entry point for the deployment server |
 | `packages/` | Active | Shared packages (empty for now) |
 | `quadlets/` | Active | Production deployment with Podman Quadlets — systemd unit files, deploy script |
@@ -55,7 +54,7 @@ For a detailed description of the system architecture, communication flows, data
 - **Database**: PostgreSQL 17.5
 - **Auth**: JWT (HS256) + bcrypt
 - **Frontend**: Vue 3, TypeScript, Vite, PicoCSS
-- **Real-time**: WebSockets + ROS 2 via RosBridge
+- **Real-time**: direct WebSockets (user↔API↔Pi)
 - **Protocol**: JSON-RPC 2.0 (robot commands)
 - **Package manager**: uv (workspace)
 - **Deployment**: Docker Compose (dev), Podman Quadlets (prod)
@@ -91,15 +90,7 @@ cd services/Api
 make up_dev
 ```
 
-### 4. Start RosBridge
-
-```bash
-cd services/RosBridge
-make build                # Build the Docker image (first time)
-make up                   # Start rosbridge (foreground)
-```
-
-### 5. Start the frontend
+### 4. Start the frontend
 
 ```bash
 cd services/WebClient
@@ -121,10 +112,9 @@ npm run dev               # Vite dev server on :5173
 **Api** (required):
 - `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_URL`
 - `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `ROSBRIDGE_URL` (e.g. `ws://rosbridge:9090`)
 
 **RaspberryPi** (`.env.defaults` has defaults):
-- `SERVER_URL`, `ROSBRIDGE_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`
+- `SERVER_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`
 
 See each subproject's README for details.
 

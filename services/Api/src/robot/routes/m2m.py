@@ -19,7 +19,6 @@ from ..services.handshake_service import HandshakeService, HandshakeServiceDep
 from ..services import (
     RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult
 )
-from ..utils.crockford_base32 import uuid_to_crockford_base32
 
 router = APIRouter(tags=["robots", "m2m"])
 
@@ -44,10 +43,9 @@ def login(
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
     handshake_service: Annotated[HandshakeService, Depends(HandshakeService)]
 ) -> RobotHandshakeResult:
-    accessToken, robot = handshake_service.create_access_token_by_basic_credentials(credentials)
+    accessToken, _ = handshake_service.create_access_token_by_basic_credentials(credentials)
     return RobotHandshakeResult(
         access_token=accessToken,
-        topic=f"/robot/r{uuid_to_crockford_base32(str(robot.id))}"
     )
 
 @router.websocket('/connect')

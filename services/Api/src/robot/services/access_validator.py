@@ -1,32 +1,14 @@
-import logging
-from datetime import datetime
 from uuid import UUID
-from warnings import deprecated
 
 from ..entities.errors import RobotAccessException
-from ..entities.json_rpc_commands import UserWsAuthentication
 from ...auth.services import EncryptionServiceDep
-
-
-#
-# # Create a logger instance
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.NOTSET)  # Set the desired logging level
-#
-# # Create a console handler and formatter
-# handler = logging.StreamHandler()
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
 
 
 class UserRobotAccessSession:
     username: str
-    expiration_time: datetime
 
-    def __init__(self, username: str, expiration_time: datetime):
+    def __init__(self, username: str):
         self.username = username
-        self.expiration_time = expiration_time
 
 
 class AccessValidator:
@@ -63,15 +45,3 @@ class AccessValidator:
         print("Validating grant access token")
         if not self.grant_access(token, robot_id, user_session):
             raise RobotAccessException(robot_id)
-
-    @deprecated("Use Auth service instead")
-    def create_robot_access_session(self, user_auth: UserWsAuthentication) -> UserRobotAccessSession:
-        token = user_auth.token
-
-        decoded_payload = self.encryption_service.decode_token(token)
-
-        username: str = decoded_payload.get("sub")
-        expiration = datetime.fromtimestamp(decoded_payload.get("exp"))
-
-
-        return UserRobotAccessSession(username, expiration)

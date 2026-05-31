@@ -18,8 +18,10 @@ Network=labs-remoto.network:alias=db
 # Puerto expuesto solo en localhost (para migraciones con dbmate)
 PublishPort=127.0.0.1:5432:5432
 
-# Healthcheck para que los servicios dependientes esperen a que Postgres esté listo
-HealthCmd=pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+# Healthcheck para que los servicios dependientes esperen a que Postgres esté listo.
+# Las variables se evalúan dentro del contenedor (sh -c con comillas simples evita
+# que systemd las expanda al generar la unit — ahí no ve el EnvironmentFile).
+HealthCmd=sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 HealthInterval=5s
 HealthRetries=5
 HealthStartPeriod=10s

@@ -4,7 +4,6 @@ import pytest
 
 from src.robot.services.access_validator import AccessValidator, UserRobotAccessSession
 from src.robot.entities.errors import RobotAccessException
-from src.robot.entities.json_rpc_commands import UserWsAuthentication
 
 
 @pytest.fixture
@@ -103,12 +102,3 @@ class TestValidateGrantAccess:
             validator.validate_grant_access("token", uuid4(), session)
 
 
-class TestCreateRobotAccessSession:
-    def test_crea_session_desde_token(self, validator, encryption_service):
-        encryption_service.decode_token.return_value = {"sub": "testuser"}
-        auth = UserWsAuthentication(token="valid-token")
-
-        session = validator.create_robot_access_session(auth)
-
-        assert session.username == "testuser"
-        encryption_service.decode_token.assert_called_once_with("valid-token")

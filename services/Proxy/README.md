@@ -9,18 +9,17 @@ Main reverse proxy for the Labs Remoto deployment server. nginx is the only comp
 1. **Reverse proxy** — routes HTTP and WebSocket traffic to internal Docker services
 2. **Static file server** — serves the Vue 3 SPA
 3. **TLS termination** — handles SSL certificates (Let's Encrypt)
-4. **Access control** — restricts internal routes (`/m2m`, `/rosbridge`) to intranet IPs
+4. **Access control** — restricts the internal `/m2m` route (registration, handshake, and robot WS) to intranet IPs
 
 ## Architecture
 
 ```
-INTERNET ──► nginx (:443) ──► API (:8000)        [Docker]
-INTRANET ──►               ──► RosBridge (:9090)  [Docker]
-                            ──► SPA (static files) [host filesystem]
+INTERNET ──► nginx (:443) ──► API (:8000)          [Docker]
+INTRANET ──►               ──► SPA (static files)  [host filesystem]
 ```
 
 - Users (internet) access the SPA, REST API, and user WebSocket
-- RaspberryPis (intranet) access `/m2m/*` for registration/handshake and `/rosbridge/` for ROS communication
+- RaspberryPis (intranet) access `/m2m/*` for registration, handshake, and WebSocket (`/m2m/robot/connect`)
 - Docker services publish ports only on `127.0.0.1` — nginx is the only externally reachable component
 
 ## Route Map
@@ -30,8 +29,7 @@ INTRANET ──►               ──► RosBridge (:9090)  [Docker]
 | `/` | SPA (Vue 3 static files) | HTTP | Public |
 | `/api/*` | API (:8000), strips `/api` prefix | HTTP | Public |
 | `/ws/*` | API (:8000), WebSocket upgrade | WebSocket | Public |
-| `/m2m/*` | API (:8000) | HTTP | Intranet only |
-| `/rosbridge/` | RosBridge (:9090), WebSocket upgrade | WebSocket | Intranet only |
+| `/m2m/*` | API (:8000), includes WebSocket upgrade on `/m2m/robot/connect` | HTTP + WebSocket | Intranet only |
 
 ## Setup
 
