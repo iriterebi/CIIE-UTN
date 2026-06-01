@@ -155,8 +155,8 @@ class UsersXRobotMapType:
         for func in self._disconnectables:
             try:
                 func()
-            except:
-                pass
+            except Exception:
+                logger.warning("Listener cleanup raised", exc_info=True)
 
         self._tasks = []
         self._disconnectables = []
