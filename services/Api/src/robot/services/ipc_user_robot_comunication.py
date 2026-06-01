@@ -15,7 +15,12 @@ import functools
 from fastapi import Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from ..entities.errors import SerializableException, UserValidationTimeoutException
+from ..entities.errors import (
+    JSONRPC_INTERNAL_ERROR,
+    SerializableException,
+    UserValidationTimeoutException,
+    serialise_as_jsonrpc_error,
+)
 from ..entities.json_rpc_commands import UserWsAuthentication
 from .robot_service import RobotServiceDep, RobotService
 from .access_validator import AccessValidator, UserRobotAccessSession
@@ -55,10 +60,10 @@ class UserToRobotComunication:
         await websocket.accept()
         user = None
         try:
-            logger.info("valdating user")
+            logger.info("validating user")
             user, robot = await self._validate_user_session(websocket)
 
-            logger.info("stabilicing user connection")
+            logger.info("establishing user connection")
             userConnection = self.robot_connection_repository.addUserConnection(
                 user,
                 UserStreamSource(websocket)
@@ -82,10 +87,12 @@ class UserToRobotComunication:
             # su manejo dedicado se definirá más adelante.
 
         except WebSocketDisconnect:
-            print("Client disconnected")
+            logger.info("Client disconnected")
         except SerializableException as e:
-            print(f"SerializableException {e.to_dict()}")
-            await websocket.send_json(e.to_jsonrpc())
+            logger.warning("SerializableException: %s", e.to_dict())
+            await websocket.send_json(
+                serialise_as_jsonrpc_error(e, message_id=None, code=JSONRPC_INTERNAL_ERROR)
+            )
             await websocket.close()
         except ExceptionGroup as eg:
             logger.error("connect user ws error:")

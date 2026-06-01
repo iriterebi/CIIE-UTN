@@ -11,7 +11,7 @@ JSONRPC_INTERNAL_ERROR = -32603  # Internal error    Internal JSON-RPC error.
 
 # JSONRPC_-32000 to -32099 	Server error 	Reserved for implementation-defined server-errors.
 
-def serialise_as_jsonrpc_error(error: Exception, message_id: str | int, code: int, message: str | None = None) -> dict:
+def serialise_as_jsonrpc_error(error: Exception, message_id: str | int | None, code: int, message: str | None = None) -> dict:
     return {
         "jsonrpc": "2.0",
         "error": {
