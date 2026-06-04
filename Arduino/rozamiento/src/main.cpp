@@ -1,9 +1,5 @@
 #include <Arduino.h>
 
-
-## TODO IRI: bajar el tiempo que tarda en sweep por muhco, para darle a inorbit tiempo, ver que devuelta el laser no frena el coso.  
-
-
 /**
  * mruv_motor_controller.ino
  *
@@ -32,8 +28,8 @@
 static const uint8_t PIN_ENA = 9;   // PWM
 static const uint8_t PIN_IN1 = 7;
 static const uint8_t PIN_IN2 = 8;
-static const uint8_t PIN_LASER = 2; 
-static const uint8_t PIN_IR= 6; 
+static const uint8_t PIN_LASER = 2;
+static const uint8_t PIN_IR= 6;
 // ── Configuración ──────────────────────────────────────────────────────────
 static const float INPUT_MIN = 0.0f;
 static const float INPUT_MAX = 10.0f;
@@ -72,7 +68,7 @@ void setup() {
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
   pinMode(PIN_LASER, OUTPUT);
-  pinMode(PIN_IR, INPUT);
+  pinMode(PIN_IR, INPUT_PULLUP);
 
   stopMotor();
 
@@ -191,7 +187,7 @@ int mapToPWM(float value) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-void setMotorSpeed(int pwm, bool forward = true) {
+void setMotorSpeed(int pwm, bool forward) {
 
   if (pwm <= 0) {
     stopMotor();
@@ -199,7 +195,7 @@ void setMotorSpeed(int pwm, bool forward = true) {
   }
 
   if (forward) {
-    digitalWrite(PIN_IN1, HIGH);
+    digitalWrite(PIN_IN1, HIGH) ;
     digitalWrite(PIN_IN2, LOW);
   } else {
     digitalWrite(PIN_IN1, LOW);
@@ -222,7 +218,7 @@ void stopMotor() {
 void laserLogic() {
   int sensorValue = digitalRead(PIN_IR);
 
-  if (sensorValue == LOW) {
+  if (sensorValue == HIGH) {
     stopMotor();
     digitalWrite(PIN_LASER, LOW);
   }
@@ -232,8 +228,14 @@ void laserLogic() {
 // Returns false immediately if the laser is triggered.
 bool delayWithLaserCheck(int ms) {
   for (int elapsed = 0; elapsed < ms; elapsed += 20) {
-    if (digitalRead(PIN_IR) == LOW) {
+    if (digitalRead(PIN_IR) == HIGH) {
       stopMotor();
+      return false;
+    }
+    char line[SERIAL_BUFFER_SIZE];
+    if (readSerialLine(line) && strcmp(line, "stop") == 0) {
+      stopMotor();
+      Serial.println(F("motor_stopped"));
       return false;
     }
     delay(20);
@@ -243,24 +245,24 @@ bool delayWithLaserCheck(int ms) {
 
 void runSweep() {
   Serial.println(F("sweep_start"));
-  for (int pwm = 0; pwm <= 255; pwm += 5) {
-    if (digitalRead(PIN_IR) == LOW) {
+  for (int pwm = 0; pwm <= 255; pwm += 20) {
+    if (digitalRead(PIN_IR) == HIGH) {
       stopMotor();
       Serial.println(F("sweep_aborted"));
       return;
     }
     setMotorSpeed(pwm, true);
-    int tensionGramos = map(pwm, 80, 255, 50, 250);
+    int tensionGramos = (pwm >= PWM_START) ? map(pwm, PWM_START, PWM_MAX, 50, 250) : 0;
     Serial.print(F("pwm="));
     Serial.print(pwm);
     Serial.print(F(" tension en gramos="));
     Serial.println(tensionGramos);
-    if (!delayWithLaserCheck(1000)) {
+    if (!delayWithLaserCheck(5000)) {
       Serial.println(F("sweep_aborted"));
       return;
     }
   }
-  if (digitalRead(PIN_IR) != LOW) {
+  if (digitalRead(PIN_IR) != HIGH) {
     setMotorSpeed(255, true);
     int tensionGramos = map(255, 80, 255, 50, 250);
     Serial.print(F("pwm=255 tension en gramos="));

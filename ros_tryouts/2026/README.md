@@ -56,6 +56,9 @@ When done:
 # Monitor incoming sensor data
 ros2 topic echo /inorbit/custom_data
 
+# Send a test incoming data manually
+ros2 topic pub --once /inorbit/custom_data std_msgs/msg/String "data: 'your_command_here'"
+
 # Send a test command manually
 ros2 topic pub --once /inorbit/custom_command std_msgs/msg/String "data: 'your_command_here'"
 
