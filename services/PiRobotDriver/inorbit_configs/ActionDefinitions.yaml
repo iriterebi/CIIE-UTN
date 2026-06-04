@@ -1,0 +1,18 @@
+apiVersion: v0.1
+kind: ActionDefinition
+metadata:
+  id: PublishToTopic-5IWO7C
+  scope: account/QsFNvNwHSHvgnhYmT
+spec:
+  arguments:
+  - name: message
+    type: string
+    value: '1'
+  confirmation:
+    required: false
+  description: Publishes "1"  to topic /inorbit/custom_command
+  group: Other
+  label: Send action
+  lock: true
+  type: PublishToTopic
+
