@@ -1,0 +1,33 @@
+# Imagen para correr el controller con Ros2Strategy (rclpy real) en dev.
+# ROS 2 Jazzy = Ubuntu 24.04 = Python 3.12 → el controller corre sin cambios de código.
+# Imagen totalmente cualificada para que podman la resuelva sin ambigüedad.
+FROM docker.io/library/ros:jazzy
+
+# Deps del controller (mismas que pyproject.toml) + pytest, en un venv con
+# --system-site-packages para que vea rclpy/std_msgs que ROS instala en el Python del sistema.
+# La imagen ros:jazzy no trae ensurepip, hay que instalar python3-venv primero.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-venv \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m venv /opt/venv --system-site-packages \
+ && /opt/venv/bin/pip install --no-cache-dir \
+        "pydantic>=2.11.10" \
+        "pydantic-settings>=2.13.1" \
+        "python-dotenv>=1.1.1" \
+        "requests>=2.32.5" \
+        "pyserial>=3.5" \
+        "websockets>=15.0" \
+        "pytest>=8.3.0"
+
+ENV PATH="/opt/venv/bin:${PATH}"
+# Mismo dominio DDS que el agente ROS de la Pi (para que ros2 CLI en ros.shell lo herede).
+ENV ROS_DOMAIN_ID=42
+# Forzar transporte UDP en Fast DDS: el agente ROS corre en OTRO contenedor con su propio
+# /dev/shm, así que el transporte por memoria compartida (default same-host) no entrega datos
+# entre contenedores aunque el descubrimiento (UDP multicast) sí cruce. UDPv4 lo resuelve.
+ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+WORKDIR /app
+
+# El ENTRYPOINT /ros_entrypoint.sh (heredado de la imagen ros) sourcea
+# /opt/ros/jazzy/setup.bash y ejecuta el CMD, dejando rclpy importable.
+CMD ["python", "-m", "controller"]

@@ -13,7 +13,10 @@
 ```
 
 - **micro core** (asyncio, main thread): enrutador puro — mueve mensajes en formato interno entre adapters, no transforma datos. Cada adapter traduce entre su protocolo externo y el formato interno. Conecta dos strategies y el socket de gestión
-- **strategy local** (ROS 2 por defecto): módulo de conexión con DDS. Daemon thread con `rclpy.spin()`. Intercambiable (serial directo, mock, etc.)
+- **strategy local**: módulo de conexión con el robot. Intercambiable. Hoy hay tres implementaciones en `strategy/local/`:
+  - `SerialStrategy` — serial directo al Arduino (wrappea `RobotController`).
+  - `MockStrategy` — sin hardware (modo demo).
+  - `Ros2Strategy` — IPC ROS 2 sobre DDS: daemon thread con `rclpy.spin()`, publica comandos en `inorbit/custom_command` y suscribe telemetría `Key=Value` en `inorbit/custom_data` (`rclpy` con import diferido). El agente ROS contraparte es fire-and-forget (no responde comandos).
 - **strategy remoto** (WS por defecto): módulo de conexión con la API. Corre en asyncio del core. Intercambiable (alternativa futura: MQTT)
 - **Unix Socket**: interfaz de gestión (start/stop/status). Solo gestión, no datos
 - **cli**: proceso separado, se conecta al core a través del socket. Habilita que el core corra como daemon (systemd, etc.)

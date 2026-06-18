@@ -13,6 +13,38 @@ uv run python -m controller
 # Requiere .env o .env.defaults con las variables de entorno
 ```
 
+Esto corre el controller con el Python gestionado por uv (3.13) y sirve para `MockStrategy` /
+`SerialStrategy`. **No** sirve para `Ros2Strategy`, que necesita `rclpy` (ver abajo).
+
+### Correr Ros2Strategy con Podman (ROS 2 Jazzy)
+
+`rclpy`/`std_msgs` no se instalan con uv (son extensiones compiladas atadas al Python de ROS), así
+que `Ros2Strategy` se corre dentro de un contenedor `ros:jazzy` (Ubuntu 24.04, Python 3.12 — el
+controller corre sin cambios de código). Requiere podman instalado en el host
+(`sudo apt install -y podman uidmap`). Podman es rootless: no necesita grupo ni daemon.
+
+```bash
+make ros.build     # construye la imagen (Dockerfile.ros)
+make ros.verify    # comprueba que rclpy + std_msgs importan
+make ros.test      # corre pytest dentro del contenedor (rclpy real disponible)
+make ros.shell     # bash interactivo con ROS sourceado (ros2 topic echo/pub)
+make ros.run       # corre el controller con LOCAL_STRATEGY=Ros2Strategy
+```
+
+Los targets usan `podman run` plano con `--network=host` (discovery DDS con el agente ROS y acceso a
+la API en `localhost`) y montan el código como volumen (incluido el `.env`). `rclpy` vive solo en el
+contenedor; el host sigue usando uv para mock/serial.
+
+> **Transporte DDS entre contenedores**: el agente ROS corre en otro contenedor con su propio
+> `/dev/shm`, así que el transporte por memoria compartida de Fast DDS (default same-host) **no
+> entrega datos** entre contenedores aunque el descubrimiento (UDP multicast) sí cruce. La imagen
+> hornea `ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4` para forzar UDP y que la telemetría/los comandos
+> fluyan. (Alternativa: `--ipc=host` en ambos contenedores para compartir `/dev/shm`.)
+>
+> **Entornos restringidos/anidados** (VM/contenedor donde podman no puede crear namespaces; error
+> `mount 'proc' to 'proc': Operation not permitted`): agregar `--isolation=chroot` al `podman build`
+> y `--pid=host` al `podman run`. En una máquina normal no hacen falta.
+
 ## Estructura del Código
 
 ```
@@ -30,15 +62,19 @@ controller/
 │   ├── registry.py          # StrategyRegistry (lista por nombre)
 │   ├── local/
 │   │   ├── serial_strategy.py    # Wrappea RobotController (Arduino real)
-│   │   └── mock_strategy.py      # Wrappea RobotMockController (sin hardware)
+│   │   ├── mock_strategy.py      # Wrappea RobotMockController (sin hardware)
+│   │   └── ros2_strategy.py      # Wrappea Ros2Controller (IPC ROS 2 / DDS)
 │   └── remote/
 │       └── ws_strategy.py        # WS directo a /m2m/robot/connect (JSON-RPC 2.0)
 ├── server/
 │   └── server_service.py    # ServerServices — registro y handshake HTTP con la API
+├── tests/
+│   └── test_ros2.py         # Tests del controlador/strategy ROS 2 (rclpy mockeado)
 └── robot/
     ├── __init__.py          # Exporta RobotController (real o mock según MOCK_ROBOT)
     ├── robot_controller.py  # Comunicación serial con Arduino
-    └── robot_mock_controller.py  # Mock sin hardware
+    ├── robot_mock_controller.py  # Mock sin hardware
+    └── ros2_controller.py   # Nodo rclpy: publica comandos / suscribe telemetría (import diferido)
 ```
 
 ## Variables de Entorno
@@ -52,9 +88,23 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | `CREATE_DEFAULT_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
 | `METADATA_FILE` | Ruta al archivo de credenciales | `./robot-metadata.json` |
-| `LOCAL_STRATEGY` | Strategy local al arrancar | `MockStrategy` |
+| `LOCAL_STRATEGY` | Strategy local al arrancar (`MockStrategy`/`SerialStrategy`/`Ros2Strategy`) | `MockStrategy` |
 | `REMOTE_STRATEGY` | Strategy remoto al arrancar | `WsStrategy` |
 | `SOCKET_PATH` | Ruta del Unix socket de gestión | `/tmp/robot-controller.sock` |
+| `ROS2_NODE_NAME` | Nombre del nodo rclpy (`Ros2Strategy`) | `labs_remoto_robot` |
+| `ROS2_COMMAND_TOPIC` | Topic donde se publican los comandos (`Ros2Strategy`) | `/inorbit/custom_command` |
+| `ROS2_DATA_TOPIC` | Topic de telemetría `Key=Value` que se suscribe (`Ros2Strategy`) | `/inorbit/custom_data` |
+| `ROS2_DOMAIN_ID` | Dominio DDS — debe coincidir con el agente ROS de la Pi (`Ros2Strategy`) | `42` |
+
+> **Ros2Strategy**: comunica con el robot vía ROS 2 (IPC interno de la Pi sobre DDS) en vez de serial.
+> Publica los comandos como `std_msgs/String` en `ROS2_COMMAND_TOPIC` y se suscribe a `ROS2_DATA_TOPIC`
+> para la telemetría (formato `Key=Value`, claves `Modo`/`Tension`/`Velocidad`). El agente ROS
+> contraparte (el `serial_scraper` que habla con el Arduino) es *fire-and-forget* (no responde
+> comandos), así que `read_response()` retorna un ack sintético. **Para que los nodos se descubran por
+> DDS, `ROS2_DOMAIN_ID` debe coincidir con el del agente (42).** `Ros2Controller.connect()` lo fija vía
+> `ROS_DOMAIN_ID` (la imagen Docker también lo hornea con `ENV ROS_DOMAIN_ID=42`). `rclpy` **no se
+> instala vía uv**: viene del entorno ROS 2 sourceado, y se importa de forma diferida (no rompe el modo
+> demo sin ROS 2).
 
 ## Flujo Principal
 

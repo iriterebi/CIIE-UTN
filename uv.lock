@@ -280,6 +280,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "types-requests" },
 ]
 
@@ -295,7 +296,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "types-requests", specifier = ">=2.32.4.20250913" }]
+dev = [
+    { name = "pytest", specifier = ">=8.3.0" },
+    { name = "types-requests", specifier = ">=2.32.4.20250913" },
+]
 
 [[package]]
 name = "click"

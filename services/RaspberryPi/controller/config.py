@@ -61,6 +61,30 @@ class Config(BaseSettings):
         description="Strategy remoto a usar al arrancar"
     )
 
+    ros2_node_name: str = Field(
+        default='labs_remoto_robot',
+        validation_alias=AliasChoices('ros2_node_name'),
+        description="Nombre del nodo rclpy (Ros2Strategy)"
+    )
+
+    ros2_command_topic: str = Field(
+        default='/inorbit/custom_command',
+        validation_alias=AliasChoices('ros2_command_topic'),
+        description="Topic ROS 2 donde se publican los comandos (Ros2Strategy)"
+    )
+
+    ros2_data_topic: str = Field(
+        default='/inorbit/custom_data',
+        validation_alias=AliasChoices('ros2_data_topic'),
+        description="Topic ROS 2 de telemetría Key=Value que se suscribe (Ros2Strategy)"
+    )
+
+    ros2_domain_id: int = Field(
+        default=42,
+        validation_alias=AliasChoices('ros2_domain_id'),
+        description="ROS_DOMAIN_ID DDS (Ros2Strategy); debe coincidir con el agente ROS de la Pi"
+    )
+
 
 config = Config() # pyright: ignore[reportCallIssue]
 

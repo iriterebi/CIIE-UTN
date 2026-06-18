@@ -21,12 +21,13 @@ from .strategy.base import Strategy, LocalStrategy
 from .strategy.registry import StrategyRegistry
 from .strategy.local.mock_strategy import MockStrategy
 from .strategy.local.serial_strategy import SerialStrategy
+from .strategy.local.ros2_strategy import Ros2Strategy
 from .strategy.remote.ws_strategy import WsStrategy
 
 
 registry = StrategyRegistry(
     remote=[WsStrategy],
-    local=[MockStrategy, SerialStrategy],
+    local=[MockStrategy, SerialStrategy, Ros2Strategy],
 )
 
 
@@ -37,6 +38,13 @@ def create_local(name: str) -> LocalStrategy:
             return MockStrategy(config.arduino_port)
         case "SerialStrategy":
             return SerialStrategy(config.arduino_port)
+        case "Ros2Strategy":
+            return Ros2Strategy(
+                node_name=config.ros2_node_name,
+                command_topic=config.ros2_command_topic,
+                data_topic=config.ros2_data_topic,
+                domain_id=config.ros2_domain_id,
+            )
         case _:
             available = ", ".join(registry.list_local())
             raise ValueError(f"Strategy local desconocido: '{name}'. Disponibles: {available}")

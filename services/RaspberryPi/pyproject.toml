@@ -17,4 +17,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "types-requests>=2.32.4.20250913",
+    "pytest>=8.3.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["controller/tests"]
