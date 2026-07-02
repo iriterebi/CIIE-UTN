@@ -19,8 +19,6 @@ POSTGRES_DB: str = _get_required_env('POSTGRES_DB')
 POSTGRES_URL: str = _get_required_env('POSTGRES_URL')
 
 
-ROSBRIDGE_URL: str = _get_required_env('ROSBRIDGE_URL')
-
 JWT_SECRET_KEY = _get_required_env("JWT_SECRET_KEY")
 JWT_ALGORITHM = _get_required_env("JWT_ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(

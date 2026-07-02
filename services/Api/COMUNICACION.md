@@ -2,7 +2,7 @@
 
 ## Motivación
 
-Preparar la API para migrar de rosbridge en el servidor (Escenario 2) a rosbridge en la Pi (Escenario 1). En el Escenario 1, el robot se conecta directamente a la API por WebSocket — ya no pasa por rosbridge como intermediario. El refactor abstrae la capa de transporte para que el cambio de topología no impacte la lógica de negocio.
+El robot se conecta directamente a la API por WebSocket (`/m2m/robot/connect`) — no hay intermediarios. El diseño abstrae la capa de transporte detrás de adapters (`StreamSource`) y conexiones (`StreamConnection`) para que la lógica del pipe usuario↔robot no dependa del protocolo concreto. Migrar a otro transporte en el futuro (ej. MQTT, otro mecanismo de IPC) implica agregar un nuevo adapter, no reescribir el pipe.
 
 ## Flujo de datos
 
@@ -50,16 +50,13 @@ user ws >--[UserStreamSource]-- UserConnection --[pipe]--> RobotConnection --[Pr
 | Adapter | Uso | Estado |
 |---|---|---|
 | `UserStreamSource` | WS del usuario → `StreamSource` | Estable |
-| `ProxyStreamSource` | Callback-based, para conexión directa del robot | Prototipo |
-| `RobotScopedStreamSource` | Rosbridge → `StreamSource` (legacy) | En deprecación |
-| `RobotWsStreamSource` | WS directo → `StreamSource` | Sin uso actual |
+| `ProxyStreamSource` | Callback-based, alimentado por el controller del WS del robot | En uso |
 
 ## Estructura de archivos
 
 | Archivo | Contenido | Por qué existe |
 |---|---|---|
 | `adapters/user_stream_source.py` | `UserStreamSource` | Adapta WS del usuario a `StreamSource`, valida payload per-mensaje sin matar la conexión |
-| `adapters/robot_stream_source.py` | `RobotScopedStreamSource`, `RobotWsStreamSource` | Rosbridge adapter (legacy, en deprecación) y WS directo (sin uso aún) |
 | `adapters/proxy_stream_source.py` | `ProxyStreamSource` | Adapter callback-based que invierte el control: el controller m2m maneja el WS y alimenta la queue. Desacopla el ciclo de vida del WS del robot del pipe |
 | `repositories/stream_entities.py` | `StreamSource`, `StreamConnection`, `RobotConnection`, `UserConnection`, `UsersXRobotMapType` | Entidades extraídas del repository. `StreamConnection` es abstracta con template method `_on_disconnect` para cleanup asimétrico (usuario cierra, robot persiste) |
 | `repositories/robot_connection.py` | `RobotConnectionRepository`, `RobotInUseError` | Fuente de verdad de conexiones activas. Garantiza consistencia (no duplicados, limpieza). Las conexiones del robot persisten entre pipes |

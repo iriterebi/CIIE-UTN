@@ -1,6 +1,6 @@
 """Modelos y manejo de comandos JSON-RPC 2.0 para el robot.
 
-Recibe comandos del topic ROS, los valida con pydantic,
+Recibe comandos desde el WS, los valida con pydantic,
 los ejecuta en el controlador del robot (serial o mock)
 y retorna respuestas JSON-RPC tipadas.
 """
@@ -8,7 +8,7 @@ y retorna respuestas JSON-RPC tipadas.
 import asyncio
 import logging
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # --- Modelos de entrada (comando del usuario/API) ---
 
 class JsonRpcCommand(BaseModel):
-    """Comando JSON-RPC 2.0 recibido via rosbridge."""
+    """Comando JSON-RPC 2.0 recibido desde la API."""
     jsonrpc: str = "2.0"
     method: str
     params: dict = {}
@@ -38,7 +38,7 @@ class JsonRpcResult(BaseModel):
 
 
 class JsonRpcResponse(BaseModel):
-    """Respuesta JSON-RPC 2.0 enviada via rosbridge."""
+    """Respuesta JSON-RPC 2.0 enviada a la API."""
     jsonrpc: str = "2.0"
     result: JsonRpcResult | None = None
     error: JsonRpcError | None = None

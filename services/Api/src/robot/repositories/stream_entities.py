@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Never, Protocol, final, override
+from typing import Any, Callable, Coroutine, Never, Protocol, final, override
 import asyncio
 import logging
 from ..entities import Robot
@@ -7,6 +7,28 @@ from ...auth.entities import User
 
 
 logger = logging.getLogger(__name__)
+
+
+class UserSideClosed(Exception):
+    """La conexión del lado usuario del pipe terminó (cierre normal o error)."""
+
+
+class RobotSideClosed(Exception):
+    """La conexión del lado robot del pipe terminó (cierre normal o error)."""
+
+
+async def _wrap_side(coro: Coroutine[Any, Any, Never], wrapper: type[Exception]) -> Never:
+    """Envuelve excepciones de un lado del pipe para discriminar el origen.
+
+    Solo se envuelve `Exception`: `CancelledError` (BaseException) se deja pasar
+    sin tocar para que `TaskGroup` la reconozca como cancelación interna y la
+    filtre del `ExceptionGroup` final.
+    """
+    try:
+        await coro
+    except Exception as e:
+        raise wrapper() from e
+    raise AssertionError("unreachable")
 
 class OnMessageCallback(Protocol):
     async def __call__(self, data: Any) -> None: ...  # pyright: ignore[reportExplicitAny, reportAny]
@@ -26,13 +48,19 @@ class StreamSource(Protocol):
     async def receive_data(self) -> Any: ...
     async def send_data(self, data: Any) -> None: ...  # pyright: ignore[reportExplicitAny, reportAny]
 
+
+type RemoveListener = Callable[[], None]
+
 class StreamConnection(ABC):
     def __init__(self, ws: StreamSource):
         self.ws: StreamSource = ws
         self._onMessageCallbacks: list[OnMessageCallback] = []
 
-    def on(self, callback: OnMessageCallback):
+    def on(self, callback: OnMessageCallback) -> RemoveListener:
         self._onMessageCallbacks.append(callback)
+
+        return lambda : self._onMessageCallbacks.remove(callback)
+
 
     async def connect(self)-> Never:
         await self.ws.accept()
@@ -102,22 +130,33 @@ class UsersXRobotMapType:
         self.user = user
         self.robot = robot
         self._tasks: list[asyncio.Task[Never]] = []
+        self._disconnectables: list[RemoveListener] = []
 
     @property
     def connected(self) -> bool:
         return len(self._tasks) > 0
 
     async def connect(self):
-        self.user.on(self.robot.send)
-        self.robot.on(self.user.send)
+        self._disconnectables += [
+            self.user.on(self.robot.send),
+            self.robot.on(self.user.send)
+        ]
 
         async with asyncio.TaskGroup() as tg:
-            self._tasks = [
-                tg.create_task(self.user.connect()),
-                tg.create_task(self.robot.connect()),
+            self._tasks += [
+                tg.create_task(_wrap_side(self.user.connect(), UserSideClosed)),
+                tg.create_task(_wrap_side(self.robot.connect(), RobotSideClosed)),
             ]
 
     def disconnect(self):
         for task in self._tasks:
             _ = task.cancel()
+
+        for func in self._disconnectables:
+            try:
+                func()
+            except Exception:
+                logger.warning("Listener cleanup raised", exc_info=True)
+
         self._tasks = []
+        self._disconnectables = []

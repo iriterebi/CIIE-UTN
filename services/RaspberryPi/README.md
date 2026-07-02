@@ -2,7 +2,7 @@
 
 > [Leer en español](./README.es.md)
 
-Controller that runs on each Raspberry Pi connected to a robot. It registers and authenticates with the central API (FastAPI), then connects to rosbridge via WebSocket to receive ROS commands and publish responses/status. Controls the Arduino via serial port.
+Controller that runs on each Raspberry Pi connected to a robot. It registers and authenticates with the central API (FastAPI), then opens a WebSocket directly to the API to receive JSON-RPC 2.0 commands and publish responses/status. Controls the Arduino via serial port.
 
 ## Table of Contents
 
@@ -16,25 +16,26 @@ Controller that runs on each Raspberry Pi connected to a robot. It registers and
 ## Architecture
 
 ```
-API (FastAPI)                    rosbridge (:9090)                Arduino
-     │                               ▲     │                        ▲
-     │ HTTP (register/handshake)     │     │ WS (subscribe)        │ Serial
-     ▼                               │     ▼                        │
-┌─────────────────────────────────────────────────────────────────────┐
-│                         RaspberryPi                                 │
-│  server/ ──register+handshake──►   rosbridge/ ──commands──► robot/  │
-└─────────────────────────────────────────────────────────────────────┘
+                 API (FastAPI)                                        Arduino
+                      ▲                                                  ▲
+                      │ HTTP (register/handshake) + WS (commands)        │ Serial
+                      │                                                  │
+┌─────────────────────┴──────────────────────────────────────────────────┴─┐
+│                            RaspberryPi (controller)                      │
+│  server/ ──register+handshake──►  strategy/remote/ ──commands──► robot/  │
+│                                   (ws_strategy)                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Registration & handshake** (HTTP): the Pi registers with the API and obtains a JWT + topic base (`/robot/r<base32>`)
-2. **Commands** (WebSocket via rosbridge): the Pi subscribes to its command topic and publishes responses/status
+1. **Registration & handshake** (HTTP): the Pi registers with the API and obtains a JWT
+2. **Commands** (WebSocket directly to the API): the Pi connects to `/m2m/robot/connect` and exchanges JSON-RPC 2.0 messages
 3. **Robot control** (Serial): translates JSON-RPC 2.0 commands to serial instructions for the Arduino
 
 ## Prerequisites
 
 - Python 3.13.7+
 - uv package manager
-- Access to the API and rosbridge (local or via Docker network)
+- Access to the API (local or via Docker network)
 
 ## Running
 
@@ -51,7 +52,6 @@ Defined in `.env.defaults` (defaults), overridden by `.env`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | API M2M base URL | `http://localhost:8000/m2m/robot/` |
-| `ROSBRIDGE_URL` | rosbridge WebSocket URL | `ws://localhost:9090` |
 | `ARDUINO_PORT` | Arduino serial port | (specific USB path) |
 | `CREATE_DEFAULT_METADATA` | `1` to auto-generate credentials on startup | `1` |
 | `MOCK_ROBOT` | `1` to use mock controller without hardware | `1` |
@@ -69,18 +69,16 @@ Defined in `.env.defaults` (defaults), overridden by `.env`:
 1. `register()` — `POST /m2m/robot/register` with `{external_identifier, psw}` (idempotent)
 2. `connect_with_retry()` — retries `POST /m2m/robot/handshake` (HTTP Basic) with exponential backoff:
    - 403 → robot pending approval, waits and retries (5s → 10s → 20s... up to 300s max)
-   - 200 → handshake successful, returns JWT + topic base
+   - 200 → handshake successful, returns JWT
    - Other error → log warning + retry with backoff
 3. An admin must approve the robot via `POST /admin/robot/{id}/approve` for the handshake to return 200
 
-### 3. Operation (async, via rosbridge)
+### 3. Operation (async, WS directly to the API)
 
 1. Enters the robot context manager (opens serial port or mock)
-2. `PiRosBridgeClient` connects to rosbridge via WebSocket
-3. Subscribes to `/robot/r<base32>/command` to receive JSON-RPC 2.0 commands
-4. On receiving a command, executes it on the robot (serial I/O via `run_in_executor`)
-5. Publishes the response to `/robot/r<base32>/response`
-6. Publishes periodic status (every 5s) to `/robot/r<base32>/status`
+2. `WsStrategy` opens a WebSocket to `/m2m/robot/connect` and authenticates with the JWT
+3. Receives JSON-RPC 2.0 commands from the WS, executes them on the robot (serial I/O via `run_in_executor`)
+4. Sends responses and periodic status (every 5s) over the same WS
 
 Automatic reconnection with exponential backoff (1s → 30s) if the connection is lost.
 

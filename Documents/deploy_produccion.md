@@ -13,10 +13,9 @@
 - [Estructura de Archivos](#estructura-de-archivos)
   - [Quadlets](#quadlets-archivos)
   - [Archivos de soporte](#archivos-de-soporte)
-- [Los 5 Servicios](#los-5-servicios)
+- [Los 4 Servicios](#los-4-servicios)
   - [db — PostgreSQL](#db--postgresql)
   - [api — FastAPI](#api--fastapi)
-  - [rosbridge — RosBridge](#rosbridge--rosbridge)
   - [webclient — SPA Vue 3](#webclient--spa-vue-3)
   - [proxy — nginx reverse proxy](#proxy--nginx-reverse-proxy)
 - [Red y Comunicación](#red-y-comunicación)
@@ -38,7 +37,7 @@
 
 ## Visión General
 
-El deploy de producción usa **Podman Quadlets** para correr los 5 servicios del sistema como contenedores gestionados por systemd. Las imágenes se compilan localmente en la máquina del desarrollador y se transfieren al servidor vía SSH — no se compila nada en el servidor.
+El deploy de producción usa **Podman Quadlets** para correr los 4 servicios del sistema como contenedores gestionados por systemd. Las imágenes se compilan localmente en la máquina del desarrollador y se transfieren al servidor vía SSH — no se compila nada en el servidor.
 
 ```
 [Dev local]                                [Servidor]
@@ -102,14 +101,14 @@ journalctl -u api -f         # Seguir logs
                │  ┌─────────────────────────────────────────┐ │
                │  │             proxy (nginx)                │ │
                │  │               :80                        │ │
-               │  └──┬──────────┬──────────┬────────────────┘ │
-               │     │          │          │                   │
-               │     ▼          ▼          ▼                   │
-               │  ┌───────┐ ┌──────┐ ┌───────────┐            │
-               │  │  api  │ │ web  │ │ rosbridge │            │
-               │  │:8000  │ │client│ │   :9090   │            │
-               │  └───┬───┘ │ :80  │ └───────────┘            │
-               │      │     └──────┘                           │
+               │  └──┬──────────────────┬─────────────────────┘ │
+               │     │                  │                       │
+               │     ▼                  ▼                       │
+               │  ┌───────┐         ┌──────┐                   │
+               │  │  api  │         │ web  │                   │
+               │  │:8000  │         │client│                   │
+               │  └───┬───┘         │ :80  │                   │
+               │      │             └──────┘                   │
                │      ▼                                        │
                │  ┌──────┐                                     │
                │  │  db  │                                     │
@@ -128,7 +127,7 @@ journalctl -u api -f         # Seguir logs
 | **SPA** | Vite dev server (:5173) o nginx (:3000) | nginx en contenedor webclient, proxeado por proxy |
 | **TLS** | No | No (por ahora — se agrega después) |
 | **Build** | Docker build en cada máquina | Build local → transfer SSH → podman load |
-| **Puertos expuestos** | Todos los servicios publican puertos | Solo proxy (:80), db y rosbridge en 127.0.0.1 |
+| **Puertos expuestos** | Todos los servicios publican puertos | Solo proxy (:80) y db en 127.0.0.1 |
 | **Env vars** | `.env` en cada subproyecto | `/etc/containers/env/` en el servidor |
 
 ---
@@ -143,7 +142,6 @@ quadlets/
 ├── db-data.volume              # Volumen persistente para PostgreSQL
 ├── db.container                # PostgreSQL 17.5-alpine
 ├── api.container               # FastAPI
-├── rosbridge.container         # rosbridge_suite (ROS 2)
 ├── webclient.container         # SPA Vue 3 + nginx
 ├── proxy.container             # nginx reverse proxy (punto de entrada)
 ├── deploy.sh                   # Script de build + deploy via SSH
@@ -165,7 +163,7 @@ La config original `services/Proxy/nginx.conf` se mantiene como referencia de la
 
 ---
 
-## Los 5 Servicios
+## Los 4 Servicios
 
 ### db — PostgreSQL
 
@@ -181,14 +179,7 @@ La config original `services/Proxy/nginx.conf` se mantiene como referencia de la
 - **Contexto de build**: raíz del repositorio (necesita `pyproject.toml` de raíz + `services/Api/`)
 - **Puerto**: no publicado — solo accesible por el proxy a través de la red interna
 - **Env file**: `/etc/containers/env/api.env`
-- **Depende de**: db, rosbridge
-
-### rosbridge — RosBridge
-
-- **Imagen**: `localhost/labs-remoto/rosbridge` (compilada desde `services/RosBridge/Dockerfile`)
-- **Puerto**: `127.0.0.1:9090` (localhost para acceso de las RaspberryPi vía proxy)
-- **Environment**: `ROS_DOMAIN_ID=0`
-- **Comando**: `ros2 launch /ros_bridge_ws/launch/bridge.launch.py`
+- **Depende de**: db
 
 ### webclient — SPA Vue 3
 
@@ -202,7 +193,7 @@ La config original `services/Proxy/nginx.conf` se mantiene como referencia de la
 - **Imagen**: `localhost/labs-remoto/proxy` (compilada desde `services/Proxy/Dockerfile`)
 - **Puerto**: `80` (punto de entrada público)
 - **Config**: `services/Proxy/nginx.container.conf`
-- **Depende de**: api, webclient, rosbridge
+- **Depende de**: api, webclient
 
 El proxy reemplaza al nginx instalado en el host. Rutea tráfico a los demás servicios por hostname:
 
@@ -211,8 +202,7 @@ El proxy reemplaza al nginx instalado en el host. Rutea tráfico a los demás se
 | `/` | `webclient:80` | HTTP (proxy a la SPA) |
 | `/api/*` | `api:8000` | HTTP (quita prefijo `/api`) |
 | `/ws/*` | `api:8000` | WebSocket (quita prefijo `/ws`) |
-| `/m2m/*` | `api:8000` | HTTP (solo intranet) |
-| `/rosbridge/` | `rosbridge:9090` | WebSocket (solo intranet) |
+| `/m2m/*` | `api:8000` | HTTP + WebSocket (`/m2m/robot/connect`, solo intranet) |
 
 ---
 
@@ -223,10 +213,10 @@ Todos los contenedores están en la red `labs-remoto` y se resuelven por nombre 
 ```
 proxy ──► api:8000
 proxy ──► webclient:80
-proxy ──► rosbridge:9090
 api   ──► db:5432
-api   ──► rosbridge:9090 (WebSocket)
 ```
+
+La Pi de cada robot abre un WebSocket entrante hacia `/m2m/robot/connect` que termina en el proxy y se proxea al `api`. No hay otro servicio escuchando en la red `labs-remoto`.
 
 Los puertos publicados al host son mínimos:
 
@@ -234,7 +224,6 @@ Los puertos publicados al host son mínimos:
 |----------|---------------|--------|
 | proxy | `0.0.0.0:80` | Punto de entrada público |
 | db | `127.0.0.1:5432` | Migraciones con dbmate desde localhost |
-| rosbridge | `127.0.0.1:9090` | Acceso local para debugging |
 | api | — | Solo accesible via proxy |
 | webclient | — | Solo accesible via proxy |
 
@@ -243,13 +232,12 @@ Los puertos publicados al host son mínimos:
 ## Cadena de Dependencias
 
 ```
-db ─────────┐
-             ├──► api ──────┐
-rosbridge ──┘               ├──► proxy
-webclient ──────────────────┘
+db ──► api ──┐
+              ├──► proxy
+webclient ───┘
 ```
 
-systemd respeta estas dependencias automáticamente. Al ejecutar `systemctl start proxy`, arranca primero db y rosbridge, luego api y webclient, y finalmente proxy.
+systemd respeta estas dependencias automáticamente. Al ejecutar `systemctl start proxy`, arranca primero db, luego api y webclient, y finalmente proxy.
 
 Las dependencias se declaran en los archivos `.container` con las directivas:
 - `Requires=` — el servicio no puede arrancar sin sus dependencias
@@ -274,13 +262,12 @@ POSTGRES_PASSWORD=<contraseña>
 POSTGRES_USER=<usuario>
 POSTGRES_DB=ciie_db
 POSTGRES_URL=db:5432
-ROSBRIDGE_URL=ws://rosbridge:9090
 JWT_SECRET_KEY=<clave_secreta>
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
 
-Notar que `POSTGRES_URL` y `ROSBRIDGE_URL` usan los hostnames de los contenedores (`db`, `rosbridge`), no `localhost`.
+Notar que `POSTGRES_URL` usa el hostname del contenedor (`db`), no `localhost`.
 
 ---
 
@@ -324,7 +311,6 @@ Cuando se ejecuta `deploy.sh` sin flags, el flujo es:
  1. podman build
     services/Api/Dockerfile         → localhost/labs-remoto/api
     services/WebClient/Dockerfile   → localhost/labs-remoto/webclient
-    services/RosBridge/Dockerfile   → localhost/labs-remoto/rosbridge
     services/Proxy/Dockerfile       → localhost/labs-remoto/proxy
 
  2. podman save
@@ -336,7 +322,7 @@ Cuando se ejecuta `deploy.sh` sin flags, el flujo es:
  4. ssh + podman load     ◄─────────────────── Carga las imágenes
 
  5. ssh + systemctl       ◄─────────────────── Reinicia los servicios
-    restart db rosbridge api webclient proxy
+    restart db api webclient proxy
 
  6. Limpieza local
     Elimina quadlets/.build-cache/
@@ -381,8 +367,8 @@ El script permite ejecutar solo una parte del flujo:
 # Desplegar imágenes ya compiladas, sin reiniciar
 ./quadlets/deploy.sh admin@192.168.1.100 -c api -c proxy -d --no-reload
 
-# Compilar y desplegar solo rosbridge
-./quadlets/deploy.sh admin@192.168.1.100 -c rosbridge
+# Compilar y desplegar solo el webclient
+./quadlets/deploy.sh admin@192.168.1.100 -c webclient
 ```
 
 ---
@@ -391,7 +377,7 @@ El script permite ejecutar solo una parte del flujo:
 
 ```bash
 # Ver estado de todos los servicios
-sudo systemctl status db api rosbridge webclient proxy
+sudo systemctl status db api webclient proxy
 
 # Seguir logs de un servicio en tiempo real
 sudo journalctl -u api -f
@@ -400,10 +386,10 @@ sudo journalctl -u api -f
 sudo systemctl restart api
 
 # Detener todo
-sudo systemctl stop proxy api webclient rosbridge db
+sudo systemctl stop proxy api webclient db
 
 # Ver logs combinados de todos los servicios
-sudo journalctl -u db -u api -u rosbridge -u webclient -u proxy -f
+sudo journalctl -u db -u api -u webclient -u proxy -f
 
 # Ejecutar migraciones de base de datos
 cd services/Db
@@ -423,7 +409,7 @@ La documentación en [`red_y_despliegue.md`](./red_y_despliegue.md) describe la 
 | **Config** | `services/Proxy/nginx.conf` | `services/Proxy/nginx.container.conf` |
 | **TLS** | certbot + Let's Encrypt | No (por ahora) |
 | **SPA** | Archivos estáticos en `/var/www/labs-remoto/` | `proxy_pass http://webclient:80` |
-| **Upstreams** | `127.0.0.1:8000`, `127.0.0.1:9090` | `api:8000`, `rosbridge:9090` |
+| **Upstreams** | `127.0.0.1:8000` | `api:8000`, `webclient:80` |
 | **Restricción intranet** | `allow`/`deny` por IP | Misma lógica, verificar con red de Podman |
 
 La topología de red y las decisiones documentadas en `red_y_despliegue.md` siguen siendo válidas — lo que cambió es la implementación del proxy, no el diseño.

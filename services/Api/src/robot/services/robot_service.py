@@ -25,7 +25,7 @@ class RobotService:
         return self.repository.list()
 
     def get_robot_by_id(self, robot_id: str | PythonUUID) -> Robot | None:
-        return self.repository.get_by_id(robot_id)
+        return self.repository.get_by_id(str(robot_id))
 
     def exists(self, robot_id: str | PythonUUID) -> bool:
         return self.get_robot_by_id(robot_id) is not None

@@ -32,10 +32,9 @@ sudo certbot --nginx -d <DOMINIO>
 ## Responsabilidades de nginx
 
 1. **Servir la SPA** — archivos estáticos de Vue 3 en `/var/www/labs-remoto`, con `try_files` para SPA fallback
-2. **Reverse proxy a la API** — rutas `/api/*` y `/ws/*` hacia FastAPI (`127.0.0.1:8000`)
-3. **Reverse proxy a RosBridge** — ruta `/rosbridge/` hacia rosbridge (`127.0.0.1:9090`), WebSocket
-4. **TLS termination** — certificados SSL vía Let's Encrypt / certbot
-5. **Control de acceso** — rutas `/m2m/*` y `/rosbridge/` restringidas a IPs de intranet
+2. **Reverse proxy a la API** — rutas `/api/*`, `/ws/*` y `/m2m/*` hacia FastAPI (`127.0.0.1:8000`)
+3. **TLS termination** — certificados SSL vía Let's Encrypt / certbot
+4. **Control de acceso** — la ruta `/m2m/*` (registro, handshake y WS de robots) está restringida a IPs de intranet
 
 ## Mapa de Rutas
 
@@ -44,26 +43,24 @@ sudo certbot --nginx -d <DOMINIO>
 | `/` | SPA (`/var/www/labs-remoto`) | HTTP | Público |
 | `/api/*` | API (:8000), quita prefijo `/api` | HTTP | Público |
 | `/ws/*` | API (:8000), quita prefijo `/ws` | WebSocket | Público |
-| `/m2m/*` | API (:8000) | HTTP | Solo intranet |
-| `/rosbridge/` | RosBridge (:9090) | WebSocket | Solo intranet |
+| `/m2m/*` | API (:8000) | HTTP + WebSocket (`/m2m/robot/connect`) | Solo intranet |
 
 ## Upstreams
 
 Los servicios Docker deben publicar puertos solo en `127.0.0.1` para que no sean accesibles directamente desde la red — solo nginx los expone:
 
 - `127.0.0.1:8000` → API (FastAPI)
-- `127.0.0.1:9090` → RosBridge
 
 ## WebSocket — Timeouts
 
 - `/ws/*` (usuario↔API): `proxy_read_timeout 3600s` (1 hora)
-- `/rosbridge/` (Pi↔RosBridge): `proxy_read_timeout 86400s` (24 horas)
+- `/m2m/*` (Pi↔API, `/m2m/robot/connect`): `proxy_read_timeout 86400s` (24 horas)
 
 Los timeouts largos evitan que nginx corte conexiones WebSocket inactivas (default: 60s). Se complementan con ping/pong a nivel aplicación.
 
 ## Restricción de Intranet
 
-Las rutas `/m2m/*` y `/rosbridge/` usan `allow`/`deny` para restringir acceso a rangos de IP privados:
+La ruta `/m2m/*` usa `allow`/`deny` para restringir acceso a rangos de IP privados:
 
 ```nginx
 allow 10.0.0.0/8;

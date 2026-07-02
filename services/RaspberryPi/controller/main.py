@@ -2,12 +2,9 @@
 
 """Punto de entrada del controlador de robot.
 
-Flujo:
-1. (sync) Carga config, registra el robot en la API, handshake con retry
-2. (async) Conecta a rosbridge, escucha comandos y publica estado
+Construye el registro de strategies, selecciona por config, inyecta en el core y arranca.
 """
 
-import argparse
 import asyncio
 import logging
 import sys
@@ -19,44 +16,66 @@ logging.basicConfig(
 )
 
 from .config import config
-from .server.server_service import ServerServices
-from .robot import RobotController
-from .rosbridge import PiRosBridgeClient
-from .rosbridge.json_rpc import handle_json_rpc
-from .server.server_service import RobotCredentials
+from .core import MicroCore
+from .strategy.base import Strategy, LocalStrategy
+from .strategy.registry import StrategyRegistry
+from .strategy.local.mock_strategy import MockStrategy
+from .strategy.local.serial_strategy import SerialStrategy
+from .strategy.local.ros2_strategy import Ros2Strategy
+from .strategy.remote.ws_strategy import WsStrategy
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Controlador de robot — se registra en la API y escucha comandos vía rosbridge."
+registry = StrategyRegistry(
+    remote=[WsStrategy],
+    local=[MockStrategy, SerialStrategy, Ros2Strategy],
+)
+
+
+def create_local(name: str) -> LocalStrategy:
+    """Factory: instancia un strategy local por nombre."""
+    match name:
+        case "MockStrategy":
+            return MockStrategy(config.arduino_port)
+        case "SerialStrategy":
+            return SerialStrategy(config.arduino_port)
+        case "Ros2Strategy":
+            return Ros2Strategy(
+                node_name=config.ros2_node_name,
+                command_topic=config.ros2_command_topic,
+                data_topic=config.ros2_data_topic,
+                domain_id=config.ros2_domain_id,
+            )
+        case _:
+            available = ", ".join(registry.list_local())
+            raise ValueError(f"Strategy local desconocido: '{name}'. Disponibles: {available}")
+
+
+def create_remote(name: str) -> Strategy:
+    """Factory: instancia un strategy remoto por nombre."""
+    match name:
+        case "WsStrategy":
+            return WsStrategy(
+                server_url=config.server_url,
+                metadata_file=config.metadata_file,
+                create_default_metadata=config.create_default_metadata,
+            )
+        case _:
+            available = ", ".join(registry.list_remote())
+            raise ValueError(f"Strategy remoto desconocido: '{name}'. Disponibles: {available}")
+
+
+async def async_main():
+    local = create_local(config.local_strategy)
+    remote = create_remote(config.remote_strategy)
+
+    core = MicroCore(
+        local=local,
+        remote=remote,
+        registry=registry,
+        socket_path=config.socket_path,
     )
-    parser.add_argument(
-        '--metadata-file',
-        default=config.metadata_file,
-        help="Ruta al archivo de credenciales del robot (default: env METADATA_FILE o ./robot-metadata.json)",
-    )
-    return parser.parse_args()
-
-
-async def async_main(credentials: RobotCredentials, robot):
-    logging.info("Iniciando comunicación con rosbridge vía WebSocket. %s", config.rosbridge_url)
-    """Fase operativa: comunicación con rosbridge vía WebSocket."""
-    async with PiRosBridgeClient(config.rosbridge_url, credentials) as client:
-        await client.run(
-            on_command=lambda cmd: handle_json_rpc(cmd, robot),
-            get_status=robot.get_status,
-        )
+    await core.run()
 
 
 def main():
-    args = parse_args()
-
-    with (
-        ServerServices(
-            base_url=config.server_url,
-            metadata_file=args.metadata_file,
-            create_default_config=config.create_default_metadata,
-        ) as service,
-        RobotController(config.arduino_port) as robot,
-    ):
-        asyncio.run(async_main(service.credentials, robot))
+    asyncio.run(async_main())

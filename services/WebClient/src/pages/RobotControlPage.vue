@@ -8,7 +8,7 @@ import RobotCommandPanel from '../components/RobotCommandPanel.vue'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { status, messages, error, connect, sendCommand, disconnect } = useRobotSocket()
+const { status, messages, error, connect, sendCommand, disconnect, clearMessagesHistory, robotState } = useRobotSocket()
 
 const robotId = route.params.id as string
 const robotAccessToken = history.state.robotAccessToken as string | undefined
@@ -43,6 +43,8 @@ onUnmounted(() => {
   <RobotCommandPanel
     :status="status"
     :messages="messages"
+    :robotState="robotState"
     @send="sendCommand"
+    @clear="clearMessagesHistory"
   />
 </template>

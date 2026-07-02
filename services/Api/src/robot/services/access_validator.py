@@ -1,32 +1,17 @@
 import logging
-from datetime import datetime
 from uuid import UUID
-from warnings import deprecated
 
 from ..entities.errors import RobotAccessException
-from ..entities.json_rpc_commands import UserWsAuthentication
 from ...auth.services import EncryptionServiceDep
 
-
-#
-# # Create a logger instance
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.NOTSET)  # Set the desired logging level
-#
-# # Create a console handler and formatter
-# handler = logging.StreamHandler()
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
+logger = logging.getLogger(__name__)
 
 
 class UserRobotAccessSession:
     username: str
-    expiration_time: datetime
 
-    def __init__(self, username: str, expiration_time: datetime):
+    def __init__(self, username: str):
         self.username = username
-        self.expiration_time = expiration_time
 
 
 class AccessValidator:
@@ -35,13 +20,15 @@ class AccessValidator:
 
     def grant_access(self, token: str, robot_id: UUID, user_session: UserRobotAccessSession | None) -> bool:
         try:
-            print(f"Decoding token: {token}")
-            print(f"robot_id: {robot_id}")
-            print(f"user_session", user_session)
+            # TODO: deleteme — logs de debug que exponen el JWT y el payload, eliminar en fases posteriores
+            logger.debug("Decoding token: %s", token)
+            logger.debug("robot_id: %s", robot_id)
+            logger.debug("user_session: %s", user_session)
 
             data = self.encryption_service.decode_token(token)
 
-            print(f"data {data}")
+            # TODO: deleteme — expone el payload decodificado, eliminar en fases posteriores
+            logger.debug("data %s", data)
 
             return (
                     ('type' in data and data['type'] == "robot_access") and
@@ -55,23 +42,12 @@ class AccessValidator:
                          and data.get("sub") == user_session.username) if user_session is not None else True
                     )
             )
-        except Exception as e:
-            print(f"Error decoding token: {token}")
+        except Exception:
+            # TODO: deleteme — log incluye el JWT, eliminar en fases posteriores
+            logger.warning("Error decoding token: %s", token, exc_info=True)
             return False
 
     def validate_grant_access(self, token: str, robot_id: UUID, user_session: UserRobotAccessSession) -> None:
-        print("Validating grant access token")
+        logger.debug("Validating grant access token")
         if not self.grant_access(token, robot_id, user_session):
             raise RobotAccessException(robot_id)
-
-    @deprecated("Use Auth service instead")
-    def create_robot_access_session(self, user_auth: UserWsAuthentication) -> UserRobotAccessSession:
-        token = user_auth.token
-
-        decoded_payload = self.encryption_service.decode_token(token)
-
-        username: str = decoded_payload.get("sub")
-        expiration = datetime.fromtimestamp(decoded_payload.get("exp"))
-
-
-        return UserRobotAccessSession(username, expiration)

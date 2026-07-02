@@ -12,7 +12,6 @@ services:
     restart: unless-stopped
     depends_on:
       - db-dev
-      - rosbridge
 
 networks:
   ciie-test:

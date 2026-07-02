@@ -14,7 +14,6 @@ quadlets/
 ├── db-data.volume              # Volumen persistente para PostgreSQL
 ├── db.container                # PostgreSQL 17.5-alpine
 ├── api.container               # FastAPI (imagen: localhost/labs-remoto/api)
-├── rosbridge.container         # rosbridge_suite (imagen: localhost/labs-remoto/rosbridge)
 ├── webclient.container         # SPA Vue 3 + nginx (imagen: localhost/labs-remoto/webclient)
 ├── proxy.container             # nginx reverse proxy (imagen: localhost/labs-remoto/proxy)
 ├── deploy.sh                   # Script de build local + deploy via SSH
@@ -52,19 +51,17 @@ Todos los contenedores están en la red `labs-remoto` y se resuelven por hostnam
 |----------|----------|----------------|
 | `db` | PostgreSQL | 5432 |
 | `api` | FastAPI | 8000 |
-| `rosbridge` | rosbridge_suite | 9090 |
 | `webclient` | nginx (SPA) | 80 |
 | `proxy` | nginx (reverse proxy) | 80 |
 
-Solo el proxy expone el puerto 80 al exterior. Db y rosbridge publican puertos solo en `127.0.0.1` (para migraciones y acceso local).
+Solo el proxy expone el puerto 80 al exterior. Db publica puertos solo en `127.0.0.1` (para migraciones y acceso local).
 
 ## Cadena de dependencias (systemd)
 
 ```
-db ─────────┐
-             ├──► api ──────┐
-rosbridge ──┘               ├──► proxy
-webclient ──────────────────┘
+db ──► api ──┐
+              ├──► proxy
+webclient ───┘
 ```
 
 `systemctl start proxy` arranca toda la cadena automáticamente.
@@ -76,7 +73,7 @@ Los archivos `.env` no están en el repositorio — se configuran manualmente en
 | Archivo | Ruta en servidor | Variables |
 |---------|-----------------|-----------|
 | `db.env` | `/etc/containers/env/db.env` | `POSTGRES_PASSWORD`, `POSTGRES_USER`, `POSTGRES_DB` |
-| `api.env` | `/etc/containers/env/api.env` | `POSTGRES_*`, `POSTGRES_URL=db:5432`, `ROSBRIDGE_URL=ws://rosbridge:9090`, `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` |
+| `api.env` | `/etc/containers/env/api.env` | `POSTGRES_*`, `POSTGRES_URL=db:5432`, `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` |
 
 ## Imágenes
 
@@ -84,7 +81,6 @@ Los archivos `.env` no están en el repositorio — se configuran manualmente en
 |-----|------------|-------------------|
 | `localhost/labs-remoto/api` | `services/Api/Dockerfile` | Raíz del repo (necesita `pyproject.toml` de raíz) |
 | `localhost/labs-remoto/webclient` | `services/WebClient/Dockerfile` | `services/WebClient/` |
-| `localhost/labs-remoto/rosbridge` | `services/RosBridge/Dockerfile` | `services/RosBridge/` |
 | `localhost/labs-remoto/proxy` | `services/Proxy/Dockerfile` | `services/Proxy/` |
 
 ## Proxy (nginx containerizado)
@@ -92,9 +88,9 @@ Los archivos `.env` no están en el repositorio — se configuran manualmente en
 El proxy usa `services/Proxy/nginx.container.conf` (no `services/Proxy/nginx.conf`, que es la versión para host). Diferencias clave:
 
 - Sin TLS (se agregará después)
-- Upstreams apuntan a hostnames de contenedores (`api:8000`, `rosbridge:9090`)
+- Upstreams apuntan a hostnames de contenedores (`api:8000`, `webclient:80`)
 - SPA proxeada al contenedor webclient (`proxy_pass http://webclient`) en vez de servir archivos estáticos
-- Mantiene restricciones de intranet en `/m2m/` y `/rosbridge/`
+- Mantiene restricción de intranet en `/m2m/` (registro + handshake + WS de robots)
 
 ## Convenciones
 

@@ -11,15 +11,15 @@ from uuid import UUID as PythonUUID
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jwt import ExpiredSignatureError
+from pydantic import ValidationError
 
 from ..entities.robot import Robot, RobotStreamAutentication
 from ..adapters import ProxyStreamSource
 from ..repositories.robot_connection import RobotConnectionRepositoryDep
 from ..services.handshake_service import HandshakeService, HandshakeServiceDep
 from ..services import (
-    RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult
+    RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult, RobotResponse
 )
-from ..utils.crockford_base32 import uuid_to_crockford_base32
 
 router = APIRouter(tags=["robots", "m2m"])
 
@@ -44,10 +44,9 @@ def login(
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
     handshake_service: Annotated[HandshakeService, Depends(HandshakeService)]
 ) -> RobotHandshakeResult:
-    accessToken, robot = handshake_service.create_access_token_by_basic_credentials(credentials)
+    accessToken, _ = handshake_service.create_access_token_by_basic_credentials(credentials)
     return RobotHandshakeResult(
         access_token=accessToken,
-        topic=f"/robot/r{uuid_to_crockford_base32(str(robot.id))}"
     )
 
 @router.websocket('/connect')
@@ -105,21 +104,24 @@ async def robot_connection(
 
     # ====
 
-    accepting: bool = False
+    # Flag activado cuando hay un usuario consumiendo el pipe (gated por
+    # on_idle_changed desde RobotConnection). Sin consumidor → no se
+    # enqueuan mensajes para evitar llenar la queue sin lectores.
+    pipe_active: bool = False
 
-    async def idk(val: bool):
-        nonlocal accepting
-        accepting = val
-        logger.info("Accepting: %s", accepting)
+    async def set_pipe_active(idle: bool) -> None:
+        nonlocal pipe_active
+        pipe_active = not idle
+        logger.info("Pipe active: %s", pipe_active)
 
-    def idk2(val: bool):
-        return lambda: idk(val)
+    async def noop_async() -> None:
+        return None
 
     streamSource = ProxyStreamSource(
         on_recieve=lambda data: websocket.send_json(data),  # pyright: ignore[reportAny]
-        on_accept=idk2(True),
-        on_disconnect=idk2(False),
-        on_idle_changed=idk
+        on_accept=noop_async,
+        on_disconnect=noop_async,
+        on_idle_changed=set_pipe_active,
     )
 
 
@@ -128,8 +130,14 @@ async def robot_connection(
 
     async for message in websocket.iter_json():
         logger.info("Message received: %s", message)
-        if accepting:
-            await streamSource.enqueue_data(message)  # pyright: ignore[reportUnreachable]
+        if not pipe_active:
+            continue
+        try:
+            validated = RobotResponse.model_validate(message)
+        except ValidationError:
+            logger.warning("Mensaje del robot mal formado, descartando: %s", message)
+            continue
+        await streamSource.enqueue_data(validated.model_dump(mode="python"))
 
 
 

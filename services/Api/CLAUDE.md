@@ -20,7 +20,7 @@ Requiere las variables de entorno definidas en `src/config.py` (ver sección Var
 
 ```
 src/
-├── server.py                          # Punto de entrada. Monta los 4 routers, lifespan conecta RosBridgeClient
+├── server.py                          # Punto de entrada. Monta los 4 routers
 ├── config.py                          # Carga y valida env vars (falla al iniciar si faltan)
 │
 ├── db_connection/
@@ -42,26 +42,23 @@ src/
 ├── robot/                             # Módulo de robots
 │   ├── entities/                      # Modelos de dominio, DTOs, excepciones, constantes
 │   │   ├── robot.py                   # Robot SQLModel (tabla: robots) + DTOs + RobotStatus enum + RobotStreamAutentication
-│   │   ├── json_rpc_commands.py       # Modelos: RRobotCommand, RobotCommand, RobotResponse, UserWsAuthentication
+│   │   ├── json_rpc_commands.py       # Modelos: RRobotCommand, RobotResponse, UserWsAuthentication
 │   │   └── errors.py                 # Excepciones serializables + códigos de error JSON-RPC
 │   ├── adapters/                      # Implementaciones concretas de StreamSource (ver Arquitectura de Comunicación)
 │   │   ├── user_stream_source.py      # UserStreamSource — adapta WS del usuario a StreamSource (valida payload)
-│   │   └── robot_stream_source.py     # RobotScopedStreamSource (rosbridge), RobotWsStreamSource (WS directo), ProxyStreamSource (callback-based)
+│   │   └── proxy_stream_source.py     # ProxyStreamSource — adapter callback-based para el WS de la Pi
 │   ├── services/                      # Lógica de negocio (clases con estado/dependencias inyectadas)
 │   │   ├── robot_service.py           # RobotService — CRUD, registro, aprobación/rechazo, get_robot_by_token
-│   │   ├── rosbridge_client.py        # RosBridgeClient — WS persistente a rosbridge, pub/sub de topics ROS (en deprecación)
 │   │   ├── handshake_service.py       # HTTP Basic → JWT con role=robot y scopes + get_robot_by_token
 │   │   ├── access_validator.py        # Valida token robot_access contra robot_id y sesión de usuario
 │   │   └── ipc_user_robot_comunication.py  # UserToRobotComunication — orquestador de la conexión usuario↔robot
 │   ├── repositories/                  # Acceso a datos (queries, persistencia, transacciones)
 │   │   ├── robot.py                   # RobotRepository — CRUD de robots en DB
 │   │   └── robot_connection.py        # RobotConnectionRepository — registro y gestión de conexiones activas (StreamConnection, pipes)
-│   ├── routes/                        # Endpoints HTTP/WS (routers FastAPI)
-│   │   ├── admin.py                   # /admin/robot — CRUD + aprobación/rechazo + send_command
-│   │   ├── m2m.py                     # /m2m/robot — registro, handshake y conexión WS del robot
-│   │   └── user.py                    # /user/robot — WebSocket para usuarios
-│   └── utils/                         # Funciones stateless auxiliares
-│       └── crockford_base32.py        # UUID → Crockford Base32 (para nombres de topics ROS)
+│   └── routes/                        # Endpoints HTTP/WS (routers FastAPI)
+│       ├── admin.py                   # /admin/robot — CRUD + aprobación/rechazo + send_command
+│       ├── m2m.py                     # /m2m/robot — registro, handshake y conexión WS del robot
+│       └── user.py                    # /user/robot — WebSocket para usuarios
 │
 └── user_management/                   # Módulo vacío (placeholder)
 ```
@@ -116,23 +113,16 @@ modulo/
    - Si aprobado → genera JWT con `role=robot`, scopes
 3. **Aprobación admin**: `POST /admin/robot/{id}/approve` con `{name, description}` → cambia status a `approved`
 4. **Rechazo admin**: `POST /admin/robot/{id}/reject` → cambia status a `rejected`
-5. **Comunicación**: tras handshake, el robot se comunica vía ROS/DDS. La API publica/suscribe topics ROS a través de RosBridge.
+5. **Conexión persistente**: tras handshake, la Pi abre WebSocket a `WS /m2m/robot/connect`, responde al challenge `send_credentials` con el JWT y queda lista para recibir comandos.
 
-**Flujo desde la Pi**: registro → retry handshake con backoff exponencial (5s → 10s → 20s... hasta 300s max) → comunicación vía ROS
+**Flujo desde la Pi**: registro → retry handshake con backoff exponencial (5s → 10s → 20s... hasta 300s max) → apertura WS directo a la API.
 
 ### User: Enviar Comando
 1. Usuario conecta a `WS /user/robot/send_command`
 2. Tiene 10s para enviar `UserWsAuthentication` (token)
-3. AccessValidator crea sesión, valida token tipo robot_access
-4. Loop: recibe comandos JSON-RPC → valida que el robot existe → valida acceso → publica al topic ROS vía RosBridgeClient
-5. RosBridgeClient rutea respuestas del robot de vuelta al usuario vía `asyncio.Queue`
-
-### Comunicación vía RosBridge
-- `RosBridgeClient` (singleton) mantiene una conexión WS persistente a rosbridge (`ws://rosbridge:9090`)
-- Publica comandos a `/robot/r<base32>/command` (UUIDs codificados en Crockford Base32 con prefijo `r`)
-- Se suscribe lazy a `/robot/r<base32>/response` y `/robot/r<base32>/status`
-- Fan-out de respuestas: cada usuario tiene su propia `asyncio.Queue`, el listener rutea mensajes por robot_id
-- Reconexión automática con backoff exponencial si se pierde la conexión
+3. AccessValidator valida el token tipo robot_access
+4. Loop: recibe comandos JSON-RPC → valida acceso → `UsersXRobotMapType` enruta el mensaje directo al WS de la Pi correspondiente
+5. Las respuestas de la Pi vuelven al usuario por el mismo pipe bidireccional
 
 ## Variables de Entorno
 
@@ -142,7 +132,6 @@ modulo/
 | `POSTGRES_USER` | Usuario de PostgreSQL |
 | `POSTGRES_DB` | Nombre de la base de datos |
 | `POSTGRES_URL` | Host de PostgreSQL (sin protocolo, ej: `localhost:5432`) |
-| `ROSBRIDGE_URL` | URL WebSocket de rosbridge (ej: `ws://rosbridge:9090`) |
 | `JWT_SECRET_KEY` | Secret para firmar JWTs |
 | `JWT_ALGORITHM` | Algoritmo JWT (ej: `HS256`) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Minutos de expiración del token |

@@ -71,7 +71,6 @@ class RobotApprovalInput(BaseModel):
 
 class RobotHandshakeResult(BaseModel):
     access_token: AccessToken
-    topic: str
 
 class RobotStreamAutentication(BaseModel):
     token: str

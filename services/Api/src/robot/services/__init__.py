@@ -13,6 +13,5 @@ from ..entities import (
     RobotHandshakeResult as RobotHandshakeResult
 )
 from ..entities.json_rpc_commands import (
-    RobotCommand as RobotCommand,
     RobotResponse as RobotResponse
 )

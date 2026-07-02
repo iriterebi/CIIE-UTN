@@ -18,3 +18,12 @@ dev = [
     "mypy>=1.18.2",
     "pylint>=3.3.9",
 ]
+
+
+[tool.pyright]
+include = ["services/Api", "services/RaspberryPi"]
+exclude = [
+    "**/__pycache__",
+]
+
+reportExplicitAny = false

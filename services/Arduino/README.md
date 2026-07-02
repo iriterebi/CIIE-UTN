@@ -26,10 +26,10 @@ The `loop()` currently runs a simple test sequence, moving each servo to 20° wi
 
 ## Communication
 
-In the full system, the RaspberryPi sends serial commands to the Arduino to control the arm. The Pi receives commands from the API via ROS/RosBridge and translates them into serial instructions for the Arduino.
+In the full system, the RaspberryPi sends serial commands to the Arduino to control the arm. The Pi receives commands from the API over a direct WebSocket and translates them into serial instructions for the Arduino.
 
 ```
-[API] → [RosBridge/ROS] → [RaspberryPi] → [Serial] → [Arduino] → [Servos]
+[API] ←WS→ [RaspberryPi] → [Serial] → [Arduino] → [Servos]
 ```
 
 ## Dependencies

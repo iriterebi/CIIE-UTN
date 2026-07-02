@@ -1,13 +1,27 @@
-import { ref } from 'vue'
+import { readonly, ref } from 'vue'
 
 const WS_BASE = import.meta.env.VITE_WS_BASE || ''
 
 export type SocketStatus = 'disconnected' | 'connecting' | 'authenticating' | 'connected' | 'error'
+export type RobotState = Record<string, unknown>
+
+interface RobotResponseJSONRPC {
+  "jsonrpc": string,
+  "method": string,
+  "params": Record<string, unknown> | null
+}
+
+const isJSONRPC = (data: unknown): data is RobotResponseJSONRPC => {
+  if (typeof data !== 'object' || data === null) return false
+  return data.hasOwnProperty('jsonrpc')
+}
 
 export function useRobotSocket() {
   const status = ref<SocketStatus>('disconnected')
   const messages = ref<Record<string, unknown>[]>([])
   const error = ref<string | null>(null)
+  const robotState = ref<RobotState>({})
+
 
   let ws: WebSocket | null = null
   let robotId: string | null = null
@@ -47,6 +61,10 @@ export function useRobotSocket() {
       }
 
       messages.value.push(data)
+
+      if (isJSONRPC(data) && data.method === "status.update") {
+        robotState.value = data.params as RobotState
+      }
     }
 
     ws.onerror = () => {
@@ -79,5 +97,18 @@ export function useRobotSocket() {
     status.value = 'disconnected'
   }
 
-  return { status, messages, error, connect, sendCommand, disconnect }
+  function clearMessagesHistory() {
+    messages.value = []
+  }
+
+  return {
+    status: readonly(status),
+    messages: readonly(messages),
+    robotState: readonly(robotState),
+    error,
+    connect,
+    sendCommand,
+    disconnect,
+    clearMessagesHistory
+  }
 }
