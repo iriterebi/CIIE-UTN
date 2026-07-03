@@ -67,7 +67,8 @@ Compose, con la CLI de `services/RaspberryPi/cli/` como interfaz de control oper
 4. **Sin passthrough de serial.** Con `Ros2Strategy` el Arduino lo maneja el *otro* contenedor
    ROS (el scraper); el nuestro habla por topics DDS. No se pasa `/dev/ttyUSB` al contenedor.
 5. **Build/entrega: cross-build + save/load por SSH.** Espejo del patrón de
-   `quadlets/deploy.sh`: build ARM en la máquina de dev, `docker save | ssh | docker load`,
+   `quadlets/deploy.sh`: build ARM con **Podman** en la máquina de dev (docker no está
+   instalado en dev), `podman save --format docker-archive | ssh | docker load` en la Pi,
    `docker compose up -d` remoto.
 6. **CLI vía `docker exec`.** El host Raspbian es 3.11 y `cli/` usa sintaxis 3.12; la CLI
    corre dentro del contenedor. Un wrapper `robot-cli` en el host hace
@@ -114,9 +115,14 @@ Imagen **self-contained** (código copiado, no montado como volumen), separada d
 
 Un servicio `controller`:
 
-- `image:` apuntando al tag pre-cargado (p. ej. `labs-remoto/controller:jazzy` — sin prefijo
-  `localhost/`, que es namespace de Podman; en Docker el tag va plano),
-  **sin `build:`** — la imagen llega por `docker load`, no se compila en la Pi.
+- `image: localhost/labs-remoto/controller:jazzy` — **sin `build:`**; la imagen llega por
+  `docker load`, no se compila en la Pi.
+  - El prefijo `localhost/` no es decorativo: la máquina de dev construye con **Podman** (docker
+    no está instalado en dev), que normaliza los nombres sin registro a `localhost/…`. Ese
+    nombre se **preserva** al hacer `podman save` → `docker load` en la Pi, así que el `image:`
+    del compose (que corre en Docker) debe referenciar exactamente `localhost/labs-remoto/controller:jazzy`
+    para machear la imagen cargada. Para Docker `localhost/` es simplemente parte del nombre del
+    repo, inofensivo.
 - `network_mode: host` — discovery DDS con el contenedor del agente ROS y acceso a la API.
 - `restart: unless-stopped`.
 - `env_file: .env` (config de la Pi: `SERVER_URL`, `LOCAL_STRATEGY=Ros2Strategy`,
@@ -128,36 +134,45 @@ Ciclo de vida: `docker compose up -d` / `docker compose down`. Boot y crash los 
 
 ### 4. CLI de control — wrapper `robot-cli`
 
-Script en el host que delega al contenedor:
+Script en el host que delega al contenedor. Usa `${CONTAINER_ENGINE:-docker}` para que en la
+Pi corra con `docker` (default) y sea testeable en la dev box con `CONTAINER_ENGINE=podman`:
 
 ```sh
 #!/usr/bin/env sh
-exec docker exec -it labs-remoto-robot python -m cli "$@"
+exec "${CONTAINER_ENGINE:-docker}" exec -it labs-remoto-robot python -m cli "$@"
 ```
 
-El Unix socket de gestión (`SOCKET_PATH`, default `/tmp/robot-controller.sock`) queda dentro
-del contenedor; la CLI corre en el mismo contenedor y lo alcanza directo. No se monta el
-socket ni se instala Python en el host.
+El contenedor tiene `container_name: labs-remoto-robot` fijo en el compose para que el
+`exec` sea determinístico. El Unix socket de gestión (`SOCKET_PATH`, default
+`/tmp/robot-controller.sock`) queda dentro del contenedor; la CLI corre en el mismo contenedor
+y lo alcanza directo. No se monta el socket ni se instala Python en el host.
 
 ### 5. Build y entrega — targets de Makefile en `services/RaspberryPi/`
 
-Espejo del patrón de `quadlets/deploy.sh`:
+Espejo del patrón de `quadlets/deploy.sh`. **La máquina de dev usa Podman** (docker no está
+instalado); la Pi usa Docker. Podman construye multi-arch nativamente con `--platform` (vía
+`qemu-user-static` binfmt), sin necesidad de `buildx`:
 
-- `deploy.build`: `docker buildx build --platform linux/arm64 -t <img>:jazzy -f Dockerfile .`
-  → `docker save <img>:jazzy -o <tar>`.
-- `deploy.push`: `docker save <img> | ssh <pi> 'docker load'` + `scp` de `compose.yaml`,
-  `.env` (o `.env.example`) y `robot-cli` a la Pi.
+- `deploy.build`: `podman build --platform linux/arm64 -t localhost/labs-remoto/controller:jazzy -f Dockerfile .`
+  → `podman save --format docker-archive -o <tar> localhost/labs-remoto/controller:jazzy`.
+  El formato `docker-archive` es clave: produce un tar que **`docker load` acepta** en la Pi.
+- `deploy.push`: `podman save --format docker-archive … | ssh <pi> 'docker load'` + `scp` de
+  `compose.yaml`, `.env` (o `.env.deploy.example`) y `robot-cli` a la Pi.
 - `deploy.up`: `ssh <pi> 'cd <dir> && docker compose up -d'`.
-- (host/dir/tag configurables por variables del Makefile o `.env` de deploy.)
+- (host/dir/tag configurables por variables del Makefile.)
 
-Las deps con extensión nativa (p. ej. `pydantic-core`) tienen wheels arm64 en PyPI, así que
-el build bajo qemu **no compila**, solo baja wheels. Lento pero robusto.
+Prerequisito de cross-build en dev: **binfmt qemu registrado** para arm64 (`qemu-user-static`).
+Las deps con extensión nativa (p. ej. `pydantic-core`) tienen wheels arm64 en PyPI, así que el
+build bajo qemu **no compila**, solo baja wheels. Lento pero robusto.
 
 ### 6. Verificación
 
-- Build arm64 con `docker buildx` + `docker run` de la imagen (bajo qemu en dev):
+- Build **nativo** (x86_64) con `podman build` + `podman run` de la imagen:
   `python -c "import rclpy, controller"` debe importar limpio en 3.12 (valida el fix PEP 696
-  y que `rclpy` está visible).
+  y que `rclpy` está visible). El build arm64 se valida aparte con `podman image inspect`
+  (arch = arm64) por el costo de qemu.
+- Chequeo rápido del fix sin contenedor: `uv run --python 3.12 --no-project python -m py_compile
+  controller/type_defs.py` pasa de `SyntaxError` (antes) a OK (después).
 - `make ros.test` (contenedor con rclpy real) sigue verde tras el cambio de `type_defs.py`.
 - Smoke local en dev con uv 3.13 (`uv run -m controller` en modo mock) sigue arrancando
   (confirma que bajar el pin no rompe dev).
