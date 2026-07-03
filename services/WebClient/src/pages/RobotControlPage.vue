@@ -19,7 +19,7 @@ onMounted(() => {
     router.push('/dashboard')
     return
   }
-  connect(auth.token, robotId, robotAccessToken)
+  connect(robotId, robotAccessToken)
 })
 
 onUnmounted(() => {

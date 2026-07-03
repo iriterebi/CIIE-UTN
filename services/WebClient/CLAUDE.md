@@ -79,12 +79,17 @@ src/
 Protocolo de `/user/robot/send_command`:
 
 1. Conectar WS
-2. Enviar `{"token": "<jwt_usuario>"}` (timeout 10s del server)
+2. Enviar `{"token": "<robot_access_token>", "robot_id": "<uuid>"}` (timeout 10s del server)
 3. Recibir `{"message": "success auth"}`
 4. Enviar comandos: `{"method": "<cmd>", "access_token": "<robot_access_token>", "robot_id": "<uuid>"}`
 5. Recibir respuestas JSON-RPC
 
-Nota: `access_token` es el token de acceso al robot (de `request_robot_access`), **no** el JWT de sesión del usuario.
+Nota: tanto el `token` del handshake como el `access_token` de los comandos son el
+**robot_access token** (de `request_robot_access`), **no** el JWT de sesión del
+usuario. El backend valida en el handshake que el token tenga `type: robot_access`
+y que su `robot_id`/`sub` coincidan (ver `access_validator.py`). El JWT de sesión de
+login solo se usa para las llamadas HTTP (header `Authorization: Bearer`) y los
+guards del router.
 
 ### Admin
 

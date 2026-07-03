@@ -27,7 +27,7 @@ export function useRobotSocket() {
   let robotId: string | null = null
   let robotAccessToken: string | null = null
 
-  function connect(authToken: string, _robotId: string, _robotAccessToken: string) {
+  function connect(_robotId: string, _robotAccessToken: string) {
     robotId = _robotId
     robotAccessToken = _robotAccessToken
     status.value = 'connecting'
@@ -40,7 +40,7 @@ export function useRobotSocket() {
 
     ws.onopen = () => {
       status.value = 'authenticating'
-      ws!.send(JSON.stringify({ token: authToken, robot_id: robotId }))
+      ws!.send(JSON.stringify({ token: robotAccessToken, robot_id: robotId }))
     }
 
     ws.onmessage = async (event: MessageEvent) => {
