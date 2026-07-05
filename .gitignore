@@ -7,3 +7,4 @@ env-test1/*
 *.local.*
 *.docx#
 .build-cache
+.worktrees/
