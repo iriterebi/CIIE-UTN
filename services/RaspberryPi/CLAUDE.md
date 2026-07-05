@@ -24,7 +24,7 @@ controller corre sin cambios de código). Requiere podman instalado en el host
 (`sudo apt install -y podman uidmap`). Podman es rootless: no necesita grupo ni daemon.
 
 ```bash
-make ros.build     # construye la imagen (Dockerfile.ros)
+make ros.build     # construye la imagen (Dockerfile)
 make ros.verify    # comprueba que rclpy + std_msgs importan
 make ros.test      # corre pytest dentro del contenedor (rclpy real disponible)
 make ros.shell     # bash interactivo con ROS sourceado (ros2 topic echo/pub)

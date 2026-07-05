@@ -8,11 +8,11 @@ up_dev:
 # Requiere podman instalado (ver sección "Correr Ros2Strategy con Podman" en CLAUDE.md).
 # Podman es rootless: no necesita grupo ni daemon.
 # Prefijo localhost/ porque podman guarda las imágenes locales en ese namespace.
-IMAGE := localhost/labs-remoto/controller-ros:jazzy
+IMAGE := localhost/labs-remoto/controller:jazzy
 
 .PHONY: ros.build ros.verify ros.test ros.shell ros.run
 ros.build:
-	podman build -f Dockerfile.ros -t $(IMAGE) .
+	podman build -f Dockerfile -t $(IMAGE) .
 
 ros.verify:
 	podman run --rm $(IMAGE) \
