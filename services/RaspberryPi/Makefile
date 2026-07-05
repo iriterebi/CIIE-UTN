@@ -28,3 +28,29 @@ ros.shell:
 
 ros.run:
 	podman run --rm --network=host -v "$(CURDIR)":/app -e LOCAL_STRATEGY=Ros2Strategy $(IMAGE)
+
+# --- Deploy a la Pi (Docker) --------------------------------------------------
+# Build con PODMAN en dev (docker no está instalado en dev), save como docker-archive
+# (tar que `docker load` acepta en la Pi), load por SSH. Cross-build arm64 requiere
+# binfmt qemu registrado en el host (paquete qemu-user-static).
+DEPLOY_TAR := /tmp/labs-remoto-controller-arm64.tar
+PI_HOST ?= pi@raspberrypi.local
+PI_DIR ?= labs-remoto-controller
+
+.PHONY: deploy.build deploy.push deploy.up deploy.restart deploy
+deploy.build:
+	podman build --platform linux/arm64 -t $(IMAGE) -f Dockerfile .
+	podman save --format docker-archive -o $(DEPLOY_TAR) $(IMAGE)
+
+deploy.push:
+	cat $(DEPLOY_TAR) | ssh $(PI_HOST) 'docker load'
+	ssh $(PI_HOST) 'mkdir -p $(PI_DIR)/data'
+	scp compose.yaml robot-cli .env.deploy.example $(PI_HOST):$(PI_DIR)/
+
+deploy.up:
+	ssh $(PI_HOST) 'cd $(PI_DIR) && docker compose up -d'
+
+deploy.restart:
+	ssh $(PI_HOST) 'cd $(PI_DIR) && docker compose up -d --force-recreate'
+
+deploy: deploy.build deploy.push deploy.up
