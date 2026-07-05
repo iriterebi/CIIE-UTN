@@ -15,9 +15,25 @@ up_dev:
 IMAGE := localhost/labs-remoto/controller:jazzy
 DEV_IMAGE := localhost/labs-remoto/controller-dev:jazzy
 
+# `deploy.build` cruza arquitectura (--platform linux/arm64) contra la MISMA referencia
+# de imagen base (docker.io/library/ros:jazzy) que usa `ros.build`. El storage local de
+# podman guarda una sola arquitectura por tag, así que un build pisa la caché del otro
+# según el orden en que se corran — ros.build queda con la base arm64 y explota con
+# "Exec format error" al ejecutar apt-get. Fijar --platform al arch nativo del host en
+# ros.build fuerza a podman a repullear la base correcta si hace falta, en vez de asumir
+# que la caché ya la tiene.
+HOST_ARCH := $(shell uname -m)
+ifeq ($(HOST_ARCH),x86_64)
+DEV_PLATFORM := linux/amd64
+else ifeq ($(HOST_ARCH),aarch64)
+DEV_PLATFORM := linux/arm64
+else
+DEV_PLATFORM := linux/$(HOST_ARCH)
+endif
+
 .PHONY: ros.build ros.verify ros.test ros.shell ros.run
 ros.build:
-	podman build --target base -f Dockerfile -t $(DEV_IMAGE) .
+	podman build --platform $(DEV_PLATFORM) --target base -f Dockerfile -t $(DEV_IMAGE) .
 
 ros.verify:
 	podman run --rm $(DEV_IMAGE) \

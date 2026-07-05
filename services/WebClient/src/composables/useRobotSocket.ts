@@ -60,6 +60,10 @@ export function useRobotSocket() {
         return
       }
 
+      if (messages.value.length > 5) {
+        messages.value.shift()
+      }
+
       messages.value.push(data)
 
       if (isJSONRPC(data) && data.method === "status.update") {
