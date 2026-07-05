@@ -11,10 +11,13 @@ services:
     # acceso a la API. Los ENV de DDS (ROS_DOMAIN_ID, FASTDDS_BUILTIN_TRANSPORTS) van horneados.
     network_mode: host
     restart: unless-stopped
+    # Config específica del deploy: normalmente sólo SERVER_URL/ARDUINO_PORT (el resto
+    # viene horneado en la imagen, stage `final` — ver .env.deploy.example). env_file
+    # igual requiere que el archivo exista (aunque sea de pocas líneas).
     env_file: .env
     volumes:
       # La identidad del robot (robot-metadata.json) persiste entre reinicios.
       # Se monta el DIR (no el archivo) para que CREATE_DEFAULT_METADATA lo genere sin
       # que Docker cree un directorio espurio si el archivo aún no existe.
-      # METADATA_FILE en .env debe apuntar a /app/data/robot-metadata.json.
+      # METADATA_FILE viene horneado en la imagen apuntando a /app/data/robot-metadata.json.
       - ./data:/app/data

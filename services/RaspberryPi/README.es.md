@@ -93,6 +93,11 @@ Compose (`restart: unless-stopped`, sin systemd). Se construye con Podman en la 
 y se envía por SSH: `make deploy` (con overrides `PI_HOST`/`PI_DIR`). El controller en marcha se
 gestiona con `./robot-cli <comando>` (corre la CLI dentro del contenedor vía `docker exec`).
 
+El `Dockerfile` es multi-stage: el stage `final` (el que se sube a la Pi) hornea defaults
+sensatos de `Ros2Strategy`, así que el contenedor arranca standalone sin bind-mount de código y
+con solo `SERVER_URL`/`ARDUINO_PORT` pasados en runtime — el resto de la config ya tiene defaults
+que funcionan.
+
 En una Pi que todavía no tiene `.env` (es decir, su primer deploy), copiar `.env.deploy.example`
 a `.env` en la Pi y ajustar `SERVER_URL` antes de correr `make deploy.up` (o el `make deploy`
 encadenado, que falla en ese paso sin él) — `compose.yaml` requiere que `.env` exista. Los

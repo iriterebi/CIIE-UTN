@@ -8,26 +8,31 @@ up_dev:
 # Requiere podman instalado (ver sección "Correr Ros2Strategy con Podman" en CLAUDE.md).
 # Podman es rootless: no necesita grupo ni daemon.
 # Prefijo localhost/ porque podman guarda las imágenes locales en ese namespace.
+# IMAGE (stage `final`, deploy) y DEV_IMAGE (stage `base`, solo dev) usan nombres de
+# repo DISTINTOS a propósito: los dos stages del Dockerfile ya no son idénticos, así
+# que compartir un tag arriesgaría pisar el artefacto de deploy con la imagen de dev
+# (o viceversa) según el orden en que se corran los targets.
 IMAGE := localhost/labs-remoto/controller:jazzy
+DEV_IMAGE := localhost/labs-remoto/controller-dev:jazzy
 
 .PHONY: ros.build ros.verify ros.test ros.shell ros.run
 ros.build:
-	podman build -f Dockerfile -t $(IMAGE) .
+	podman build --target base -f Dockerfile -t $(DEV_IMAGE) .
 
 ros.verify:
-	podman run --rm $(IMAGE) \
+	podman run --rm $(DEV_IMAGE) \
 		python -c "import rclpy; from std_msgs.msg import String; print('rclpy + std_msgs OK')"
 
 ros.test:
 	# PYTEST_DISABLE_PLUGIN_AUTOLOAD evita que los plugins pytest de ROS
 	# (launch_testing, etc., visibles vía --system-site-packages) choquen con pytest 9.x.
-	podman run --rm -e PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 -v "$(CURDIR)":/app $(IMAGE) python -m pytest
+	podman run --rm -e PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 -v "$(CURDIR)":/app $(DEV_IMAGE) python -m pytest
 
 ros.shell:
-	podman run --rm -it --network=host -v "$(CURDIR)":/app $(IMAGE) bash
+	podman run --rm -it --network=host -v "$(CURDIR)":/app $(DEV_IMAGE) bash
 
 ros.run:
-	podman run --rm --network=host -v "$(CURDIR)":/app -e LOCAL_STRATEGY=Ros2Strategy $(IMAGE)
+	podman run --rm --network=host -v "$(CURDIR)":/app -e LOCAL_STRATEGY=Ros2Strategy $(DEV_IMAGE)
 
 # --- Deploy a la Pi (Docker) --------------------------------------------------
 # Build con PODMAN en dev (docker no está instalado en dev), save como docker-archive
@@ -39,7 +44,7 @@ PI_DIR ?= labs-remoto-controller
 
 .PHONY: deploy.build deploy.push deploy.up deploy.restart deploy
 deploy.build:
-	podman build --platform linux/arm64 -t $(IMAGE) -f Dockerfile .
+	podman build --platform linux/arm64 --target final -t $(IMAGE) -f Dockerfile .
 	podman save --format docker-archive -o $(DEPLOY_TAR) $(IMAGE)
 
 deploy.push:
