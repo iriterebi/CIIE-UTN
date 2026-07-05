@@ -89,27 +89,35 @@ Impacto funcional: **cero**. Los usos son o bien `JsonRpcResponse[StatusData]` (
 explícito) o `JsonRpcResponse` pelado; el default solo afectaba type-checking de la forma
 pelada, y en runtime los genéricos de TypedDict se borran.
 
-### 2. Imagen de deploy — `services/RaspberryPi/Dockerfile`
+### 2. Imagen unificada — `services/RaspberryPi/Dockerfile` (reemplaza `Dockerfile.ros`)
 
-Imagen **self-contained** (código copiado, no montado como volumen), separada del
-`Dockerfile.ros` de dev:
+**Revisión respecto al diseño original**: en vez de un `Dockerfile` de deploy separado de
+`Dockerfile.ros` (que hubiera duplicado la instalación de deps y los ENV vars verbatim),
+`Dockerfile.ros` pierde su propósito como archivo propio y se refactoriza directamente en el
+único `Dockerfile`. La imagen sirve dos propósitos con el mismo artefacto:
+
+- **Deploy**: código **self-contained** (COPYado, no montado) — se transfiere a la Pi vía
+  `docker load`.
+- **Dev/iteración local** (targets `ros.*` del Makefile): el bind-mount `-v $(CURDIR):/app`
+  sobrescribe en runtime el código COPYado de la imagen, así que el mismo Dockerfile cubre la
+  iteración local sin rebuild — no hace falta un segundo archivo.
+
+Detalle:
 
 - `FROM docker.io/library/ros:jazzy` (multi-arch: incluye arm64).
 - venv `/opt/venv --system-site-packages` (para ver `rclpy`/`std_msgs` del entorno ROS),
   mismas deps que `pyproject.toml` (pydantic, pydantic-settings, python-dotenv, requests,
-  pyserial, websockets). Sin `pytest` en la imagen de deploy.
+  pyserial, websockets) **+ `pytest`** (lo usaba `Dockerfile.ros` para `ros.test`; se mantiene
+  en la imagen única).
 - `COPY controller/ cli/ pyproject.toml` dentro de la imagen.
-- Hornea `ENV ROS_DOMAIN_ID=42` y `ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4` (igual que
-  `Dockerfile.ros`, para discovery DDS entre contenedores).
+- Hornea `ENV ROS_DOMAIN_ID=42` y `ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4` (para discovery DDS
+  entre contenedores).
 - Hereda el `ENTRYPOINT /ros_entrypoint.sh` de la imagen ROS (sourcea `setup.bash`).
 - `CMD ["python", "-m", "controller"]`. La strategy se elige por entorno
   (`LOCAL_STRATEGY=Ros2Strategy`), no se hornea.
 
-`Dockerfile.ros` (dev, código montado como volumen) se mantiene para iterar localmente.
-
-> Deuda opcional (fuera de alcance): factorizar una base común entre `Dockerfile` y
-> `Dockerfile.ros` para no duplicar la instalación de deps. No se hace ahora para no arrastrar
-> scope; se anota.
+Los targets `ros.*` del Makefile pasan a usar este mismo `Dockerfile` y el tag unificado
+`localhost/labs-remoto/controller:jazzy` (antes `controller-ros:jazzy`).
 
 ### 3. Runtime en la Pi — `services/RaspberryPi/compose.yaml`
 
@@ -189,7 +197,6 @@ build bajo qemu **no compila**, solo baja wheels. Lento pero robusto.
 
 ## Fuera de alcance
 
-- Factorizar base común entre `Dockerfile` y `Dockerfile.ros` (deuda anotada).
 - Registry / pull en la Pi (se eligió save/load por SSH; migrar a registry queda para cuando
   haya N Pis).
 - systemd units (criterio de reconsideración documentado en la decisión 3).
