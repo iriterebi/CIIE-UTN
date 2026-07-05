@@ -1,0 +1,17 @@
+# Reduce el build context enviado a podman/docker y evita filtrar secretos/estado
+# local (aunque el Dockerfile hoy usa COPY explícito por carpeta, no `COPY . .`,
+# esto es una red de seguridad adicional y evita mandar basura innecesaria al daemon).
+.git/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Secretos y estado local del robot — nunca deben terminar en la imagen.
+.env
+.env.local
+robot-metadata*.json
+data/
+tmp/
