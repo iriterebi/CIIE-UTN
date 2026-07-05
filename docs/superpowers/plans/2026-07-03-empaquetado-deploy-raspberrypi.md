@@ -235,7 +235,7 @@ Define cómo corre el contenedor en la Pi y cómo se controla. `.env` y `robot-m
 
 **Interfaces:**
 - Consumes: imagen `localhost/labs-remoto/controller:jazzy` (Task 2); config vars de `controller/config.py` (`server_url`, `arduino_port`, `local_strategy`, `remote_strategy`, `metadata_file`, `mock_robot`, `create_default_metadata`, `ros2_*`).
-- Produces: contenedor `labs-remoto-robot`; interfaz de control `robot-cli` (usa `${CONTAINER_ENGINE:-docker} exec -it labs-remoto-robot python -m cli`).
+- Produces: contenedor `labs-remoto-robot`; interfaz de control `robot-cli` (usa `${CONTAINER_ENGINE:-docker} exec labs-remoto-robot python -m cli`).
 
 - [ ] **Step 1: Crear `services/RaspberryPi/compose.yaml`**
 
@@ -293,7 +293,7 @@ ROS2_DOMAIN_ID=42
 #
 # CONTAINER_ENGINE=docker por default (Pi). Override a `podman` para testear en la dev box:
 #   CONTAINER_ENGINE=podman ./robot-cli status
-exec "${CONTAINER_ENGINE:-docker}" exec -it labs-remoto-robot python -m cli "$@"
+exec "${CONTAINER_ENGINE:-docker}" exec labs-remoto-robot python -m cli "$@"
 ```
 
 - [ ] **Step 4: Hacer `robot-cli` ejecutable**

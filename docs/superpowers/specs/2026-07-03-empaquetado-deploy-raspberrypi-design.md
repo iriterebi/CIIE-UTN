@@ -72,7 +72,7 @@ Compose, con la CLI de `services/RaspberryPi/cli/` como interfaz de control oper
    `docker compose up -d` remoto.
 6. **CLI vía `docker exec`.** El host Raspbian es 3.11 y `cli/` usa sintaxis 3.12; la CLI
    corre dentro del contenedor. Un wrapper `robot-cli` en el host hace
-   `docker exec -it labs-remoto-robot python -m cli "$@"`. El Unix socket queda dentro del
+   `docker exec labs-remoto-robot python -m cli "$@"`. El Unix socket queda dentro del
    contenedor (no se monta); no se instala Python en el host.
 
 ## Diseño
@@ -147,7 +147,7 @@ Pi corra con `docker` (default) y sea testeable en la dev box con `CONTAINER_ENG
 
 ```sh
 #!/usr/bin/env sh
-exec "${CONTAINER_ENGINE:-docker}" exec -it labs-remoto-robot python -m cli "$@"
+exec "${CONTAINER_ENGINE:-docker}" exec labs-remoto-robot python -m cli "$@"
 ```
 
 El contenedor tiene `container_name: labs-remoto-robot` fijo en el compose para que el

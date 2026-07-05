@@ -93,5 +93,10 @@ Compose (`restart: unless-stopped`, no systemd). Build with Podman on the dev ma
 over SSH: `make deploy` (see `PI_HOST`/`PI_DIR` overrides). Manage the running controller with
 `./robot-cli <command>` (runs the CLI inside the container via `docker exec`).
 
+On a Pi that doesn't already have a `.env` (i.e. its very first deploy), copy
+`.env.deploy.example` to `.env` on the Pi and adjust `SERVER_URL` before running `make deploy.up`
+(or the chained `make deploy`, which fails at that step without it) — `compose.yaml` requires
+`.env` to exist. Subsequent redeploys can just use `make deploy`.
+
 Design: [`docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`](../../docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md).
 See the Spanish version: [README.es.md](README.es.md).

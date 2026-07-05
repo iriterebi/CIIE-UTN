@@ -73,6 +73,12 @@ Build y entrega (Podman en dev — docker no está en dev — → `docker load` 
 > La Pi usa **Docker** (como sus otros contenedores ROS), no Podman/quadlets. Divergencia
 > intencional respecto al servidor central. La Pi está fuera de `quadlets/deploy.sh`.
 
+> En una Pi que todavía no tiene `.env` (su primer deploy), hay que copiar
+> `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL` **antes** de correr
+> `make deploy.up` (o el `make deploy` encadenado, que falla en ese paso sin `.env`, ya que
+> `compose.yaml` lo requiere vía `env_file`). En redeploys siguientes, con `.env` ya presente,
+> `make deploy` alcanza como comando único.
+
 ## Estructura del Código
 
 ```

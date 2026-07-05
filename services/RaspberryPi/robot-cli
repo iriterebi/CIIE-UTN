@@ -5,4 +5,4 @@
 #
 # CONTAINER_ENGINE=docker por default (Pi). Override a `podman` para testear en la dev box:
 #   CONTAINER_ENGINE=podman ./robot-cli status
-exec "${CONTAINER_ENGINE:-docker}" exec -it labs-remoto-robot python -m cli "$@"
+exec "${CONTAINER_ENGINE:-docker}" exec labs-remoto-robot python -m cli "$@"
