@@ -45,6 +45,34 @@ contenedor; el host sigue usando uv para mock/serial.
 > `mount 'proc' to 'proc': Operation not permitted`): agregar `--isolation=chroot` al `podman build`
 > y `--pid=host` al `podman run`. En una máquina normal no hacen falta.
 
+### Deploy en la Pi (Docker Compose)
+
+El controller se empaqueta como imagen Docker self-contained (ROS 2 Jazzy → **Python 3.12**;
+ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`). El Python
+3.11 del host Raspbian no se usa: el contenedor trae su propio intérprete.
+
+- **Artefacto**: `services/RaspberryPi/Dockerfile` (único archivo: copia el código para el
+  artefacto de deploy y, vía bind-mount de los targets `ros.*`, también sirve de imagen de
+  iteración local con `rclpy` real — reemplaza al extinto `Dockerfile.ros`).
+- **Runtime**: `compose.yaml` — un servicio `controller`, `network_mode: host`,
+  `restart: unless-stopped`, `container_name: labs-remoto-robot`. Sin systemd: el ciclo de vida
+  lo cubre la restart policy de Docker. Sin passthrough de serial (el Arduino lo maneja el agente ROS).
+- **Config**: copiar `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL`. La identidad
+  del robot persiste en `./data/` (montado).
+- **Control**: `./robot-cli <comando>` corre la CLI dentro del contenedor vía `docker exec`
+  (el host es 3.11, la CLI usa 3.12). En dev: `CONTAINER_ENGINE=podman ./robot-cli status`.
+
+Build y entrega (Podman en dev — docker no está en dev — → `docker load` en la Pi):
+
+    make deploy.build      # cross-build arm64 + save (docker-archive). Requiere binfmt qemu.
+    make deploy.push       # docker load por SSH + scp de compose/robot-cli/.env.example
+    make deploy.up         # docker compose up -d en la Pi
+    make deploy            # los tres encadenados
+    # PI_HOST y PI_DIR son overridables: make deploy PI_HOST=usuario@ip
+
+> La Pi usa **Docker** (como sus otros contenedores ROS), no Podman/quadlets. Divergencia
+> intencional respecto al servidor central. La Pi está fuera de `quadlets/deploy.sh`.
+
 ## Estructura del Código
 
 ```

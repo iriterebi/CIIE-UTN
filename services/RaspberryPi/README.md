@@ -85,3 +85,13 @@ Automatic reconnection with exponential backoff (1s → 30s) if the connection i
 ## Demo Mode
 
 With `MOCK_ROBOT=1`, the controller uses `robot_mock_controller.py` which simulates the robot's behavior without physical hardware (Arduino/robotic arm). Combined with `CREATE_DEFAULT_METADATA=1`, it allows running the full flow without hardware.
+
+## Deployment (Raspberry Pi)
+
+Packaged as a self-contained Docker image (ROS 2 Jazzy → Python 3.12) and run via Docker
+Compose (`restart: unless-stopped`, no systemd). Build with Podman on the dev machine and ship
+over SSH: `make deploy` (see `PI_HOST`/`PI_DIR` overrides). Manage the running controller with
+`./robot-cli <command>` (runs the CLI inside the container via `docker exec`).
+
+Design: [`docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`](../../docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md).
+See the Spanish version: [README.es.md](README.es.md).
