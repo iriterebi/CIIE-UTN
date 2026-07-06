@@ -1,2 +1,3 @@
 from .user_stream_source import UserStreamSource as UserStreamSource
 from .proxy_stream_source import ProxyStreamSource as ProxyStreamSource
+from .proxy_stream_source import ProxyStreamDisconnected as ProxyStreamDisconnected

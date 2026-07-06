@@ -106,3 +106,43 @@ class TestBackpressure:
 
         with pytest.raises(asyncio.QueueFull):
             source.queue.put_nowait(257)
+
+
+from src.robot.adapters.proxy_stream_source import ProxyStreamDisconnected
+
+
+class TestMarkDisconnected:
+    def test_receive_data_pendiente_levanta_disconnected(self):
+        source, *_ = _make_source()
+
+        async def run():
+            task = asyncio.create_task(source.receive_data())
+            await asyncio.sleep(0)  # deja que receive_data empiece a esperar
+            await source.mark_disconnected("timeout")
+            with pytest.raises(ProxyStreamDisconnected) as exc_info:
+                await task
+            return exc_info.value.reason
+
+        assert asyncio.run(run()) == "timeout"
+
+    def test_receive_data_futura_levanta_disconnected_de_inmediato(self):
+        source, *_ = _make_source()
+
+        async def run():
+            await source.mark_disconnected("clean_close")
+            with pytest.raises(ProxyStreamDisconnected) as exc_info:
+                await source.receive_data()
+            return exc_info.value.reason
+
+        assert asyncio.run(run()) == "clean_close"
+
+    def test_mensaje_encolado_antes_de_desconectar_se_entrega(self):
+        source, *_ = _make_source()
+
+        async def run():
+            await source.enqueue_data("a")
+            result = await source.receive_data()
+            await source.mark_disconnected("timeout")
+            return result
+
+        assert asyncio.run(run()) == "a"
