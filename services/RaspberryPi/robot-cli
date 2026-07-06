@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# CLI de gestión del controller. Corre `python -m cli` DENTRO del contenedor: el host
+# Raspbian tiene Python 3.11 y la CLI usa sintaxis 3.12, así que no puede correr nativa.
+# Ver docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md
+#
+# CONTAINER_ENGINE=docker por default (Pi). Override a `podman` para testear en la dev box:
+#   CONTAINER_ENGINE=podman ./robot-cli status
+exec "${CONTAINER_ENGINE:-docker}" exec labs-remoto-robot python -m cli "$@"

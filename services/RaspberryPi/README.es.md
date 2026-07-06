@@ -85,3 +85,23 @@ Reconexión automática con backoff exponencial (1s → 30s) si se pierde la con
 ## Modo Demo
 
 Con `MOCK_ROBOT=1`, el controlador usa `robot_mock_controller.py` que simula el comportamiento del robot sin necesidad de hardware físico (Arduino/brazo robótico). Combinado con `CREATE_DEFAULT_METADATA=1`, permite ejecutar el flujo completo sin hardware.
+
+## Despliegue (Raspberry Pi)
+
+Se empaqueta como imagen Docker self-contained (ROS 2 Jazzy → Python 3.12) y corre vía Docker
+Compose (`restart: unless-stopped`, sin systemd). Se construye con Podman en la máquina de dev
+y se envía por SSH: `make deploy` (con overrides `PI_HOST`/`PI_DIR`). El controller en marcha se
+gestiona con `./robot-cli <comando>` (corre la CLI dentro del contenedor vía `docker exec`).
+
+El `Dockerfile` es multi-stage: el stage `final` (el que se sube a la Pi) hornea defaults
+sensatos de `Ros2Strategy`, así que el contenedor arranca standalone sin bind-mount de código y
+con solo `SERVER_URL`/`ARDUINO_PORT` pasados en runtime — el resto de la config ya tiene defaults
+que funcionan.
+
+En una Pi que todavía no tiene `.env` (es decir, su primer deploy), copiar `.env.deploy.example`
+a `.env` en la Pi y ajustar `SERVER_URL` antes de correr `make deploy.up` (o el `make deploy`
+encadenado, que falla en ese paso sin él) — `compose.yaml` requiere que `.env` exista. Los
+redeploys siguientes pueden usar `make deploy` sin más.
+
+Diseño: [`docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`](../../docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md).
+Ver versión en inglés: [README.md](README.md).

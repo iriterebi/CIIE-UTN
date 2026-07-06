@@ -1,5 +1,6 @@
 from typing import Annotated
 from fastapi import Depends
+import asyncio
 import functools
 
 from ..entities import Robot
@@ -25,13 +26,19 @@ class RobotConnectionRepository:
         self._robots: dict[str, RobotConnection] = {}
         self._users: dict[str, UserConnection] = {}
         self._users_x_robot: list[UsersXRobotMapType] = []
+        self._robot_reconnect_waiters: dict[str, asyncio.Event] = {}
 
     def addRobotConnection(self, robot: Robot, streamSource: StreamSource) -> RobotConnection:
         if str(robot.id) in self._robots:
             raise ValueError("Robot already connected")
 
-        self._robots[str(robot.id)] = RobotConnection(streamSource, robot)
-        return self._robots[str(robot.id)]
+        connection = RobotConnection(streamSource, robot)
+        self._robots[str(robot.id)] = connection
+
+        if (event := self._robot_reconnect_waiters.get(str(robot.id))) is not None:
+            event.set()
+
+        return connection
 
     def addUserConnection(self, user: User, streamSource: StreamSource) -> UserConnection:
         if str(user.id) in self._users:
@@ -82,6 +89,42 @@ class RobotConnectionRepository:
 
 
         del self._robots[robotOrConnection]
+
+    def discardDeadRobotConnection(self, robot: Robot | str) -> None:
+        """Remueve del registro una conexión de robot muerta por timeout
+        de heartbeat, sin tocar el pipe usuario↔robot (a diferencia de
+        `discardRobotConnection`). El pipe, si existe, maneja su propio
+        ciclo de espera/reconexión vía `wait_for_robot_reconnect`.
+        """
+        if isinstance(robot, Robot):
+            robot = str(robot.id)
+
+        _ = self._robots.pop(robot, None)
+
+    async def wait_for_robot_reconnect(self, robot_id: str, timeout: float) -> RobotConnection | None:
+        """Espera hasta `timeout` segundos a que un robot se re-registre.
+
+        Retorna la nueva `RobotConnection` si se re-registró a tiempo,
+        o `None` si se agotó el timeout sin que el robot reconecte.
+
+        Asume a lo sumo un llamador esperando por `robot_id` a la vez: el
+        `asyncio.Event` se comparte por robot_id y el `finally` lo elimina
+        incondicionalmente al salir, así que dos esperas concurrentes sobre
+        el mismo robot_id perderían la notificación para quien no fue el
+        primero en salir (timeout o éxito). Esto no ocurre en la práctica
+        porque `addUserXRobotConnection` ya impone como mucho un pipe activo
+        por robot (lanza `RobotInUseError` si no) — no es solo una
+        convención, hay una invariante real del repositorio detrás.
+        """
+        event = self._robot_reconnect_waiters.setdefault(robot_id, asyncio.Event())
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            _ = self._robot_reconnect_waiters.pop(robot_id, None)
+
+        return self.getRobotConnection(robot_id)
 
     def getUserXRobotConnection(self, *, user: User | str | None = None, robot: Robot | str | None = None) -> UsersXRobotMapType | None:
         userConnection = self.getUserConnection(user) if user is not None else None

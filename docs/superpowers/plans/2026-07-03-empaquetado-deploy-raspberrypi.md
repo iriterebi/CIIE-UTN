@@ -99,27 +99,40 @@ git commit -m "raspi: compatibilidad Python 3.12 (quitar defaults PEP 696) para 
 
 ---
 
-### Task 2: Dockerfile de deploy self-contained
+### Task 2: Unificar Dockerfile (reemplaza `Dockerfile.ros`)
 
-Imagen que COPIA el código (artefacto portable), a diferencia de `Dockerfile.ros` (dev, volumen). Base `ros:jazzy` para `rclpy`. Valida el fix de Task 1 bajo 3.12 real.
+**Decisión (revisión post-pre-flight, reemplaza al diseño original de esta task):** en vez de crear
+un `Dockerfile` de deploy separado de `Dockerfile.ros` (que hubiera duplicado ~15 líneas de
+instalación de deps y ENV vars verbatim), `Dockerfile.ros` **pierde su propósito como archivo
+propio** y se refactoriza directamente en el nuevo `services/RaspberryPi/Dockerfile`: un único
+archivo que sirve tanto de artefacto self-contained para deploy (código COPYado) como de imagen de
+iteración local con `rclpy` real — en dev, el bind-mount `-v $(CURDIR):/app` de los targets `ros.*`
+del Makefile sobrescribe en runtime el código COPYado de la imagen, así que un solo Dockerfile cubre
+ambos casos sin perder el flujo de iteración. Se mantiene `pytest` en la imagen (lo usaba
+`Dockerfile.ros` para `ros.test`; el costo extra es despreciable y evita bifurcar el archivo otra
+vez). Valida el fix de Task 1 bajo 3.12 real.
 
 **Files:**
+- Delete: `services/RaspberryPi/Dockerfile.ros`
 - Create: `services/RaspberryPi/Dockerfile`
+- Modify: `services/RaspberryPi/Makefile` (targets `ros.*`: `IMAGE` y `-f Dockerfile.ros` → `-f Dockerfile`)
+- Modify: `services/RaspberryPi/CLAUDE.md` (comentario de `make ros.build` referencia `Dockerfile.ros`)
 
 **Interfaces:**
 - Consumes: código 3.12-compatible de Task 1.
-- Produces: imagen `localhost/labs-remoto/controller:jazzy` con `WORKDIR /app`, código en `/app/controller` y `/app/cli`, venv en `/opt/venv` (en PATH), `CMD python -m controller`.
+- Produces: imagen `localhost/labs-remoto/controller:jazzy` (mismo tag que usaban los targets `ros.*`, que antes usaban `localhost/labs-remoto/controller-ros:jazzy` — se unifica) con `WORKDIR /app`, código en `/app/controller` y `/app/cli`, venv en `/opt/venv` (en PATH), `CMD python -m controller`. Task 4 reutiliza esta misma imagen/tag para `deploy.*` (ya no define un `DEPLOY_IMAGE` propio).
 
-- [ ] **Step 1: Crear `services/RaspberryPi/Dockerfile`**
+- [ ] **Step 1: Borrar `services/RaspberryPi/Dockerfile.ros` y crear `services/RaspberryPi/Dockerfile`**
 
 ```dockerfile
-# Imagen de DEPLOY self-contained del controller (Ros2Strategy, rclpy real).
+# Imagen única del controller: self-contained para deploy en la Pi (Ros2Strategy, rclpy real) y,
+# vía bind-mount, entorno de iteración local con rclpy real (targets ros.* del Makefile).
 # ROS 2 Jazzy = Ubuntu 24.04 = Python 3.12 (ver spec 2026-07-03-empaquetado-deploy-raspberrypi).
-# A diferencia de Dockerfile.ros (dev, código montado como volumen), esta COPIA el código:
-# artefacto portable que se transfiere a la Pi vía `docker load`.
+# Reemplaza a Dockerfile.ros: el bind-mount de dev (-v $(CURDIR):/app) sobrescribe en runtime
+# el código COPYado más abajo, así que no hace falta un Dockerfile separado para dev.
 FROM docker.io/library/ros:jazzy
 
-# Deps del controller (mismas que pyproject.toml, SIN pytest) en un venv con
+# Deps del controller (mismas que pyproject.toml) + pytest (para ros.test), en un venv con
 # --system-site-packages para ver rclpy/std_msgs del Python del sistema (ROS).
 # ros:jazzy no trae ensurepip → instalar python3-venv primero.
 RUN apt-get update \
@@ -132,7 +145,8 @@ RUN apt-get update \
         "python-dotenv>=1.1.1" \
         "requests>=2.32.5" \
         "pyserial>=3.5" \
-        "websockets>=15.0"
+        "websockets>=15.0" \
+        "pytest>=8.3.0"
 
 ENV PATH="/opt/venv/bin:${PATH}"
 # Mismo dominio DDS que el agente ROS de la Pi (para descubrirse por DDS).
@@ -143,7 +157,8 @@ ENV ROS_DOMAIN_ID=42
 ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4
 WORKDIR /app
 
-# Código del controller y la CLI (artefacto self-contained, no volumen).
+# Código self-contained (artefacto portable para deploy); en dev, el bind-mount de los targets
+# ros.* (-v $(CURDIR):/app) lo sobrescribe en runtime para iterar sin rebuild.
 COPY controller/ ./controller/
 COPY cli/ ./cli/
 COPY pyproject.toml ./
@@ -153,7 +168,25 @@ COPY pyproject.toml ./
 CMD ["python", "-m", "controller"]
 ```
 
-- [ ] **Step 2: Build nativo (x86_64) con Podman**
+- [ ] **Step 2: Actualizar targets `ros.*` del Makefile al Dockerfile e imagen unificados**
+
+En `services/RaspberryPi/Makefile`, cambiar:
+```makefile
+IMAGE := localhost/labs-remoto/controller-ros:jazzy
+```
+por:
+```makefile
+IMAGE := localhost/labs-remoto/controller:jazzy
+```
+y en el target `ros.build`, cambiar `-f Dockerfile.ros` por `-f Dockerfile`. Los demás targets
+(`ros.verify`, `ros.test`, `ros.shell`, `ros.run`) no cambian: siguen usando `$(IMAGE)`.
+
+- [ ] **Step 3: Actualizar comentario en `services/RaspberryPi/CLAUDE.md`**
+
+Cambiar `make ros.build     # construye la imagen (Dockerfile.ros)` por
+`make ros.build     # construye la imagen (Dockerfile)`.
+
+- [ ] **Step 4: Build nativo (x86_64) con Podman**
 
 Run:
 ```bash
@@ -162,7 +195,7 @@ podman build -t localhost/labs-remoto/controller:jazzy -f Dockerfile .
 ```
 Expected: build exitoso, termina con `Successfully tagged localhost/labs-remoto/controller:jazzy` (o el hash de la imagen).
 
-- [ ] **Step 3: Verificar imports bajo 3.12 real (valida Task 1 + rclpy visible)**
+- [ ] **Step 5: Verificar imports bajo 3.12 real (valida Task 1 + rclpy visible)**
 
 Run:
 ```bash
@@ -171,12 +204,22 @@ podman run --rm localhost/labs-remoto/controller:jazzy \
 ```
 Expected: imprime `import OK`. `compileall` byte-compila TODO el código bajo 3.12 (atrapa cualquier sintaxis 3.13 residual); el import confirma que `rclpy` está visible en el venv.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Verificar que los targets `ros.*` preexistentes siguen funcionando con el Dockerfile unificado**
+
+Run:
+```bash
+cd services/RaspberryPi
+make ros.build && make ros.verify
+```
+Expected: `ros.verify` imprime `rclpy + std_msgs OK`. Confirma que unificar el Dockerfile no rompió el flujo de dev existente.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /home/phosph/personal-proyects/ciie/core/labs-remoto
-git add services/RaspberryPi/Dockerfile
-git commit -m "raspi: Dockerfile de deploy self-contained (ros:jazzy + controller)"
+git add services/RaspberryPi/Dockerfile services/RaspberryPi/Makefile services/RaspberryPi/CLAUDE.md
+git rm services/RaspberryPi/Dockerfile.ros
+git commit -m "raspi: unificar Dockerfile self-contained (reemplaza Dockerfile.ros)"
 ```
 
 ---
@@ -192,7 +235,7 @@ Define cómo corre el contenedor en la Pi y cómo se controla. `.env` y `robot-m
 
 **Interfaces:**
 - Consumes: imagen `localhost/labs-remoto/controller:jazzy` (Task 2); config vars de `controller/config.py` (`server_url`, `arduino_port`, `local_strategy`, `remote_strategy`, `metadata_file`, `mock_robot`, `create_default_metadata`, `ros2_*`).
-- Produces: contenedor `labs-remoto-robot`; interfaz de control `robot-cli` (usa `${CONTAINER_ENGINE:-docker} exec -it labs-remoto-robot python -m cli`).
+- Produces: contenedor `labs-remoto-robot`; interfaz de control `robot-cli` (usa `${CONTAINER_ENGINE:-docker} exec labs-remoto-robot python -m cli`).
 
 - [ ] **Step 1: Crear `services/RaspberryPi/compose.yaml`**
 
@@ -250,7 +293,7 @@ ROS2_DOMAIN_ID=42
 #
 # CONTAINER_ENGINE=docker por default (Pi). Override a `podman` para testear en la dev box:
 #   CONTAINER_ENGINE=podman ./robot-cli status
-exec "${CONTAINER_ENGINE:-docker}" exec -it labs-remoto-robot python -m cli "$@"
+exec "${CONTAINER_ENGINE:-docker}" exec labs-remoto-robot python -m cli "$@"
 ```
 
 - [ ] **Step 4: Hacer `robot-cli` ejecutable**
@@ -308,12 +351,13 @@ Automatiza cross-build arm64 (Podman) + entrega por SSH (`docker load`) + arranq
 - Modify: `services/RaspberryPi/Makefile` (append)
 
 **Interfaces:**
-- Consumes: `Dockerfile` (Task 2), `compose.yaml`/`robot-cli`/`.env.deploy.example` (Task 3).
+- Consumes: `Dockerfile` + `IMAGE := localhost/labs-remoto/controller:jazzy` (Task 2, targets `ros.*`), `compose.yaml`/`robot-cli`/`.env.deploy.example` (Task 3).
 - Produces: targets `deploy.build`, `deploy.push`, `deploy.up`, `deploy.restart`, `deploy`.
 
 - [ ] **Step 1: Agregar los targets de deploy al final del `Makefile`**
 
-Append a `services/RaspberryPi/Makefile`:
+Append a `services/RaspberryPi/Makefile`. Reutiliza `$(IMAGE)` (definido en la sección `ros.*` de
+Task 2) — no se define un `DEPLOY_IMAGE` propio, ya es el mismo Dockerfile/tag unificado:
 
 ```makefile
 
@@ -321,15 +365,14 @@ Append a `services/RaspberryPi/Makefile`:
 # Build con PODMAN en dev (docker no está instalado en dev), save como docker-archive
 # (tar que `docker load` acepta en la Pi), load por SSH. Cross-build arm64 requiere
 # binfmt qemu registrado en el host (paquete qemu-user-static).
-DEPLOY_IMAGE := localhost/labs-remoto/controller:jazzy
 DEPLOY_TAR := /tmp/labs-remoto-controller-arm64.tar
 PI_HOST ?= pi@raspberrypi.local
 PI_DIR ?= labs-remoto-controller
 
 .PHONY: deploy.build deploy.push deploy.up deploy.restart deploy
 deploy.build:
-	podman build --platform linux/arm64 -t $(DEPLOY_IMAGE) -f Dockerfile .
-	podman save --format docker-archive -o $(DEPLOY_TAR) $(DEPLOY_IMAGE)
+	podman build --platform linux/arm64 -t $(IMAGE) -f Dockerfile .
+	podman save --format docker-archive -o $(DEPLOY_TAR) $(IMAGE)
 
 deploy.push:
 	cat $(DEPLOY_TAR) | ssh $(PI_HOST) 'docker load'
@@ -399,8 +442,9 @@ El controller se empaqueta como imagen Docker self-contained (ROS 2 Jazzy → **
 ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`). El Python
 3.11 del host Raspbian no se usa: el contenedor trae su propio intérprete.
 
-- **Artefacto**: `services/RaspberryPi/Dockerfile` (copia el código; distinto de `Dockerfile.ros`
-  que monta volumen para dev).
+- **Artefacto**: `services/RaspberryPi/Dockerfile` (único archivo: copia el código para el
+  artefacto de deploy y, vía bind-mount de los targets `ros.*`, también sirve de imagen de
+  iteración local con `rclpy` real — reemplaza al extinto `Dockerfile.ros`).
 - **Runtime**: `compose.yaml` — un servicio `controller`, `network_mode: host`,
   `restart: unless-stopped`, `container_name: labs-remoto-robot`. Sin systemd: el ciclo de vida
   lo cubre la restart policy de Docker. Sin passthrough de serial (el Arduino lo maneja el agente ROS).
@@ -490,5 +534,5 @@ No automatizable en la dev box (necesita hardware/SSH). Documentar como checklis
 ## Notas de implementación
 
 - **`sync-quadlets` NO aplica**: aunque este plan crea un `Dockerfile`, es para la Pi (Docker, fuera de `quadlets/`). No disparar esa skill; no hay quadlet asociado.
-- **Deuda anotada (fuera de alcance)**: factorizar base común entre `Dockerfile` y `Dockerfile.ros` para no duplicar la instalación de deps.
+- **`Dockerfile.ros` unificado en Task 2** (decisión post-pre-flight, confirmada por el usuario): en vez de la deuda anotada originalmente ("factorizar base común entre `Dockerfile` y `Dockerfile.ros`"), se elimina `Dockerfile.ros` y se refactoriza directamente en el `Dockerfile` único — la deuda queda resuelta, no diferida.
 - **Orden de tasks**: 1→2→3→4→5 es secuencial (cada una consume la anterior). Task 5 (docs) puede solaparse pero se deja al final para reflejar el estado real.

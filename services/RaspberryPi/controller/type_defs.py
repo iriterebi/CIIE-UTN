@@ -15,13 +15,13 @@ class CoreStatusData(TypedDict):
 
 # --- JSON-RPC 2.0 ---
 
-class JsonRpcRequest[T = Any](TypedDict):
+class JsonRpcRequest[T](TypedDict):
     jsonrpc: str
     method: str
     params: NotRequired[T]
     id: Any
 
-class JsonRpcResponse[T = Any](TypedDict):
+class JsonRpcResponse[T](TypedDict):
     jsonrpc: str
     result: T
     error: NotRequired[dict[str, Any]]

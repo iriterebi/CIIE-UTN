@@ -8,7 +8,7 @@ import RobotCommandPanel from '../components/RobotCommandPanel.vue'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { status, messages, error, connect, sendCommand, disconnect, clearMessagesHistory, robotState } = useRobotSocket()
+const { status, robotStatus, messages, error, connect, sendCommand, disconnect, clearMessagesHistory, robotState } = useRobotSocket()
 
 const robotId = route.params.id as string
 const robotAccessToken = history.state.robotAccessToken as string | undefined
@@ -35,8 +35,17 @@ onUnmounted(() => {
       <span v-if="status === 'connected'">Conectado</span>
       <span v-else-if="status === 'connecting'" aria-busy="true">Conectando...</span>
       <span v-else-if="status === 'authenticating'" aria-busy="true">Autenticando...</span>
+      <span v-else-if="status === 'reconnecting'" aria-busy="true">Reconectando...</span>
       <span v-else-if="status === 'error'">Error: {{ error }}</span>
       <span v-else>Desconectado</span>
+    </p>
+    <p v-if="status === 'connected' && robotStatus !== 'robot_disponible'">
+      <span v-if="robotStatus === 'robot_desconectado_reconectando'" aria-busy="true">
+        El robot se desconectó, reconectando...
+      </span>
+      <span v-else-if="robotStatus === 'robot_no_disponible'">
+        El robot no está disponible.
+      </span>
     </p>
   </hgroup>
 

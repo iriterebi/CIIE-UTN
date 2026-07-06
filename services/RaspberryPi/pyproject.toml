@@ -3,7 +3,7 @@ name = "ciie-remote-lab-native"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13.7"
+requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.11.10",
     "pydantic-settings>=2.13.1",

@@ -101,3 +101,30 @@ class TestSendData:
         asyncio.run(source.send_data({"hello": "world"}))
 
         ws.send_json.assert_awaited_once_with({"hello": "world"})
+
+
+class TestReceiveDataPong:
+    def test_pong_no_se_retorna_como_comando_y_marca_el_evento(self):
+        ws = _make_ws()
+        ws.receive_text.side_effect = [
+            '{"type": "pong"}',
+            '{"method": "move_arm"}',
+        ]
+        pong_received = asyncio.Event()
+        source = UserStreamSource(ws, pong_received=pong_received)
+
+        result = asyncio.run(source.receive_data())
+
+        assert result == {"method": "move_arm"}
+        assert pong_received.is_set()
+        ws.send_json.assert_not_awaited()
+
+
+class TestSendControl:
+    def test_send_control_usa_send_json(self):
+        ws = _make_ws()
+        source = UserStreamSource(ws)
+
+        asyncio.run(source.send_control({"type": "ping"}))
+
+        ws.send_json.assert_awaited_once_with({"type": "ping"})

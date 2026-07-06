@@ -22,11 +22,12 @@ from ..entities.errors import (
     serialise_as_jsonrpc_error,
 )
 from ..entities.json_rpc_commands import UserWsAuthentication
+from ..utils.heartbeat import HeartbeatTimeoutError, run_heartbeat_watchdog
 from .robot_service import RobotServiceDep, RobotService
 from .access_validator import AccessValidator, UserRobotAccessSession
 from ..entities import Robot
 from ..repositories.robot_connection import RobotConnectionRepository, RobotConnectionRepositoryDep
-from ..repositories.stream_entities import UserSideClosed
+from ..repositories.stream_entities import RobotSideClosed, UserSideClosed
 from ..adapters import UserStreamSource
 from ...auth.entities import User
 from ...auth.services import UserService, UserServiceDep
@@ -64,9 +65,12 @@ class UserToRobotComunication:
             user, robot = await self._validate_user_session(websocket)
 
             logger.info("establishing user connection")
+            pong_received = asyncio.Event()
+            pong_received.set()
+            userStreamSource = UserStreamSource(websocket, pong_received=pong_received)
             userConnection = self.robot_connection_repository.addUserConnection(
                 user,
-                UserStreamSource(websocket)
+                userStreamSource
             )
 
             logger.info("obtaining robot connection")
@@ -78,13 +82,28 @@ class UserToRobotComunication:
             logger.info("creating User-robot comunication pipe")
             bidirectionalPipe = self.robot_connection_repository.addUserXRobotConnection(userConnection, robotConnection)
 
+            async def _send_ping() -> None:
+                await userStreamSource.send_control({"type": "ping"})
+
+            async def _watch_heartbeat() -> None:
+                try:
+                    await run_heartbeat_watchdog(_send_ping, pong_received)
+                except HeartbeatTimeoutError:
+                    logger.warning("Heartbeat del usuario expiró, cerrando conexión")
+                    await websocket.close()
+
             logger.info("connecting pipe")
             try:
-                await bidirectionalPipe.connect()
+                async with asyncio.TaskGroup() as tg:
+                    heartbeat_task = tg.create_task(_watch_heartbeat())
+                    bidirectionalPipe.register_extra_task(heartbeat_task)
+                    tg.create_task(bidirectionalPipe.connect(
+                        wait_for_robot_reconnect=self.robot_connection_repository.wait_for_robot_reconnect,
+                    ))
             except* UserSideClosed:
                 logger.info("user closed websocket, ending session")
-            # RobotSideClosed se deja propagar al handler de ExceptionGroup;
-            # su manejo dedicado se definirá más adelante.
+            except* RobotSideClosed:
+                logger.info("robot no reconectó a tiempo, cerrando sesión de usuario")
 
         except WebSocketDisconnect:
             logger.info("Client disconnected")

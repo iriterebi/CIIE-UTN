@@ -11,6 +11,8 @@ class RobotResponse(BaseModel):
     result: dict | None = None
     error: dict | None = None
     id: str | int | None = None
+    method: str | None = None
+    params: dict | None = None
 
 class UserWsAuthentication(BaseModel):
     token: str

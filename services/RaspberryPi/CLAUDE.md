@@ -24,12 +24,18 @@ controller corre sin cambios de código). Requiere podman instalado en el host
 (`sudo apt install -y podman uidmap`). Podman es rootless: no necesita grupo ni daemon.
 
 ```bash
-make ros.build     # construye la imagen (Dockerfile.ros)
+make ros.build     # construye --target base (Dockerfile) → localhost/labs-remoto/controller-dev:jazzy
 make ros.verify    # comprueba que rclpy + std_msgs importan
 make ros.test      # corre pytest dentro del contenedor (rclpy real disponible)
 make ros.shell     # bash interactivo con ROS sourceado (ros2 topic echo/pub)
 make ros.run       # corre el controller con LOCAL_STRATEGY=Ros2Strategy
 ```
+
+`Dockerfile` es multi-stage: `base` (deps + rclpy, sin código de la app) y `final` (extiende `base`
+con el código y los defaults de deploy horneados — ver "Deploy en la Pi" abajo). `ros.build` siempre
+construye `--target base` hacia un tag propio (`controller-dev:jazzy`), **distinto** del tag de
+deploy (`controller:jazzy`) — evita que un build de dev pise el artefacto que se sube a la Pi (o
+viceversa), ya que ambos stages difieren en contenido.
 
 Los targets usan `podman run` plano con `--network=host` (discovery DDS con el agente ROS y acceso a
 la API en `localhost`) y montan el código como volumen (incluido el `.env`). `rclpy` vive solo en el
@@ -44,6 +50,45 @@ contenedor; el host sigue usando uv para mock/serial.
 > **Entornos restringidos/anidados** (VM/contenedor donde podman no puede crear namespaces; error
 > `mount 'proc' to 'proc': Operation not permitted`): agregar `--isolation=chroot` al `podman build`
 > y `--pid=host` al `podman run`. En una máquina normal no hacen falta.
+
+### Deploy en la Pi (Docker Compose)
+
+El controller se empaqueta como imagen Docker self-contained (ROS 2 Jazzy → **Python 3.12**;
+ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`). El Python
+3.11 del host Raspbian no se usa: el contenedor trae su propio intérprete.
+
+- **Artefacto**: `services/RaspberryPi/Dockerfile` es multi-stage: `base` (ROS 2 + venv + deps, sin
+  código — lo usan los targets `ros.*` con bind-mount para iterar localmente) y `final` (extiende
+  `base`: agrega el código self-contained + defaults de deploy horneados). `deploy.build` construye
+  siempre `--target final` hacia el tag `localhost/labs-remoto/controller:jazzy`.
+- **Runtime**: `compose.yaml` — un servicio `controller`, `network_mode: host`,
+  `restart: unless-stopped`, `container_name: labs-remoto-robot`. Sin systemd: el ciclo de vida
+  lo cubre la restart policy de Docker. Sin passthrough de serial (el Arduino lo maneja el agente ROS).
+- **Config**: copiar `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL`. El resto de la
+  config de deploy (`LOCAL_STRATEGY`, `REMOTE_STRATEGY`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`,
+  `METADATA_FILE`, `ROS2_*`) ya viene horneada como default en el stage `final` — en la Pi
+  normalmente solo hacen falta `SERVER_URL` y `ARDUINO_PORT` en `.env`. La identidad del robot
+  persiste en `./data/` (montado).
+- **Control**: `./robot-cli <comando>` corre la CLI dentro del contenedor vía `docker exec`
+  (el host es 3.11, la CLI usa 3.12). En dev: `CONTAINER_ENGINE=podman ./robot-cli status`.
+
+Build y entrega (Podman en dev — docker no está en dev — → `docker load` en la Pi):
+
+    make deploy.build      # cross-build arm64 + save (docker-archive). Requiere binfmt qemu.
+    make deploy.push       # docker load por SSH + scp de compose/robot-cli/.env.example
+    make deploy.up         # docker compose up -d en la Pi
+    make deploy            # los tres encadenados
+    # PI_HOST y PI_DIR son overridables: make deploy PI_HOST=usuario@ip
+
+> La Pi usa **Docker** (como sus otros contenedores ROS), no Podman/quadlets. Divergencia
+> intencional respecto al servidor central. La Pi está fuera de `quadlets/deploy.sh`.
+
+> En una Pi que todavía no tiene `.env` (su primer deploy), hay que copiar
+> `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL` **antes** de correr
+> `make deploy.up` (o el `make deploy` encadenado, que falla en ese paso sin `.env`, ya que
+> `compose.yaml` lo requiere vía `env_file`). En redeploys siguientes, con `.env` ya presente,
+> `make deploy` alcanza como comando único. `.env.deploy.example` ahora trae solo `SERVER_URL` y
+> `ARDUINO_PORT` (el resto de la config viene horneada en la imagen — ver "Artefacto" arriba).
 
 ## Estructura del Código
 

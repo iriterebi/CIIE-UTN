@@ -1,3 +1,4 @@
 robot-metadata.json
 tmp/
 .env
+data/
