@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
+import asyncio
 
 import pytest
 
@@ -209,3 +210,51 @@ class TestGetUserXRobotConnection:
         repo.addUserConnection(user, _make_source())
 
         assert repo.getUserXRobotConnection(user=user) is None
+
+
+class TestDiscardDeadRobotConnection:
+    def test_remueve_del_repo_sin_tocar_el_pipe(self, repo):
+        user = _make_user()
+        robot = _make_robot()
+        user_conn = repo.addUserConnection(user, _make_source())
+        robot_conn = repo.addRobotConnection(robot, _make_source())
+        pipe = repo.addUserXRobotConnection(user_conn, robot_conn)
+        pipe._tasks.append(MagicMock())  # simular pipe conectado
+
+        repo.discardDeadRobotConnection(robot)
+
+        assert repo.getRobotConnection(robot) is None
+        # el pipe NO se tocó: sigue "conectado" (el propio pipe maneja su espera)
+        assert pipe.connected is True
+
+    def test_sobre_robot_inexistente_es_noop(self, repo):
+        robot = _make_robot()
+        repo.discardDeadRobotConnection(robot)  # no debe lanzar
+        assert repo.getRobotConnection(robot) is None
+
+
+class TestWaitForRobotReconnect:
+    def test_retorna_none_si_no_reconecta_a_tiempo(self, repo):
+        robot = _make_robot()
+
+        async def run():
+            return await repo.wait_for_robot_reconnect(str(robot.id), timeout=0.02)
+
+        assert asyncio.run(run()) is None
+
+    def test_retorna_la_nueva_conexion_si_reconecta_a_tiempo(self, repo):
+        robot = _make_robot()
+
+        async def run():
+            async def _reconnect_later():
+                await asyncio.sleep(0.01)
+                repo.addRobotConnection(robot, _make_source())
+
+            waiter = asyncio.create_task(repo.wait_for_robot_reconnect(str(robot.id), timeout=1.0))
+            reconnector = asyncio.create_task(_reconnect_later())
+            result = await waiter
+            await reconnector
+            return result
+
+        result = asyncio.run(run())
+        assert result is repo.getRobotConnection(robot)
