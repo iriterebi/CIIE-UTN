@@ -68,15 +68,19 @@ class ProxyStreamSource(StreamSource):
             done, pending = await asyncio.wait(
                 {get_task, disconnect_task}, return_when=asyncio.FIRST_COMPLETED
             )
-        finally:
+        except BaseException:
+            get_task.cancel()
+            disconnect_task.cancel()
+            raise
+        else:
             for task in pending:
                 _ = task.cancel()
 
-        if disconnect_task in done:
-            assert self._disconnected_exc is not None
-            raise self._disconnected_exc
+        if get_task in done:
+            return get_task.result()  # pyright: ignore[reportAny]
 
-        return get_task.result()  # pyright: ignore[reportAny]
+        assert self._disconnected_exc is not None
+        raise self._disconnected_exc
 
     @override
     async def send_data(self, data: Any) -> None:  # pyright: ignore[reportExplicitAny, reportAny]

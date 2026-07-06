@@ -146,3 +146,29 @@ class TestMarkDisconnected:
             return result
 
         assert asyncio.run(run()) == "a"
+
+    def test_receive_data_cancelado_propaga_cancelled_error(self):
+        source, *_ = _make_source()
+
+        async def run():
+            task = asyncio.create_task(source.receive_data())
+            await asyncio.sleep(0)  # deja que receive_data entre en la espera
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        asyncio.run(run())
+
+    def test_mensaje_y_desconexion_simultaneos_no_pierden_el_mensaje(self):
+        source, *_ = _make_source()
+
+        async def run():
+            task = asyncio.create_task(source.receive_data())
+            await asyncio.sleep(0)  # deja que receive_data arranque y quede esperando
+
+            await source.enqueue_data("a")
+            await source.mark_disconnected("timeout")
+
+            return await task
+
+        assert asyncio.run(run()) == "a"
