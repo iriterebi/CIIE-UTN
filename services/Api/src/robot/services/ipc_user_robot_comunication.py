@@ -95,7 +95,8 @@ class UserToRobotComunication:
             logger.info("connecting pipe")
             try:
                 async with asyncio.TaskGroup() as tg:
-                    tg.create_task(_watch_heartbeat())
+                    heartbeat_task = tg.create_task(_watch_heartbeat())
+                    bidirectionalPipe.register_extra_task(heartbeat_task)
                     tg.create_task(bidirectionalPipe.connect(
                         wait_for_robot_reconnect=self.robot_connection_repository.wait_for_robot_reconnect,
                     ))

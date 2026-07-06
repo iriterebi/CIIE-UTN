@@ -152,3 +152,32 @@ class TestRobotReconnectFlow:
 
         asyncio.run(run())
         wait_for_robot_reconnect.assert_not_called()
+
+    def test_disconnect_cancela_tambien_tareas_extra_registradas(self):
+        user_conn = _make_user_conn()
+        robot_conn, _ = _make_robot_conn()
+        wait_for_robot_reconnect = AsyncMock()
+        pipe = UsersXRobotMapType(user=user_conn, robot=robot_conn)
+
+        async def run():
+            task = asyncio.create_task(
+                pipe.connect(wait_for_robot_reconnect=wait_for_robot_reconnect)
+            )
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+            async def _forever():
+                while True:
+                    await asyncio.sleep(3600)
+
+            extra_task = asyncio.create_task(_forever())
+            pipe.register_extra_task(extra_task)
+
+            pipe.disconnect()
+
+            with pytest.raises((asyncio.CancelledError, BaseExceptionGroup)):
+                await task
+
+            assert extra_task.cancelled() or extra_task.done()
+
+        asyncio.run(run())

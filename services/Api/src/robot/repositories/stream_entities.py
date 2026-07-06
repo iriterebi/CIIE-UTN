@@ -144,6 +144,7 @@ class UsersXRobotMapType:
         # Cancelar la tarea padre sí dispara el camino normal de
         # cancelación de `TaskGroup._aexit`.
         self._connect_task: asyncio.Task[None] | None = None
+        self._extra_tasks: list[asyncio.Task[Any]] = []
 
     @property
     def connected(self) -> bool:
@@ -218,11 +219,30 @@ class UsersXRobotMapType:
         finally:
             self._connect_task = None
 
+    def register_extra_task(self, task: asyncio.Task[Any]) -> None:
+        """Registra una tarea externa (ej. el watchdog de heartbeat del
+        usuario en ipc_user_robot_comunication.py) para que `disconnect()`
+        la cancele junto con el pipe.
+
+        Necesario porque un `disconnect()` externo cancela `_connect_task`
+        (la tarea que corre `connect()`), pero no tiene forma de conocer
+        otras tareas hermanas que el caller haya lanzado en su propio
+        TaskGroup (ej. un heartbeat) — sin este registro, esas tareas
+        seguirían corriendo contra un WebSocket ya cerrado tras el
+        disconnect, y terminarían lanzando una excepción no relacionada
+        (ej. al intentar escribir al socket) en vez de terminar
+        silenciosamente junto con el resto del pipe.
+        """
+        self._extra_tasks.append(task)
+
     def disconnect(self):
         if self._connect_task is not None:
             _ = self._connect_task.cancel()
 
         for task in self._tasks:
+            _ = task.cancel()
+
+        for task in self._extra_tasks:
             _ = task.cancel()
 
         for func in self._disconnectables:
@@ -233,3 +253,4 @@ class UsersXRobotMapType:
 
         self._tasks = []
         self._disconnectables = []
+        self._extra_tasks = []
