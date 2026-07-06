@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 
 _MIN_RECONNECT_DELAY = 1.0
 _MAX_RECONNECT_DELAY = 30.0
+_HEARTBEAT_TIMEOUT_SECONDS = 25.0
+
+
+class _HeartbeatTimeout(Exception):
+    """No llegó un ping de la Api dentro del timeout esperado: se asume conexión muerta."""
 
 
 def _derive_ws_url(server_url: str) -> str:
@@ -84,25 +89,55 @@ class WsStrategy(Strategy):
     async def receive(self) -> Any:
         """Escucha comandos JSON-RPC del WS de la API."""
         delay = _MIN_RECONNECT_DELAY
+        last_ping_at = asyncio.get_event_loop().time()
+
         while True:
             try:
-                async for raw in self._ws:  # type: ignore[union-attr]  # pyright: ignore[reportOptionalIterable]
+                while True:
+                    remaining = _HEARTBEAT_TIMEOUT_SECONDS - (
+                        asyncio.get_event_loop().time() - last_ping_at
+                    )
+                    if remaining <= 0:
+                        raise _HeartbeatTimeout()
+
+                    try:
+                        raw = await asyncio.wait_for(self._ws.recv(), timeout=remaining)  # type: ignore[union-attr]  # pyright: ignore[reportOptionalMemberAccess]
+                    except asyncio.TimeoutError as e:
+                        raise _HeartbeatTimeout() from e
+
                     delay = _MIN_RECONNECT_DELAY
+
+                    if await self._handle_if_ping(raw):
+                        last_ping_at = asyncio.get_event_loop().time()
+                        continue
+
                     msg = self._parse_message(raw)
                     if msg is not None:
                         return msg
 
-            except ConnectionClosed:
-                logger.warning(
-                    "Conexión WS perdida, reconectando en %.1fs...", delay,
-                )
+            except (ConnectionClosed, _HeartbeatTimeout) as e:
+                if isinstance(e, _HeartbeatTimeout):
+                    logger.warning(
+                        "Sin heartbeat de la Api en %.1fs, forzando reconexión en %.1fs...",
+                        _HEARTBEAT_TIMEOUT_SECONDS, delay,
+                    )
+                    try:
+                        await self._ws.close()  # type: ignore[union-attr]  # pyright: ignore[reportOptionalMemberAccess]
+                    except Exception:
+                        pass
+                else:
+                    logger.warning(
+                        "Conexión WS perdida, reconectando en %.1fs...", delay,
+                    )
+
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, _MAX_RECONNECT_DELAY)
                 try:
                     await self._reconnect()
+                    last_ping_at = asyncio.get_event_loop().time()
                     logger.info("Reconectado al WS de la API")
-                except (OSError, InvalidURI, ConnectionError) as e:
-                    logger.error("Error reconectando: %s", e)
+                except (OSError, InvalidURI, ConnectionError) as e2:
+                    logger.error("Error reconectando: %s", e2)
 
     @override
     async def send(self, message: Any) -> None:
@@ -153,6 +188,23 @@ class WsStrategy(Strategy):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._authenticate)
         await self._connect_ws()
+
+    async def _handle_if_ping(self, raw: Any) -> bool:
+        """Si `raw` es un ping de heartbeat de la Api, responde el pong.
+
+        Retorna True si `raw` era un ping (ya manejado, no debe
+        procesarse como comando), False en caso contrario.
+        """
+        try:
+            data = raw if isinstance(raw, dict) else json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+        if not (isinstance(data, dict) and data.get("type") == "ping"):
+            return False
+
+        await self._ws.send(json.dumps({"type": "pong"}))  # type: ignore[union-attr]  # pyright: ignore[reportOptionalMemberAccess]
+        return True
 
     def _parse_message(self, raw: Any) -> dict[str, Any] | None:
         """Parsea un mensaje WS como comando JSON-RPC.
