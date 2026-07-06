@@ -181,7 +181,7 @@ async def robot_connection(
         except Exception:
             pass
 
-        # Invariante: para que un `clean_close` derribe el pipe de una
+        # Invariante: para que un `clean_close` derribe el pipe de una vez
         # (sin pasar nunca por la rama de espera de reconexión),
         # `mark_disconnected` y `discardRobotConnection(discardPipeddConnections=True)`
         # deben correr de forma síncrona respecto a la tarea supervisora del
