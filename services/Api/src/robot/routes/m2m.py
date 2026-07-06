@@ -181,6 +181,13 @@ async def robot_connection(
         except Exception:
             pass
 
+        # Invariante: para que un `clean_close` derribe el pipe de una
+        # (sin pasar nunca por la rama de espera de reconexión),
+        # `mark_disconnected` y `discardRobotConnection(discardPipeddConnections=True)`
+        # deben correr de forma síncrona respecto a la tarea supervisora del
+        # pipe (sin ningún `await` que ceda el control real). Si alguna vez
+        # se le agrega I/O async genuino a `mark_disconnected`, esta
+        # distinción entre `clean_close` y `timeout` puede romperse.
         await streamSource.mark_disconnected(disconnect_reason)
 
         if disconnect_reason == "timeout":

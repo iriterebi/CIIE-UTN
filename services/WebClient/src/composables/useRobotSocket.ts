@@ -66,6 +66,9 @@ export function useRobotSocket() {
   }
 
   function startHeartbeatWatchdog() {
+    if (heartbeatWatchdogTimer !== null) {
+      clearInterval(heartbeatWatchdogTimer)
+    }
     lastPingAt = Date.now()
     heartbeatWatchdogTimer = setInterval(() => {
       if (Date.now() - lastPingAt > HEARTBEAT_TIMEOUT_MS) {

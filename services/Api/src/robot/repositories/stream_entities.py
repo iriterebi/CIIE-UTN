@@ -177,6 +177,21 @@ class UsersXRobotMapType:
             except Exception as e:
                 robot_id = str(self.robot.robot.id)
 
+                # El robot murió y su WS físico ya está cerrado (m2m.py lo
+                # cierra en su finally antes de llegar acá). El listener
+                # user→robot todavía apunta al RobotConnection viejo: si
+                # se lo dejara así, un comando del usuario durante la
+                # espera intentaría escribir al socket ya cerrado,
+                # lanzaría RuntimeError, y tumbaría toda la sesión del
+                # usuario — exactamente lo que esta espera existe para
+                # evitar. Se reemplaza por un rechazo inmediato mientras
+                # se espera la reconexión, antes de notificar al usuario,
+                # para no dejar una ventana donde el listener viejo
+                # pudiera todavía dispararse.
+                for remove in self._disconnectables:
+                    remove()
+                self._disconnectables = [self.user.on(self._reject_command_while_waiting)]
+
                 await self.user.send({
                     "status": "robot_disconnected",
                     "message": "robot desconectado, reconectando...",
@@ -200,6 +215,16 @@ class UsersXRobotMapType:
             # retornar. Si algún día lo hace, no dejamos el supervisor
             # colgado en silencio.
             raise AssertionError("unreachable: RobotConnection.connect() no debería retornar")
+
+    async def _reject_command_while_waiting(self, message: Any) -> None:
+        """Responde de inmediato con error JSON-RPC en vez de reenviar al
+        robot, mientras el pipe espera que el robot reconecte. No toca el
+        canal robot (que está muerto/cerrado en este momento)."""
+        await self.user.send({
+            "jsonrpc": "2.0",
+            "error": {"code": -32000, "message": "robot no disponible"},
+            "id": None,
+        })
 
     async def connect(
         self,

@@ -41,6 +41,13 @@ class _FakeSource:
         return get_task.result()
 
     async def send_data(self, data):
+        if self._die_event.is_set():
+            # Simula el comportamiento real de starlette: escribir a un
+            # WebSocket físico ya cerrado (que es justo lo que pasa con el
+            # WS del robot en m2m.py, cerrado en su `finally` antes de que
+            # el pipe se entere de la caída) lanza RuntimeError en vez de
+            # encolar el mensaje.
+            raise RuntimeError('Cannot call "send" once a close message has been sent.')
         self.sent.append(data)
 
     def die(self):
@@ -179,5 +186,96 @@ class TestRobotReconnectFlow:
                 await task
 
             assert extra_task.cancelled() or extra_task.done()
+
+        asyncio.run(run())
+
+    def test_comando_de_usuario_durante_espera_de_reconexion_no_tumba_la_sesion(self):
+        """Reproduce el bug del finding 1: mientras el pipe espera que el
+        robot reconecte, el listener usuario→robot todavía apuntaba al
+        `RobotConnection` viejo (con el WS físico ya cerrado). Un comando
+        del usuario en esa ventana debía, con el bug, propagar la
+        excepción del `send` fallido y tumbar TODO el pipe (incluida la
+        espera de reconexión en curso). Con el fix, el usuario recibe un
+        error JSON-RPC inmediato y el pipe sigue esperando, sin tocar el
+        canal robot muerto."""
+        user_conn = _make_user_conn()
+        robot_conn, robot = _make_robot_conn()
+        new_robot_conn, _ = _make_robot_conn()
+        reconnect_ready = asyncio.Event()
+
+        async def _wait_for_robot_reconnect_impl(robot_id, timeout):
+            await reconnect_ready.wait()
+            return new_robot_conn
+
+        wait_for_robot_reconnect = AsyncMock(side_effect=_wait_for_robot_reconnect_impl)
+        pipe = UsersXRobotMapType(user=user_conn, robot=robot_conn)
+
+        async def run():
+            task = asyncio.create_task(
+                pipe.connect(
+                    wait_for_robot_reconnect=wait_for_robot_reconnect,
+                    reconnect_timeout=5.0,
+                )
+            )
+            await asyncio.sleep(0)
+
+            # El robot muere; en la implementación real, para cuando esto
+            # pasa, m2m.py ya cerró el WS físico del robot (su `finally`
+            # corre `websocket.close()` antes de `mark_disconnected`).
+            robot_conn.ws.die()
+            await asyncio.sleep(0.01)
+
+            assert {
+                "status": "robot_disconnected",
+                "message": "robot desconectado, reconectando...",
+            } in user_conn.ws.sent
+
+            # El pipe sigue esperando la reconexión: todavía no volvió a
+            # llamar a `robot_conn.connect()` (viejo), ni terminó.
+            assert not task.done()
+
+            # El usuario manda un comando MIENTRAS se espera la reconexión.
+            # Con el bug, esto intentaría reenviarse al `RobotConnection`
+            # viejo (WS ya cerrado) y tumbaría el pipe entero.
+            user_conn.ws._recv_queue.put_nowait({"method": "mover", "args": []})
+            await asyncio.sleep(0.01)
+
+            # El pipe sigue vivo y esperando: la excepción NO se propagó.
+            assert not task.done()
+            assert pipe.connected is True
+            assert user_conn.ws.disconnected is False
+
+            # El usuario recibió un error inmediato en lugar de que se
+            # reenviara silenciosamente (o de que la sesión muriera).
+            error_responses = [
+                m for m in user_conn.ws.sent
+                if isinstance(m, dict) and "error" in m
+            ]
+            assert len(error_responses) == 1
+            assert error_responses[0]["error"]["message"] == "robot no disponible"
+
+            # El comando NUNCA llegó al robot viejo (que está muerto).
+            assert {"method": "mover", "args": []} not in robot_conn.ws.sent
+
+            # Ahora el robot reconecta a tiempo: la operación normal debe
+            # resumir.
+            reconnect_ready.set()
+            await asyncio.sleep(0.01)
+
+            assert pipe.robot is new_robot_conn
+            assert {"status": "robot_reconnected"} in user_conn.ws.sent
+
+            # Un nuevo comando del usuario ahora sí se reenvía al robot
+            # (nuevo, vivo) en vez de ser rechazado.
+            user_conn.ws._recv_queue.put_nowait({"method": "girar", "args": []})
+            await asyncio.sleep(0.01)
+
+            assert {"method": "girar", "args": []} in new_robot_conn.ws.sent
+
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, BaseExceptionGroup):
+                pass
 
         asyncio.run(run())
