@@ -1195,7 +1195,17 @@ async def robot_connection(
         await _send_json_locked({"type": "ping"})
 
     async def _receive_loop() -> None:
-        async for message in websocket.iter_json():
+        # No usamos `websocket.iter_json()`: internamente atrapa
+        # `WebSocketDisconnect` y termina el generador en silencio, sin
+        # propagar nada. Eso hace que, ante cualquier cierre del socket
+        # (voluntario o no), este loop termine "exitosamente" y la única
+        # señal de corte termine siendo, siempre, el timeout del
+        # heartbeat — nunca `except* Exception` (clean_close). Llamando a
+        # `receive_json()` directo, `WebSocketDisconnect` se propaga y
+        # permite distinguir el cierre limpio del timeout, tal como
+        # corresponde.
+        while True:
+            message: Any = await websocket.receive_json()  # pyright: ignore[reportAny]
             logger.info("Message received: %s", message)
             if isinstance(message, dict) and message.get("type") == "pong":
                 pong_received.set()
