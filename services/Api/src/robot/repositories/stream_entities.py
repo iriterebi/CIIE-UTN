@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Coroutine, Never, Protocol, final, override
+from typing import Any, Awaitable, Callable, Coroutine, Never, Protocol, final, override
 import asyncio
 import logging
 from ..entities import Robot
@@ -8,13 +8,15 @@ from ...auth.entities import User
 
 logger = logging.getLogger(__name__)
 
+_ROBOT_RECONNECT_WAIT_SECONDS: float = 120.0
+
 
 class UserSideClosed(Exception):
     """La conexión del lado usuario del pipe terminó (cierre normal o error)."""
 
 
 class RobotSideClosed(Exception):
-    """La conexión del lado robot del pipe terminó (cierre normal o error)."""
+    """La conexión del lado robot del pipe terminó sin reconectar a tiempo."""
 
 
 async def _wrap_side(coro: Coroutine[Any, Any, Never], wrapper: type[Exception]) -> Never:
@@ -131,24 +133,95 @@ class UsersXRobotMapType:
         self.robot = robot
         self._tasks: list[asyncio.Task[Never]] = []
         self._disconnectables: list[RemoveListener] = []
+        # Tarea que corre `connect()` (el "padre" del TaskGroup interno).
+        # Necesaria porque `disconnect()` puede invocarse desde otra tarea
+        # mientras `connect()` sigue corriendo: cancelar directamente las
+        # tareas hijas (`self._tasks`) no alcanza, ya que `TaskGroup`
+        # ignora cancelaciones externas de sus hijos si la propia tarea
+        # padre nunca fue cancelada (ver `asyncio.taskgroups._on_task_done`,
+        # que hace `if task.cancelled(): return` sin registrar error ni
+        # abortar al resto) — el grupo terminaría sin excepción alguna.
+        # Cancelar la tarea padre sí dispara el camino normal de
+        # cancelación de `TaskGroup._aexit`.
+        self._connect_task: asyncio.Task[None] | None = None
 
     @property
     def connected(self) -> bool:
         return len(self._tasks) > 0
 
-    async def connect(self):
-        self._disconnectables += [
+    def _bind_robot_listeners(self) -> None:
+        for remove in self._disconnectables:
+            remove()
+        self._disconnectables = [
             self.user.on(self.robot.send),
-            self.robot.on(self.user.send)
+            self.robot.on(self.user.send),
         ]
 
-        async with asyncio.TaskGroup() as tg:
-            self._tasks += [
-                tg.create_task(_wrap_side(self.user.connect(), UserSideClosed)),
-                tg.create_task(_wrap_side(self.robot.connect(), RobotSideClosed)),
-            ]
+    async def _supervise_robot(
+        self,
+        wait_for_robot_reconnect: Callable[[str, float], Awaitable[RobotConnection | None]],
+        reconnect_timeout: float,
+    ) -> Never:
+        """Corre `self.robot.connect()` en loop, sobreviviendo a caídas.
+
+        Si el robot se cae, notifica al usuario y espera a que
+        `wait_for_robot_reconnect` devuelva una nueva `RobotConnection`.
+        Si llega a tiempo, se re-vincula (`self.robot = new_robot`) y
+        se reintenta. Si se agota el timeout, levanta `RobotSideClosed`
+        — recién ahí termina también el lado usuario (vía TaskGroup).
+        """
+        while True:
+            try:
+                await self.robot.connect()
+            except Exception as e:
+                robot_id = str(self.robot.robot.id)
+
+                await self.user.send({
+                    "status": "robot_disconnected",
+                    "message": "robot desconectado, reconectando...",
+                })
+
+                new_robot = await wait_for_robot_reconnect(robot_id, reconnect_timeout)
+
+                if new_robot is None:
+                    await self.user.send({
+                        "status": "robot_unavailable",
+                        "message": "el robot no reconectó a tiempo",
+                    })
+                    raise RobotSideClosed() from e
+
+                self.robot = new_robot
+                self._bind_robot_listeners()
+                await self.user.send({"status": "robot_reconnected"})
+                continue
+
+            # `RobotConnection.connect()` está anotado `Never`: no debería
+            # retornar. Si algún día lo hace, no dejamos el supervisor
+            # colgado en silencio.
+            raise AssertionError("unreachable: RobotConnection.connect() no debería retornar")
+
+    async def connect(
+        self,
+        *,
+        wait_for_robot_reconnect: Callable[[str, float], Awaitable[RobotConnection | None]],
+        reconnect_timeout: float = _ROBOT_RECONNECT_WAIT_SECONDS,
+    ) -> None:
+        self._bind_robot_listeners()
+        self._connect_task = asyncio.current_task()
+
+        try:
+            async with asyncio.TaskGroup() as tg:
+                self._tasks = [
+                    tg.create_task(_wrap_side(self.user.connect(), UserSideClosed)),
+                    tg.create_task(self._supervise_robot(wait_for_robot_reconnect, reconnect_timeout)),
+                ]
+        finally:
+            self._connect_task = None
 
     def disconnect(self):
+        if self._connect_task is not None:
+            _ = self._connect_task.cancel()
+
         for task in self._tasks:
             _ = task.cancel()
 
