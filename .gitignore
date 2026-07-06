@@ -8,3 +8,4 @@ env-test1/*
 *.docx#
 .build-cache
 .worktrees/
+.superpowers/
