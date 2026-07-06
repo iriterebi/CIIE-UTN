@@ -878,7 +878,38 @@ class TestRobotReconnectFlow:
 
         asyncio.run(run())
         wait_for_robot_reconnect.assert_not_called()
+
+    def test_disconnect_cancela_tambien_tareas_extra_registradas(self):
+        user_conn = _make_user_conn()
+        robot_conn, _ = _make_robot_conn()
+        wait_for_robot_reconnect = AsyncMock()
+        pipe = UsersXRobotMapType(user=user_conn, robot=robot_conn)
+
+        async def run():
+            task = asyncio.create_task(
+                pipe.connect(wait_for_robot_reconnect=wait_for_robot_reconnect)
+            )
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+            async def _forever():
+                while True:
+                    await asyncio.sleep(3600)
+
+            extra_task = asyncio.create_task(_forever())
+            pipe.register_extra_task(extra_task)
+
+            pipe.disconnect()
+
+            with pytest.raises((asyncio.CancelledError, BaseExceptionGroup)):
+                await task
+
+            assert extra_task.cancelled() or extra_task.done()
+
+        asyncio.run(run())
 ```
+
+Este test cubre un hallazgo posterior de Task 7 (ver esa sección): `disconnect()` necesita poder cancelar tareas externas (ej. el watchdog de heartbeat del usuario) registradas por el caller, no solo las internas del pipe — de lo contrario esas tareas sobreviven contra un WebSocket ya cerrado y terminan lanzando una excepción no relacionada más adelante.
 
 - [ ] **Step 2: Correr el test y verificar que falla**
 
@@ -927,10 +958,27 @@ class UsersXRobotMapType:
         # Cancelar la tarea padre sí dispara el camino normal de
         # cancelación de `TaskGroup._aexit`.
         self._connect_task: asyncio.Task[None] | None = None
+        self._extra_tasks: list[asyncio.Task[Any]] = []
 
     @property
     def connected(self) -> bool:
         return len(self._tasks) > 0
+
+    def register_extra_task(self, task: asyncio.Task[Any]) -> None:
+        """Registra una tarea externa (ej. el watchdog de heartbeat del
+        usuario en ipc_user_robot_comunication.py) para que `disconnect()`
+        la cancele junto con el pipe.
+
+        Necesario porque un `disconnect()` externo cancela `_connect_task`
+        (la tarea que corre `connect()`), pero no tiene forma de conocer
+        otras tareas hermanas que el caller haya lanzado en su propio
+        TaskGroup (ej. un heartbeat) — sin este registro, esas tareas
+        seguirían corriendo contra un WebSocket ya cerrado tras el
+        disconnect, y terminarían lanzando una excepción no relacionada
+        (ej. al intentar escribir al socket) en vez de terminar
+        silenciosamente junto con el resto del pipe.
+        """
+        self._extra_tasks.append(task)
 
     def _bind_robot_listeners(self) -> None:
         for remove in self._disconnectables:
@@ -1008,6 +1056,9 @@ class UsersXRobotMapType:
         for task in self._tasks:
             _ = task.cancel()
 
+        for task in self._extra_tasks:
+            _ = task.cancel()
+
         for func in self._disconnectables:
             try:
                 func()
@@ -1016,12 +1067,13 @@ class UsersXRobotMapType:
 
         self._tasks = []
         self._disconnectables = []
+        self._extra_tasks = []
 ```
 
 - [ ] **Step 4: Correr el test y verificar que pasa**
 
 Run: `cd services/Api && uv run pytest tests/robot/repositories/test_stream_entities.py -v`
-Expected: PASS (3 tests)
+Expected: PASS (4 tests)
 
 - [ ] **Step 5: Correr toda la suite de Api para descartar regresiones**
 
@@ -1378,7 +1430,13 @@ class UserToRobotComunication:
             logger.info("connecting pipe")
             try:
                 async with asyncio.TaskGroup() as tg:
-                    tg.create_task(_watch_heartbeat())
+                    # Se registra en el pipe para que disconnect() (ej. el
+                    # camino clean_close de m2m.py) también la cancele —
+                    # de lo contrario sobrevive contra un WS ya cerrado y
+                    # termina lanzando una excepción no relacionada en su
+                    # próximo ciclo de ping.
+                    heartbeat_task = tg.create_task(_watch_heartbeat())
+                    bidirectionalPipe.register_extra_task(heartbeat_task)
                     tg.create_task(bidirectionalPipe.connect(
                         wait_for_robot_reconnect=self.robot_connection_repository.wait_for_robot_reconnect,
                     ))
