@@ -20,6 +20,7 @@ from ..services.handshake_service import HandshakeService, HandshakeServiceDep
 from ..services import (
     RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult, RobotResponse
 )
+from ..utils.heartbeat import HeartbeatTimeoutError, run_heartbeat_watchdog
 
 router = APIRouter(tags=["robots", "m2m"])
 
@@ -117,27 +118,72 @@ async def robot_connection(
     async def noop_async() -> None:
         return None
 
+    send_lock = asyncio.Lock()
+
+    async def _send_json_locked(data: Any) -> None:  # pyright: ignore[reportExplicitAny, reportAny]
+        async with send_lock:
+            await websocket.send_json(data)
+
     streamSource = ProxyStreamSource(
-        on_recieve=lambda data: websocket.send_json(data),  # pyright: ignore[reportAny]
+        on_recieve=_send_json_locked,
         on_accept=noop_async,
         on_disconnect=noop_async,
         on_idle_changed=set_pipe_active,
     )
 
-
     _ = robot_connection_repository.addRobotConnection(robot, streamSource)
 
+    pong_received = asyncio.Event()
+    pong_received.set()
 
-    async for message in websocket.iter_json():
-        logger.info("Message received: %s", message)
-        if not pipe_active:
-            continue
+    async def _send_ping() -> None:
+        await _send_json_locked({"type": "ping"})
+
+    async def _receive_loop() -> None:
+        # No usamos `websocket.iter_json()`: internamente atrapa
+        # `WebSocketDisconnect` y termina el generador en silencio, sin
+        # propagar nada. Eso hace que, ante cualquier cierre del socket
+        # (voluntario o no), este loop termine "exitosamente" y la única
+        # señal de corte termine siendo, siempre, el timeout del
+        # heartbeat — nunca `except* Exception` (clean_close). Llamando a
+        # `receive_json()` directo, `WebSocketDisconnect` se propaga y
+        # permite distinguir el cierre limpio del timeout, tal como
+        # corresponde.
+        while True:
+            message: Any = await websocket.receive_json()  # pyright: ignore[reportAny]
+            logger.info("Message received: %s", message)
+            if isinstance(message, dict) and message.get("type") == "pong":
+                pong_received.set()
+                continue
+            if not pipe_active:
+                continue
+            try:
+                validated = RobotResponse.model_validate(message)
+            except ValidationError:
+                logger.warning("Mensaje del robot mal formado, descartando: %s", message)
+                continue
+            await streamSource.enqueue_data(validated.model_dump(mode="python"))
+
+    disconnect_reason = "clean_close"
+    try:
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(_receive_loop())
+            tg.create_task(run_heartbeat_watchdog(_send_ping, pong_received))
+    except* HeartbeatTimeoutError:
+        disconnect_reason = "timeout"
+        logger.warning("Sin heartbeat del robot %s, cerrando conexión", robot.id)
+    except* Exception:
+        disconnect_reason = "clean_close"
+        logger.info("Conexión del robot %s cerrada limpiamente", robot.id)
+    finally:
         try:
-            validated = RobotResponse.model_validate(message)
-        except ValidationError:
-            logger.warning("Mensaje del robot mal formado, descartando: %s", message)
-            continue
-        await streamSource.enqueue_data(validated.model_dump(mode="python"))
+            await websocket.close()
+        except Exception:
+            pass
 
+        await streamSource.mark_disconnected(disconnect_reason)
 
-
+        if disconnect_reason == "timeout":
+            robot_connection_repository.discardDeadRobotConnection(robot)
+        else:
+            robot_connection_repository.discardRobotConnection(robot, discardPipeddConnections=True)
