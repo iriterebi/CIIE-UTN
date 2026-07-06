@@ -860,6 +860,12 @@ class TestRobotReconnectFlow:
             task = asyncio.create_task(
                 pipe.connect(wait_for_robot_reconnect=wait_for_robot_reconnect)
             )
+            # Dos sleeps: create_task solo agenda el primer __step (no lo
+            # corre). Con un solo sleep(0), las tareas hijas todavía no
+            # arrancaron su cuerpo — cancelarlas ahí salta su try/finally
+            # de cleanup entero (ws.disconnect() nunca se llama). El
+            # segundo sleep(0) les da su primer turno real de ejecución.
+            await asyncio.sleep(0)
             await asyncio.sleep(0)
             assert pipe.connected is True
 
@@ -910,6 +916,17 @@ class UsersXRobotMapType:
         self.robot = robot
         self._tasks: list[asyncio.Task[Never]] = []
         self._disconnectables: list[RemoveListener] = []
+        # Tarea que corre `connect()` (el "padre" del TaskGroup interno).
+        # Necesaria porque `disconnect()` puede invocarse desde otra tarea
+        # mientras `connect()` sigue corriendo: cancelar directamente las
+        # tareas hijas (`self._tasks`) no alcanza, ya que `TaskGroup`
+        # ignora cancelaciones externas de sus hijos si la propia tarea
+        # padre nunca fue cancelada (ver `asyncio.taskgroups._on_task_done`,
+        # que hace `if task.cancelled(): return` sin registrar error ni
+        # abortar al resto) — el grupo terminaría sin excepción alguna.
+        # Cancelar la tarea padre sí dispara el camino normal de
+        # cancelación de `TaskGroup._aexit`.
+        self._connect_task: asyncio.Task[None] | None = None
 
     @property
     def connected(self) -> bool:
@@ -973,14 +990,21 @@ class UsersXRobotMapType:
         reconnect_timeout: float = _ROBOT_RECONNECT_WAIT_SECONDS,
     ) -> None:
         self._bind_robot_listeners()
+        self._connect_task = asyncio.current_task()
 
-        async with asyncio.TaskGroup() as tg:
-            self._tasks = [
-                tg.create_task(_wrap_side(self.user.connect(), UserSideClosed)),
-                tg.create_task(self._supervise_robot(wait_for_robot_reconnect, reconnect_timeout)),
-            ]
+        try:
+            async with asyncio.TaskGroup() as tg:
+                self._tasks = [
+                    tg.create_task(_wrap_side(self.user.connect(), UserSideClosed)),
+                    tg.create_task(self._supervise_robot(wait_for_robot_reconnect, reconnect_timeout)),
+                ]
+        finally:
+            self._connect_task = None
 
     def disconnect(self):
+        if self._connect_task is not None:
+            _ = self._connect_task.cancel()
+
         for task in self._tasks:
             _ = task.cancel()
 
