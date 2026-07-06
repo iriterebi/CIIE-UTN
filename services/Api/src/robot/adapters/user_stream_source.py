@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, override
@@ -16,8 +17,10 @@ class UserStreamSource(StreamSource):
     # TODO: manejar cuestiones relacionadas a la sesión del usuario (ejemplo: expiración)
     # TODO: validación profunda del payload — ampliar más allá de RRobotCommand
     # TODO: verificación del access_token per-sesión
-    def __init__(self, websocket: WebSocket):
+    def __init__(self, websocket: WebSocket, *, pong_received: asyncio.Event | None = None):
         self.websocket: WebSocket = websocket
+        self.pong_received: asyncio.Event = pong_received if pong_received is not None else asyncio.Event()
+        self._send_lock: asyncio.Lock = asyncio.Lock()
 
     @override
     async def accept(self):
@@ -34,7 +37,11 @@ class UserStreamSource(StreamSource):
             try:
                 text = await self.websocket.receive_text()
                 logger.info(f"Received text from user: {text}")
-                command = RRobotCommand.model_validate_json(text)
+                data = json.loads(text)
+                if isinstance(data, dict) and data.get("type") == "pong":
+                    self.pong_received.set()
+                    continue
+                command = RRobotCommand.model_validate(data)
                 return command.model_dump(mode="python")
             except ValidationError as e:
                 logger.error(f"Payload validation error: {e}")
@@ -51,4 +58,13 @@ class UserStreamSource(StreamSource):
 
     @override
     async def send_data(self, data: Any) -> None:  # pyright: ignore[reportAny, reportExplicitAny]
-        await self.websocket.send_json(data)
+        async with self._send_lock:
+            await self.websocket.send_json(data)
+
+    async def send_control(self, data: dict) -> None:
+        """Envía un frame de control (ej. heartbeat ping) usando el mismo
+        lock que `send_data`, para no intercalar escrituras concurrentes
+        sobre el mismo WebSocket físico.
+        """
+        async with self._send_lock:
+            await self.websocket.send_json(data)
