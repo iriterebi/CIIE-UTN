@@ -507,16 +507,18 @@ class UserStreamSource(StreamSource):
                 return command.model_dump(mode="python")
             except ValidationError as e:
                 logger.error(f"Payload validation error: {e}")
-                await self.websocket.send_json({
-                    "status": "error",
-                    "message": f"Invalid payload: {e.errors()}"
-                })
+                async with self._send_lock:
+                    await self.websocket.send_json({
+                        "status": "error",
+                        "message": f"Invalid payload: {e.errors()}"
+                    })
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON: {e}")
-                await self.websocket.send_json({
-                    "status": "error",
-                    "message": f"Invalid JSON: {e}"
-                })
+                async with self._send_lock:
+                    await self.websocket.send_json({
+                        "status": "error",
+                        "message": f"Invalid JSON: {e}"
+                    })
 
     @override
     async def send_data(self, data: Any) -> None:  # pyright: ignore[reportAny, reportExplicitAny]
