@@ -106,6 +106,15 @@ class RobotConnectionRepository:
 
         Retorna la nueva `RobotConnection` si se re-registró a tiempo,
         o `None` si se agotó el timeout sin que el robot reconecte.
+
+        Asume a lo sumo un llamador esperando por `robot_id` a la vez: el
+        `asyncio.Event` se comparte por robot_id y el `finally` lo elimina
+        incondicionalmente al salir, así que dos esperas concurrentes sobre
+        el mismo robot_id perderían la notificación para quien no fue el
+        primero en salir (timeout o éxito). Esto no ocurre en la práctica
+        porque `addUserXRobotConnection` ya impone como mucho un pipe activo
+        por robot (lanza `RobotInUseError` si no) — no es solo una
+        convención, hay una invariante real del repositorio detrás.
         """
         event = self._robot_reconnect_waiters.setdefault(robot_id, asyncio.Event())
         try:
