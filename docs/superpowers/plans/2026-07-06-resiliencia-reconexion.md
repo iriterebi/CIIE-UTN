@@ -1928,6 +1928,16 @@ const HEARTBEAT_TIMEOUT_MS = 25000
 const MIN_RECONNECT_DELAY_MS = 1000
 const MAX_RECONNECT_DELAY_MS = 30000
 
+// La Api (ver stream_entities.py) manda estos nombres de evento en inglés;
+// se traducen acá al dominio interno de RobotAvailability (español) que
+// consume la UI (Task 10). `robot_reconnected` resuelve de vuelta al
+// estado sano (`robot_disponible`), no a un literal propio.
+const ROBOT_STATUS_MAP: Record<string, RobotAvailability> = {
+  robot_disconnected: 'robot_desconectado_reconectando',
+  robot_reconnected: 'robot_disponible',
+  robot_unavailable: 'robot_no_disponible',
+}
+
 export function useRobotSocket() {
   const status = ref<SocketStatus>('disconnected')
   const robotStatus = ref<RobotAvailability>('robot_disponible')
@@ -2020,8 +2030,8 @@ export function useRobotSocket() {
         return
       }
 
-      if (data && typeof data.status === 'string' && data.status.startsWith('robot_')) {
-        robotStatus.value = data.status as RobotAvailability
+      if (data && typeof data.status === 'string' && data.status in ROBOT_STATUS_MAP) {
+        robotStatus.value = ROBOT_STATUS_MAP[data.status]
         return
       }
 
