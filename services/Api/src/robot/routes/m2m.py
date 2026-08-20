@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from ..entities.robot import Robot, RobotStreamAutentication
 from ..adapters import ProxyStreamSource
 from ..repositories.robot_connection import RobotConnectionRepositoryDep
+from ..repositories.video_relay import VideoRelayRepositoryDep
 from ..services.handshake_service import HandshakeService, HandshakeServiceDep
 from ..services import (
     RobotServiceDep, RobotRegistrationInput, RobotRegistrationOutput, RobotHandshakeResult, RobotResponse
@@ -194,3 +195,51 @@ async def robot_connection(
             robot_connection_repository.discardDeadRobotConnection(robot)
         else:
             robot_connection_repository.discardRobotConnection(robot, discardPipeddConnections=True)
+
+
+@router.websocket('/video')
+async def robot_video(
+    websocket: WebSocket,
+    video_relay_repository: VideoRelayRepositoryDep,
+    robot_handshake_service: HandshakeServiceDep,
+):
+    """Canal de video separado de `/connect`: push-only, binario, sin pasar
+    por el pipe JSON-RPC. Ver docs/superpowers/specs/2026-08-20-camera-video-webclient-design.md.
+    """
+    await websocket.accept()
+
+    await websocket.send_json({
+        "jsonrpc": "2.0",
+        "method": "send_credentials",
+        "params": [],
+        "id": 1,
+    })
+
+    robot: Robot | None
+    try:
+        access_bare_data: dict[str, Any] = await asyncio.wait_for(websocket.receive_json(), timeout=10)  # pyright: ignore[reportAny, reportExplicitAny]
+        access_data = RobotStreamAutentication.model_validate(access_bare_data)
+        robot = robot_handshake_service.get_robot_by_token(access_data.token)
+    except Exception as e:
+        logger.error(e)
+        await websocket.send_json({"status": "error", "message": "Error validating token"})
+        await websocket.close()
+        return
+
+    if robot is None:
+        await websocket.send_json({"status": "error", "message": "Robot not found"})
+        await websocket.close()
+        return
+
+    await websocket.send_json({"status": "success auth"})
+
+    relay = video_relay_repository.get_or_create(str(robot.id))
+
+    try:
+        while True:
+            frame: bytes = await websocket.receive_bytes()
+            relay.push_frame(frame)
+    except Exception as e:
+        logger.info("Conexión de video del robot %s cerrada: %s", robot.id, e)
+    finally:
+        video_relay_repository.discard(str(robot.id))
