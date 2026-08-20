@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useRobotSocket } from '../composables/useRobotSocket'
 import RobotCommandPanel from '../components/RobotCommandPanel.vue'
+import VideoStream from '../components/VideoStream.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,6 +49,13 @@ onUnmounted(() => {
       </span>
     </p>
   </hgroup>
+
+  <VideoStream
+    v-if="robotAccessToken"
+    :robot-id="robotId"
+    :robot-access-token="robotAccessToken"
+    :active="status === 'connected'"
+  />
 
   <RobotCommandPanel
     :status="status"
