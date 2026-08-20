@@ -85,6 +85,24 @@ class Config(BaseSettings):
         description="ROS_DOMAIN_ID DDS (Ros2Strategy); debe coincidir con el agente ROS de la Pi"
     )
 
+    camera_node_name: str = Field(
+        default='labs_remoto_camera',
+        validation_alias=AliasChoices('camera_node_name'),
+        description="Nombre del nodo rclpy para la cámara (CameraRelay), distinto del nodo del brazo"
+    )
+
+    camera_topic: str = Field(
+        default='usb_cam/image_raw',
+        validation_alias=AliasChoices('camera_topic'),
+        description="Topic ROS 2 de video (sensor_msgs/Image, bgr8) que suscribe CameraRelay"
+    )
+
+    camera_jpeg_quality: int = Field(
+        default=80,
+        validation_alias=AliasChoices('camera_jpeg_quality'),
+        description="Calidad JPEG (0-100) usada para codificar cada frame antes de enviarlo"
+    )
+
 
 config = Config() # pyright: ignore[reportCallIssue]
 

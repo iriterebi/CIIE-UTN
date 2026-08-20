@@ -12,6 +12,7 @@ dependencies = [
     "pyserial>=3.5",
     "types-pyserial>=3.5.0.20251001",
     "websockets>=15.0",
+    "opencv-python-headless>=4.10.0",
 ]
 
 [dependency-groups]

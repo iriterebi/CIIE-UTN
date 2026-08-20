@@ -19,6 +19,7 @@ RUN apt-get update \
         "requests>=2.32.5" \
         "pyserial>=3.5" \
         "websockets>=15.0" \
+        "opencv-python-headless>=4.10.0" \
         "pytest>=8.3.0"
 
 ENV PATH="/opt/venv/bin:${PATH}"
@@ -67,3 +68,6 @@ ENV ROS2_COMMAND_TOPIC=/inorbit/custom_command
 # campo de Config (app), aquella es el ENV de infra DDS del SO. No deduplicar.
 ENV ROS2_DATA_TOPIC=/inorbit/custom_data
 ENV ROS2_DOMAIN_ID=42
+ENV CAMERA_NODE_NAME=labs_remoto_camera
+ENV CAMERA_TOPIC=usb_cam/image_raw
+ENV CAMERA_JPEG_QUALITY=80
