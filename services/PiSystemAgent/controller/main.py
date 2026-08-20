@@ -100,6 +100,8 @@ async def run_camera_pipeline(cfg: Config) -> None:
     )
     try:
         await client.run(relay.next_frame)
+    except EnvironmentError as e:
+        logger.warning("No se pudo autenticar VideoWsClient, video deshabilitado: %s", e)
     finally:
         await loop.run_in_executor(None, relay.disconnect)
 
