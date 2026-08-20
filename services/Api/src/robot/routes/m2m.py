@@ -251,4 +251,3 @@ async def robot_video(
             await websocket.close()
         except Exception:
             pass
-        video_relay_repository.discard(str(robot.id))

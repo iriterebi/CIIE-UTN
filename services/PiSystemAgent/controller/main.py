@@ -73,37 +73,46 @@ def create_remote(name: str) -> Strategy:
 
 
 async def run_camera_pipeline(cfg: Config) -> None:
-    """Sube CameraRelay + VideoWsClient. No-op silencioso si falta rclpy/cv2 —
-    no debe tumbar el resto del controller (mismo patrón que Ros2Controller)."""
-    relay = CameraRelay(
-        node_name=cfg.camera_node_name,
-        camera_topic=cfg.camera_topic,
-        jpeg_quality=cfg.camera_jpeg_quality,
-        domain_id=cfg.ros2_domain_id,
-    )
-
-    loop = asyncio.get_running_loop()
+    """Sube CameraRelay + VideoWsClient. No-op silencioso si falta rclpy/cv2 u
+    ocurre cualquier otro error — no debe tumbar el resto del controller
+    (mismo patrón que Ros2Controller). El try/except externo es la garantía
+    real de aislamiento: los internos solo dan mensajes de log más
+    específicos para los dos casos ya conocidos."""
     try:
-        await loop.run_in_executor(None, relay.connect, loop)
-    except EnvironmentError as e:
-        logger.warning("Cámara no disponible, video deshabilitado: %s", e)
-        return
+        relay = CameraRelay(
+            node_name=cfg.camera_node_name,
+            camera_topic=cfg.camera_topic,
+            jpeg_quality=cfg.camera_jpeg_quality,
+            domain_id=cfg.ros2_domain_id,
+        )
 
-    server_service = ServerServices(
-        base_url=cfg.server_url,
-        metadata_file=cfg.metadata_file,
-        create_default_config=cfg.create_default_metadata,
-    )
-    client = VideoWsClient(
-        server_service=server_service,
-        ws_url=_derive_video_ws_url(cfg.server_url),
-    )
-    try:
-        await client.run(relay.next_frame)
-    except EnvironmentError as e:
-        logger.warning("No se pudo autenticar VideoWsClient, video deshabilitado: %s", e)
-    finally:
-        await loop.run_in_executor(None, relay.disconnect)
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, relay.connect, loop)
+        except EnvironmentError as e:
+            logger.warning("Cámara no disponible, video deshabilitado: %s", e)
+            return
+
+        server_service = ServerServices(
+            base_url=cfg.server_url,
+            metadata_file=cfg.metadata_file,
+            create_default_config=cfg.create_default_metadata,
+        )
+        client = VideoWsClient(
+            server_service=server_service,
+            ws_url=_derive_video_ws_url(cfg.server_url),
+        )
+        try:
+            await client.run(relay.next_frame)
+        except EnvironmentError as e:
+            logger.warning("No se pudo autenticar VideoWsClient, video deshabilitado: %s", e)
+        finally:
+            await loop.run_in_executor(None, relay.disconnect)
+    except Exception as e:
+        logger.warning(
+            "Pipeline de video terminó por un error inesperado (no afecta al resto del controller): %s",
+            e,
+        )
 
 
 async def async_main():
