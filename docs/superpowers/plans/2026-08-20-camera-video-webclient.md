@@ -1369,9 +1369,26 @@ class TestUserVideoRelayConnectWs:
 
         async def run():
             relay = repo.get_or_create(str(robot.id))
-            relay.push_frame(b"frame1")
-            relay.push_frame(b"frame2")
+
+            # VideoRelay tiene capacidad 1 ("último frame gana" — ver Task 6):
+            # empujar frame1 y frame2 sincrónicamente, antes de que connect_ws
+            # arranque a consumir, pisaría frame1 y el test se colgaría
+            # esperando un segundo frame que nunca llega. Se intercalan los
+            # pushes con la propia espera de connect_ws en relay.next_frame():
+            # connect_ws no tiene ninguna suspensión real antes de ese primer
+            # await (accept/receive_json/validate son todos instantáneos
+            # contra los fakes), así que ya está bloqueado en next_frame()
+            # para cuando el primer sleep(0.01) del pusher vence — frame1
+            # siempre llega a una cola vacía.
+            async def push_frames():
+                await asyncio.sleep(0.01)
+                relay.push_frame(b"frame1")
+                await asyncio.sleep(0.01)
+                relay.push_frame(b"frame2")
+
+            pusher = asyncio.create_task(push_frames())
             await service.connect_ws(ws)
+            await pusher
 
         asyncio.run(run())
 
