@@ -39,13 +39,12 @@ class CameraNode(Node):
         if not ret:
             self.get_logger().warn('Failed to capture frame')
             return
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, _ = frame.shape
         msg = Image()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.height = h
         msg.width = w
-        msg.encoding = 'rgb8'
+        msg.encoding = 'bgr8'
         msg.is_bigendian = False
         msg.step = w * 3
         msg.data = frame.tobytes()
