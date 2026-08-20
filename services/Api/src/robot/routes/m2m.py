@@ -220,6 +220,11 @@ async def robot_video(
         access_bare_data: dict[str, Any] = await asyncio.wait_for(websocket.receive_json(), timeout=10)  # pyright: ignore[reportAny, reportExplicitAny]
         access_data = RobotStreamAutentication.model_validate(access_bare_data)
         robot = robot_handshake_service.get_robot_by_token(access_data.token)
+    except ExpiredSignatureError as e:
+        logger.error(e)
+        await websocket.send_json({"status": "error", "message": "Token expired"})
+        await websocket.close()
+        return
     except Exception as e:
         logger.error(e)
         await websocket.send_json({"status": "error", "message": "Error validating token"})
@@ -240,6 +245,10 @@ async def robot_video(
             frame: bytes = await websocket.receive_bytes()
             relay.push_frame(frame)
     except Exception as e:
-        logger.info("Conexión de video del robot %s cerrada: %s", robot.id, e)
+        logger.warning("Conexión de video del robot %s cerrada: %s", robot.id, e)
     finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
         video_relay_repository.discard(str(robot.id))
