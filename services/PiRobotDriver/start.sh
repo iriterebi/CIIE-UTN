@@ -2,10 +2,7 @@
 
 set -e
 
-SESSION="ros_agent_session"
+cd /root/agent/
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-sudo "$SCRIPT_DIR/docker/build.sh"
-
-sudo "$SCRIPT_DIR/docker/run.sh" "$@"
+(cd ./serial_scraper/ && python3 ./scraper.py)
