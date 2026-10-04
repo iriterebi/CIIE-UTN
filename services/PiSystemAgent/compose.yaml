@@ -1,12 +1,8 @@
-# Runtime del controller en la Pi (Docker). Ver
-# docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md
-#
-# La imagen llega por `docker load` (make deploy.push); NO se compila acá (sin `build:`).
-# Ciclo de vida por restart policy de Docker (sin systemd). Control de app: ./robot-cli
 services:
   controller:
-    image: localhost/labs-remoto/controller:jazzy
-    container_name: labs-remoto-robot
+    build:
+      context: ../..
+      dockerfile: services/PiSystemAgent/Dockerfile
     # network host: discovery DDS con el contenedor del agente ROS (ROS_DOMAIN_ID=42) +
     # acceso a la API. Los ENV de DDS (ROS_DOMAIN_ID, FASTDDS_BUILTIN_TRANSPORTS) van horneados.
     network_mode: host

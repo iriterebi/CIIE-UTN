@@ -19,15 +19,15 @@ logging.basicConfig(
 )
 
 from .camera import CameraRelay, VideoWsClient
-from .camera.video_ws_client import _derive_video_ws_url
+from .camera.video_ws_client import derive_video_ws_url
 from .config import Config, config
 from .core import MicroCore
 from .server.server_service import ServerServices
-from .strategy.base import Strategy, LocalStrategy
-from .strategy.registry import StrategyRegistry
+from .strategy.base import LocalStrategy, Strategy
 from .strategy.local.mock_strategy import MockStrategy
-from .strategy.local.serial_strategy import SerialStrategy
 from .strategy.local.ros2_strategy import Ros2Strategy
+from .strategy.local.serial_strategy import SerialStrategy
+from .strategy.registry import StrategyRegistry
 from .strategy.remote.ws_strategy import WsStrategy
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ async def run_camera_pipeline(cfg: Config) -> None:
         )
         client = VideoWsClient(
             server_service=server_service,
-            ws_url=_derive_video_ws_url(cfg.server_url),
+            ws_url=derive_video_ws_url(cfg.server_url),
         )
         try:
             await client.run(relay.next_frame)

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from controller.camera import video_ws_client
-from controller.camera.video_ws_client import VideoWsClient, _derive_video_ws_url
-from controller.server.server_service import ServerServices
+from ..camera import video_ws_client
+from ..camera.video_ws_client import VideoWsClient, derive_video_ws_url
+from ..server.server_service import ServerServices
 
 
 def _make_client():
@@ -31,7 +31,7 @@ class TestDeriveVideoWsUrl:
         ("http://api.example/m2m/robot", "ws://api.example/m2m/robot/video"),
     ])
     def test_deriva_ws_url_desde_http(self, server_url, expected):
-        assert _derive_video_ws_url(server_url) == expected
+        assert derive_video_ws_url(server_url) == expected
 
 
 class TestRunSendsFrames:

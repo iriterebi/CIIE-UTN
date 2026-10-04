@@ -24,7 +24,7 @@ _MIN_RECONNECT_DELAY = 1.0
 _MAX_RECONNECT_DELAY = 30.0
 
 
-def _derive_video_ws_url(server_url: str) -> str:
+def derive_video_ws_url(server_url: str) -> str:
     """Deriva la URL del WS de video a partir de la URL HTTP del servidor.
 
     http://host/m2m/robot/  → ws://host/m2m/robot/video

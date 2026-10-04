@@ -8,15 +8,18 @@ WORKDIR /app
 # Copiar archivos de workspace (raíz + Api)
 COPY pyproject.toml /app/pyproject.toml
 COPY services/Api/pyproject.toml /app/services/Api/pyproject.toml
+COPY uv.lock /app/uv.lock
 
 # Instalar dependencias sin el código fuente (cacheo de capas)
-RUN uv sync --package ciie-remote-lab-api --no-dev --no-install-workspace
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --package ciie-remote-lab-api --no-dev --no-install-workspace
 
 # Copiar código fuente de la Api
 COPY services/Api/src /app/services/Api/src
 
 # Instalar el paquete del workspace
-RUN uv sync --package ciie-remote-lab-api --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-editable --package ciie-remote-lab-api --no-dev
 
 
 FROM docker.io/library/python:3.13-slim-bookworm
