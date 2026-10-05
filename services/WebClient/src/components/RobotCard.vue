@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import type { Robot } from '../types'
+import type { Robot } from "../types";
 
-defineProps<{ robot: Robot }>()
-defineEmits<{ control: [robot: Robot] }>()
+defineProps<{ robot: Robot; allowEdit?: boolean }>();
+defineEmits<{ control: [robot: Robot] }>();
 </script>
 
 <template>
-  <article>
-    <header>
-      <strong>{{ robot.name || robot.external_identifier }}</strong>
-      <small> — {{ robot.status }}</small>
-    </header>
-    <p v-if="robot.description">{{ robot.description }}</p>
-    <footer v-if="robot.status === 'approved'">
-      <button @click="$emit('control', robot)">Controlar</button>
-    </footer>
-  </article>
+    <article>
+        <header>
+            <strong>{{ robot.name || robot.external_identifier }}</strong>
+            <small> — {{ robot.status }}</small>
+            <RouterLink :to="{ name: 'robot-admin', params: { id: robot.id } }">editar</RouterLink>
+        </header>
+        <p v-if="robot.description">{{ robot.description }}</p>
+        <footer v-if="robot.status === 'approved'">
+            <button @click="$emit('control', robot)">Controlar</button>
+        </footer>
+    </article>
 </template>

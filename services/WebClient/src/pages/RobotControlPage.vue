@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useRobotSocket } from '../composables/useRobotSocket'
 import RobotCommandPanel from '../components/RobotCommandPanel.vue'
+import RobotStatusPanel from '../components/RobotStatusPanel.vue'
 import VideoStream from '../components/VideoStream.vue'
 
 const route = useRoute()
@@ -29,39 +30,70 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <hgroup>
-    <h2>{{ robotName || robotId }}</h2>
-    <p>
-      Estado:
-      <span v-if="status === 'connected'">Conectado</span>
-      <span v-else-if="status === 'connecting'" aria-busy="true">Conectando...</span>
-      <span v-else-if="status === 'authenticating'" aria-busy="true">Autenticando...</span>
-      <span v-else-if="status === 'reconnecting'" aria-busy="true">Reconectando...</span>
-      <span v-else-if="status === 'error'">Error: {{ error }}</span>
-      <span v-else>Desconectado</span>
-    </p>
-    <p v-if="status === 'connected' && robotStatus !== 'robot_disponible'">
-      <span v-if="robotStatus === 'robot_desconectado_reconectando'" aria-busy="true">
-        El robot se desconectó, reconectando...
-      </span>
-      <span v-else-if="robotStatus === 'robot_no_disponible'">
-        El robot no está disponible.
-      </span>
-    </p>
-  </hgroup>
+<section id="control-main">
+    <hgroup id="control-header">
+        <h2>{{ robotName || robotId }}</h2>
+        <p>
+        Estado:
+        <span v-if="status === 'connected'">Conectado</span>
+        <span v-else-if="status === 'connecting'" aria-busy="true">Conectando...</span>
+        <span v-else-if="status === 'authenticating'" aria-busy="true">Autenticando...</span>
+        <span v-else-if="status === 'reconnecting'" aria-busy="true">Reconectando...</span>
+        <span v-else-if="status === 'error'">Error: {{ error }}</span>
+        <span v-else>Desconectado</span>
+        </p>
+        <p v-if="status === 'connected' && robotStatus !== 'robot_disponible'">
+        <span v-if="robotStatus === 'robot_desconectado_reconectando'" aria-busy="true">
+            El robot se desconectó, reconectando...
+        </span>
+        <span v-else-if="robotStatus === 'robot_no_disponible'">
+            El robot no está disponible.
+        </span>
+        </p>
+    </hgroup>
 
-  <VideoStream
-    v-if="robotAccessToken"
-    :robot-id="robotId"
-    :robot-access-token="robotAccessToken"
-    :active="status === 'connected'"
-  />
+    <VideoStream
+        id="robot-video"
+        v-if="robotAccessToken"
+        :robot-id="robotId"
+        :robot-access-token="robotAccessToken"
+        :active="status === 'connected'"
+    />
 
-  <RobotCommandPanel
-    :status="status"
-    :messages="messages"
-    :robotState="robotState"
-    @send="sendCommand"
-    @clear="clearMessagesHistory"
-  />
+    <RobotStatusPanel id="robot-status" :status="status" :state="robotState" />
+
+    <RobotCommandPanel
+    id="robot-command-pallete"
+        :status="status"
+        :messages="messages"
+        :robotState="robotState"
+        @send="sendCommand"
+        @clear="clearMessagesHistory"
+    />
+</section>
 </template>
+<style scoped>
+#control-main {
+    display: grid;
+    grid-template:
+    "header header" auto
+    "video status" auto
+    "command command" auto /
+        1fr minmax(5rem, 0.5fr);
+
+    gap: 1rem;
+
+    & > #control-header {
+        grid-area: header;
+    }
+    & > #robot-video {
+        grid-area: video;
+    }
+    & > #robot-status {
+        grid-area: status;
+    }
+    & > #robot-command-pallete {
+        grid-area: command;
+    }
+}
+</style>

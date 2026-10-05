@@ -3,7 +3,7 @@ import { readonly, ref } from 'vue'
 const WS_BASE = import.meta.env.VITE_WS_BASE || ''
 
 export type SocketStatus = 'disconnected' | 'connecting' | 'authenticating' | 'connected' | 'reconnecting' | 'error'
-export type RobotState = Record<string, unknown>
+export type RobotState = { sensors: Record<string, unknown> } & Record<string, unknown>
 export type RobotAvailability = 'robot_disponible' | 'robot_desconectado_reconectando' | 'robot_no_disponible'
 
 interface RobotResponseJSONRPC {
@@ -32,7 +32,7 @@ export function useRobotSocket() {
   const robotStatus = ref<RobotAvailability>('robot_disponible')
   const messages = ref<Record<string, unknown>[]>([])
   const error = ref<string | null>(null)
-  const robotState = ref<RobotState>({})
+  const robotState = ref<RobotState>({ sensors: {} })
 
   let ws: WebSocket | null = null
   let robotId: string | null = null

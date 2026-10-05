@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, toRaw } from 'vue'
-import type { RobotState, SocketStatus } from '../composables/useRobotSocket'
-import KeyValueMap from './KeyValueMap.vue'
+import { computed, defineEmits, defineProps, ref } from 'vue';
+import type { SocketStatus } from '../composables/useRobotSocket';
 
 const props = defineProps<{
   status: SocketStatus
   messages: Record<string, unknown>[] | Readonly<Record<string, unknown>[]>,
-  robotState: RobotState
 }>()
 
 const emit = defineEmits<{ send: [method: string], clear: [] }>()
@@ -19,8 +17,11 @@ function send() {
   method.value = ''
 }
 
+function sendCommand(command: string) {
+  emit('send', command)
+}
 
-const reversed = computed(() => Array.from(props.messages).reverse())
+const reversed = computed(() => Array.from(props.messages).reverse().slice(0, 5))
 
 
 
@@ -28,9 +29,11 @@ const reversed = computed(() => Array.from(props.messages).reverse())
 
 <template>
   <section>
-    <article>
-      <KeyValueMap :map="robotState" />
-    </article>
+      <article>
+          <button @click="sendCommand('start')">Iniciar</button>
+          <button @click="sendCommand('stop')">Parar</button>
+          <button @click="sendCommand('restart')">Reiniciar</button>
+      </article>
 
     <form @submit.prevent="send">
       <fieldset role="group">

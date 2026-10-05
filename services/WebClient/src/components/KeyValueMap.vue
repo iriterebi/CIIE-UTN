@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, toRaw } from 'vue';
 
+defineOptions({
+  inheritAttrs: true
+})
+
+
 const props = defineProps<{
     map: Record<string, unknown>
 }>()
@@ -21,7 +26,7 @@ const stateAsEntries = computed((): [string, any] => toEntries(props.map))
 
 </script>
 <template>
-    <section>
+    <section class="container">
         <template v-for="([key, value]) in stateAsEntries">
             <div class="keyvalue">
                 <p class="key">{{ key }}</p>
@@ -31,7 +36,7 @@ const stateAsEntries = computed((): [string, any] => toEntries(props.map))
         </template>
     </section>
 </template>
-<style>
+<style scoped>
 .ml {
     margin-left: 1rem;
 }
@@ -41,6 +46,11 @@ const stateAsEntries = computed((): [string, any] => toEntries(props.map))
     grid-template-columns: auto 1fr;
     grid-gap: 1rem;
     align-items: center;
+    margin-block: 0.125em;
+
+    & > p {
+        margin-bottom: 0;
+    }
 }
 
 .key {
@@ -49,5 +59,9 @@ const stateAsEntries = computed((): [string, any] => toEntries(props.map))
 
 .value:not(.ml) {
     font-family: monospace;
+}
+
+.container {
+    margin: 0;
 }
 </style>

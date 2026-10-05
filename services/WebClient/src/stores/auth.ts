@@ -24,12 +24,12 @@ interface SignupResponse {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
   const user = ref<User | null>(null)
+  const api = useApi()
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.statuss === 'profe')
 
   async function login(username: string, password: string) {
-    const api = useApi()
     const data = await api.postForm<LoginResponse>('/auth/login', { username, password })
     token.value = data.access_token
     localStorage.setItem('token', data.access_token)
@@ -37,7 +37,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function signup(userData: Record<string, string>) {
-    const api = useApi()
     const data = await api.post<SignupResponse>('/auth/signup', userData)
     token.value = data.token.access_token
     localStorage.setItem('token', data.token.access_token)
@@ -45,12 +44,19 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUser() {
-    const api = useApi()
     try {
       user.value = await api.get<User>('/auth/me')
     } catch {
       logout()
     }
+  }
+
+  async function requestRobotUsagePermission(robotId: string) {
+    const tokenData = await api.post<{ access_token: string }>('/auth/request_robot_access', {
+      robot_id: robotId,
+    })
+
+    return tokenData
   }
 
   function logout() {
@@ -59,5 +65,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
   }
 
-  return { token, user, isAuthenticated, isAdmin, login, signup, fetchUser, logout }
+  return { token, user, isAuthenticated, isAdmin, login, signup, fetchUser, logout, requestRobotUsagePermission }
 })

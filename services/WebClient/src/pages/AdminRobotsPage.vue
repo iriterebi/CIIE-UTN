@@ -4,11 +4,12 @@ import { useApi } from '../composables/useApi'
 import type { Robot } from '../types'
 import PendingRobotCard from '../components/PendingRobotCard.vue'
 import RobotCard from '../components/RobotCard.vue'
+import { useRobotsStore } from '../stores/robots'
 
 const api = useApi()
 
 const pending = ref<Robot[]>([])
-const allRobots = ref<Robot[]>([])
+
 const loading = ref(true)
 const error = ref('')
 
@@ -16,12 +17,11 @@ async function loadData() {
   loading.value = true
   error.value = ''
   try {
-    const [p, all] = await Promise.all([
+    const [p] = await Promise.all([
       api.get<Robot[]>('/admin/robot/pending'),
-      api.get<Robot[]>('/admin/robot/list'),
     ])
     pending.value = p
-    allRobots.value = all
+
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -48,6 +48,11 @@ async function rejectRobot(robotId: string) {
 }
 
 onMounted(loadData)
+
+
+const robotStore = useRobotsStore()
+onMounted(robotStore.loadRobots)
+
 </script>
 
 <template>
@@ -72,9 +77,11 @@ onMounted(loadData)
     <section>
       <h3>Todos los robots</h3>
       <RobotCard
-        v-for="robot in allRobots"
+        v-for="robot in robotStore.robots"
         :key="robot.id"
         :robot="robot"
+        :allow-edit="true"
+        @control="robotStore.controlRobot"
       />
     </section>
   </template>
