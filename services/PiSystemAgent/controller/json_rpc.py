@@ -12,10 +12,22 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .robot.ros2_controller import (
-    CommandErrorRobotResponse,
+# Árbol nuevo: lo usan dispatch() y to_jsonrpc().
+from .robot.responses import (
     CommandsDescriptionRobotResponse,
+    DispatchErrorRobotResponse,
+    DispatchOkRobotResponse,
     RobotResponse,
+    StatusRobotResponse,
+    StrRobotResponse,
+)
+
+# Árbol viejo: lo usa SÓLO handle_json_rpc, que se borra en la Task 4 junto con estos
+# imports. Van con alias porque son clases distintas que comparten nombre con las de arriba.
+from .robot.ros2_controller import (
+    CommandErrorRobotResponse as _LegacyCommandErrorRobotResponse,
+    CommandsDescriptionRobotResponse as _LegacyCommandsDescriptionRobotResponse,
+    RobotResponse as _LegacyRobotResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,13 +126,13 @@ async def handle_json_rpc(
         else:
             raw_command = command.params.get("command", command.method)
             await loop.run_in_executor(None, robot.send_command, raw_command)
-            response: RobotResponse = await loop.run_in_executor(
+            response: _LegacyRobotResponse = await loop.run_in_executor(
                 None, robot.read_response
             )
 
             for resp in response.each():
                 if resp.command is not None:
-                    if isinstance(resp, CommandErrorRobotResponse):
+                    if isinstance(resp, _LegacyCommandErrorRobotResponse):
                         result = JsonRpcResult(
                             status="error", method=resp.command, response=str(resp)
                         )
@@ -131,11 +143,11 @@ async def handle_json_rpc(
 
                     yield JsonRpcResponse(result=result, id=None)
                 else:
-                    if isinstance(resp, CommandErrorRobotResponse):
+                    if isinstance(resp, _LegacyCommandErrorRobotResponse):
                         yield JsonRpcResponse(
                             error=JsonRpcError(message=str(resp), code=1)
                         )
-                    elif isinstance(resp, CommandsDescriptionRobotResponse):
+                    elif isinstance(resp, _LegacyCommandsDescriptionRobotResponse):
                         yield JsonRpcNotification(
                             method="command.update", params={"commands": resp.toList()}
                         )
@@ -155,3 +167,91 @@ def _error_response(
     return JsonRpcResponse(
         error=JsonRpcError(code=code, message=message), id=request_id
     )
+
+
+# --- dispatch / to_jsonrpc (árbol nuevo) ---
+
+
+async def dispatch(command: JsonRpcCommand, robot) -> RobotResponse:
+    """Despacha un comando y devuelve SÓLO el resultado del despacho.
+
+    "Despacho" = el comando se validó contra el descriptor y se escribió/publicó.
+    No afirma que el robot lo haya ejecutado: su salida real llega por otro camino
+    (el loop de respuestas) y sale como notification sin id.
+
+    Nunca levanta: traduce los fallos esperables a DispatchErrorRobotResponse para
+    que el core no se caiga por un comando malo (hoy una excepción acá escapa del
+    TaskGroup de MicroCore y tumba el agente entero).
+    """
+    loop = asyncio.get_running_loop()
+
+    try:
+        if command.method == "execute_sequence":
+            commands = command.params.get("commands", [])
+            if not isinstance(commands, list):
+                raise ValueError("'commands' debe ser una lista")
+
+            await loop.run_in_executor(None, robot.execute_sequence, commands)
+            return DispatchOkRobotResponse(
+                command.id, command.method, commands_count=len(commands)
+            )
+
+        raw_command = command.params.get("command", command.method)
+        await loop.run_in_executor(None, robot.send_command, raw_command)
+        return DispatchOkRobotResponse(command.id, command.method)
+
+    except (ValueError, ConnectionError, OSError) as e:
+        logger.error("Error despachando comando '%s': %s", command.method, e)
+        return DispatchErrorRobotResponse(command.id, command.method, e)
+
+
+# Mapeo de causa → código JSON-RPC. InvalidCommandError hereda de ValueError, así que
+# el orden importa sólo para legibilidad: ambos caen en -32602.
+_INVALID_PARAMS = -32602
+_INTERNAL_ERROR = -32603
+
+
+def _error_code(error: Exception) -> int:
+    if isinstance(error, ValueError):
+        return _INVALID_PARAMS
+    if isinstance(error, (ConnectionError, OSError)):
+        return _INTERNAL_ERROR
+    return _INTERNAL_ERROR
+
+
+def to_jsonrpc(resp: RobotResponse) -> JsonRpcResponse | JsonRpcNotification:
+    """Traduce un RobotResponse al sobre JSON-RPC que le corresponde.
+
+    El TIPO decide el sobre, no el valor de `request_id`: el cliente puede no mandar
+    id, y un resultado de despacho sigue siendo una respuesta aunque su id sea null.
+    """
+    if isinstance(resp, DispatchOkRobotResponse):
+        return JsonRpcResponse(
+            result=JsonRpcResult(
+                status="ok",
+                method=resp.method,
+                response=resp.detail,
+                commands_count=resp.commands_count,
+            ),
+            id=resp.request_id,
+        )
+
+    if isinstance(resp, DispatchErrorRobotResponse):
+        return JsonRpcResponse(
+            error=JsonRpcError(code=_error_code(resp.error), message=str(resp.error)),
+            id=resp.request_id,
+        )
+
+    if isinstance(resp, CommandsDescriptionRobotResponse):
+        return JsonRpcNotification(
+            method="command.update", params={"commands": resp.toList()}
+        )
+
+    if isinstance(resp, StatusRobotResponse):
+        return JsonRpcNotification(method="status.update", params=resp.status)
+
+    if isinstance(resp, StrRobotResponse):
+        return JsonRpcNotification(method="robot.output", params={"data": resp.text})
+
+    logger.warning("RobotResponse sin traducción específica: %s", type(resp).__name__)
+    return JsonRpcNotification(method="robot.output", params={"data": str(resp)})
