@@ -654,7 +654,21 @@ async def dispatch(command: JsonRpcCommand, robot) -> RobotResponse:
     except (ValueError, ConnectionError, OSError) as e:
         logger.error("Error despachando comando '%s': %s", command.method, e)
         return DispatchErrorRobotResponse(command.id, command.method, e)
+
+    except Exception as e:  # noqa: BLE001 — red de seguridad deliberada
+        # "Nunca levanta" es un invariante absoluto, no una lista de casos previstos.
+        # Cualquier excepción que escape de acá sube por OutboxLocalStrategy.send hasta
+        # el TaskGroup de MicroCore y mata el agente entero — la clase de bug que este
+        # refactor existe para cerrar. logger.exception deja el stack completo en los
+        # logs de la Pi, así que el bug sigue siendo diagnosticable sin tirar el proceso.
+        logger.exception("Fallo inesperado despachando '%s'", command.method)
+        return DispatchErrorRobotResponse(command.id, command.method, e)
 ```
+
+> **Ruling del controller (review de la Task 2):** el `except Exception` de arriba se agregó
+> después de que la review señalara que el catch de tres tipos no cumple el invariante absoluto
+> declarado en las Global Constraints. Es plan-mandated: el catch angosto era verbatim de este
+> mismo paso. Ver el ledger para el razonamiento completo.
 
 - [ ] **Step 5: Implementar `to_jsonrpc()`**
 
