@@ -3,12 +3,13 @@ TODO
 """
 
 import logging
+import threading
 import time
 from typing import Any
 
 import serial
 
-from .ros2_controller import RobotResponse, StrRobotResponse
+from .responses import RobotResponse, StrRobotResponse
 
 
 class RobotController:
@@ -19,6 +20,7 @@ class RobotController:
         self.arduino_port = arduino_port
         self.ser = None
         self.logger = logging.getLogger(__name__)
+        self._stop = threading.Event()
 
     def connect(self):
         try:
@@ -29,6 +31,7 @@ class RobotController:
             raise EnvironmentError(f"Error connecting to Arduino: {e}") from e
 
     def disconnect(self):
+        self.stop_reading()
         if self.ser and self.ser.is_open:
             self.ser.close()
             self.logger.info("Disconnected from Arduino")
@@ -52,23 +55,37 @@ class RobotController:
         except serial.SerialException as e:
             raise EnvironmentError(f"Error sending command to Arduino: {e}") from e
 
-    def read_response(self) -> RobotResponse:
+    def read_response(self) -> RobotResponse | None:
+        """Bloquea hasta que el Arduino emita una línea. None = señal de parada.
+
+        El puerto tiene timeout=1, así que readline() devuelve b'' cada segundo sin
+        datos. Esos vacíos se descartan: son el punto donde se chequea la parada.
+        """
         if not self.ser or not self.ser.is_open:
             raise ConnectionError("Arduino not connected. Call connect() first.")
-        try:
-            response = self.ser.readline().decode("utf-8").strip()
-            self.logger.info("Received response: %s", response)
-            return StrRobotResponse("", response)
-        except serial.SerialException as e:
-            raise EnvironmentError(f"Error reading response from Arduino: {e}") from e
+
+        while not self._stop.is_set():
+            try:
+                line = self.ser.readline().decode("utf-8").strip()
+            except serial.SerialException as e:
+                raise EnvironmentError(
+                    f"Error reading response from Arduino: {e}"
+                ) from e
+            if line:
+                self.logger.info("Received response: %s", line)
+                return StrRobotResponse(line)
+
+        return None
+
+    def stop_reading(self) -> None:
+        """Desbloquea un read_response() en curso (a más tardar en un timeout)."""
+        self._stop.set()
 
     def execute_sequence(self, commands: list[str]):
         self.logger.info("Executing command sequence...")
         for command in commands:
             if command:
                 self.send_command(command)
-                response = self.read_response()
-                self.logger.info("Response for '%s': %s", command, response)
 
     def get_status(self) -> dict[str, Any]:
         """Retorna el estado actual del robot."""

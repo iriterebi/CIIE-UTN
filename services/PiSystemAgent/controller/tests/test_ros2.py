@@ -5,7 +5,6 @@ también verifica que el import de rclpy sea diferido (el módulo se importa sin
 """
 
 import asyncio
-import json
 import os
 import sys
 import types
@@ -13,11 +12,10 @@ import types
 import pytest
 
 from controller.robot import ros2_controller
-from controller.robot.ros2_controller import (
-    CommandsDescriptionRobotResponse, LiteralRobotCommand, RobotCommandRecord,
-    Ros2Controller, ToggleRobotCommand, TypedRobotCommand, parse_commands,
-    parse_key_value, _SENT_ACK,
+from controller.robot.responses import (
+    CommandsDescriptionRobotResponse, InvalidCommandError,
 )
+from controller.robot.ros2_controller import Ros2Controller, parse_key_value
 from controller.strategy.local.ros2_strategy import Ros2Strategy
 
 
@@ -146,11 +144,6 @@ def test_execute_sequence_publishes_in_order(monkeypatch):
     assert published == ["a=1", "b=2"]
 
 
-def test_read_response_returns_synthetic_ack():
-    ctrl = _controller()
-    assert ctrl.read_response() == _SENT_ACK
-
-
 def test_on_data_updates_telemetry_snapshot(monkeypatch):
     _, hooks = _install_fake_ros(monkeypatch)
     ctrl = _controller()
@@ -177,76 +170,6 @@ def test_get_status_reflects_connection(monkeypatch):
 
 # --- Autodescubrimiento de comandos ---
 
-def test_parse_commands_literal_and_toggle_and_typed():
-    record = parse_commands("commands=restart,<toggle:start|stop>play,<type:uint>speed")
-    assert [type(c) for c in record.commands] == [
-        LiteralRobotCommand, ToggleRobotCommand, TypedRobotCommand,
-    ]
-
-
-@pytest.mark.parametrize("descriptor", [
-    "<toggle:start>play",       # falta el segundo literal
-    "<toggle:start|>play",      # segundo literal vacío
-    "<toggle:|stop>play",       # primer literal vacío
-    "<toggle:a|b|c>play",       # tres literales
-])
-def test_parse_commands_skips_malformed_toggle(descriptor):
-    """Un descriptor toggle mal formado se descarta; no debe levantar IndexError."""
-    record = parse_commands(f"commands={descriptor},restart")
-    assert [c.command for c in record.commands] == ["restart"]
-
-
-def test_toggle_todict_is_json_serializable():
-    """toDict() debe anidar dicts, no objetos: va directo a los params de un JSON-RPC."""
-    record = RobotCommandRecord([ToggleRobotCommand("play", "start", "stop")])
-    payload = CommandsDescriptionRobotResponse(record).toList()
-
-    assert json.loads(json.dumps(payload)) == [{
-        "_type": "toggle",
-        "mets_name": "play",
-        "true": {"_type": "literal", "command": "start"},
-        "false": {"_type": "literal", "command": "stop"},
-    }]
-
-
-@pytest.mark.parametrize("command,expected", [
-    ("10", True),
-    (10, True),
-    ("0", True),
-    ("-1", False),
-    (-1, False),
-    ("abc", False),      # no debe levantar ValueError
-    ("", False),
-    ("1.5", False),
-    (True, False),       # bool es subclase de int, no lo aceptamos
-])
-def test_typed_uint_valid(command, expected):
-    assert TypedRobotCommand("speed", "uint").valid(command) is expected
-
-
-def test_record_valid_fails_open_before_discovery():
-    """Sin `commands=` recibido todavía no hay contra qué validar: se deja pasar."""
-    assert RobotCommandRecord([]).valid("lo_que_sea") is True
-
-
-def test_send_command_rejects_unknown_command(monkeypatch):
-    published, hooks = _install_fake_ros(monkeypatch)
-    ctrl = _controller()
-    ctrl.connect()
-
-    String = hooks["String"]
-    msg = String()
-    msg.data = "commands=restart,<toggle:start|stop>play"
-    hooks["on_data"](msg)
-
-    ctrl.send_command("jump")
-    assert published == []
-
-    ctrl.send_command("start")
-    ctrl.send_command("restart")
-    assert published == ["start", "restart"]
-
-
 def test_on_data_does_not_propagate_to_spin_thread(monkeypatch):
     """Una excepción en el callback mataría el spin en silencio: debe quedar contenida."""
     _, hooks = _install_fake_ros(monkeypatch)
@@ -269,6 +192,69 @@ def test_on_data_does_not_propagate_to_spin_thread(monkeypatch):
     assert ctrl.get_status()["telemetry"] == {"base": "90"}
 
 
+def test_send_command_raises_on_unknown_command(monkeypatch):
+    published, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+
+    String = hooks["String"]
+    msg = String()
+    msg.data = "commands=restart,<toggle:start|stop>play"
+    hooks["on_data"](msg)
+
+    with pytest.raises(InvalidCommandError):
+        ctrl.send_command("jump")
+    assert published == []
+
+    ctrl.send_command("start")
+    assert published == ["start"]
+
+
+def test_send_command_does_not_enqueue_an_ack(monkeypatch):
+    """El ack del despacho lo construye la strategy, no el controlador."""
+    _, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+    ctrl.send_command("base=90")
+
+    ctrl.stop_reading()
+    assert ctrl.read_response() is None  # sólo el sentinel: no hay ack encolado
+
+
+def test_read_response_blocks_until_data(monkeypatch):
+    import threading
+
+    _, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+
+    got: list = []
+    t = threading.Thread(target=lambda: got.append(ctrl.read_response()))
+    t.start()
+    t.join(timeout=0.2)
+    assert t.is_alive(), "read_response debe bloquear cuando no hay output"
+
+    String = hooks["String"]
+    msg = String()
+    msg.data = "base=90"
+    hooks["on_data"](msg)          # telemetría pura: no encola respuesta
+    msg2 = String()
+    msg2.data = "commands=restart"
+    hooks["on_data"](msg2)         # esto sí encola
+
+    t.join(timeout=2)
+    assert not t.is_alive()
+    assert isinstance(got[0], CommandsDescriptionRobotResponse)
+
+
+def test_stop_reading_unblocks_with_none(monkeypatch):
+    _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+    ctrl.stop_reading()
+    assert ctrl.read_response() is None
+
+
 # --- Ros2Strategy ---
 
 def test_strategy_send_publishes_and_acks(monkeypatch):
@@ -276,18 +262,19 @@ def test_strategy_send_publishes_and_acks(monkeypatch):
     strat = Ros2Strategy(node_name="n", command_topic="cmd", data_topic="data")
 
     async def scenario():
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, strat._robot.connect)
+        await strat.start()
         await strat.send({
             "jsonrpc": "2.0", "method": "move",
             "params": {"command": "base=90"}, "id": 7,
         })
-        return await strat._outbox.get()
+        msg = await asyncio.wait_for(strat.receive(), 2.0)
+        await strat.stop()
+        return msg
 
     msg = asyncio.run(scenario())
     assert published == ["base=90"]
-    assert msg["result"]["response"] == _SENT_ACK
     assert msg["id"] == 7
+    assert msg["result"]["status"] == "ok"
 
 
 def test_strategy_set_telemetry_disable_without_loop():

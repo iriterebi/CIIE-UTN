@@ -1,11 +1,11 @@
 import logging
+import queue
 import random
-import threading
 from typing import Any
 
-from .ros2_controller import (
+from .responses import (
     CommandsDescriptionRobotResponse,
-    ComposedRobotResponse,
+    InvalidCommandError,
     LiteralRobotCommand,
     RobotCommandRecord,
     RobotResponse,
@@ -15,27 +15,32 @@ from .ros2_controller import (
 
 
 class RobotMockController:
+    """Robot simulado. Replica el contrato real, validación de comandos incluida,
+    para que el modo demo ejercite de verdad el autodescubrimiento."""
+
     arduino_port: str
 
     def __init__(self, arduino_port: str):
         self.arduino_port = arduino_port
         self.logger = logging.getLogger(__name__)
-        self.logger.warning("RobotMockController is active. No physical robot commands will be sent.")
+        self.logger.warning(
+            "RobotMockController is active. No physical robot commands will be sent."
+        )
 
-        self.robot_response: list[RobotResponse] = [
-            CommandsDescriptionRobotResponse(RobotCommandRecord([
-                ToggleRobotCommand("play", "start", "stop"),
-                LiteralRobotCommand("restart")
-            ]))
-        ]
-
-        self._robot_response_lock: threading.Lock = threading.Lock()
-
+        self.robot_commands: RobotCommandRecord = RobotCommandRecord([
+            ToggleRobotCommand("play", "start", "stop"),
+            LiteralRobotCommand("restart"),
+        ])
+        self._responses: queue.Queue[RobotResponse | None] = queue.Queue()
 
     def connect(self):
+        # Publicar los descriptores al conectar imita al agente real, que los manda
+        # por telemetría apenas arranca.
+        self._responses.put(CommandsDescriptionRobotResponse(self.robot_commands))
         self.logger.info("Mock robot connected (no-op).")
 
     def disconnect(self):
+        self.stop_reading()
         self.logger.info("Mock robot disconnected (no-op).")
 
     def __enter__(self):
@@ -46,29 +51,24 @@ class RobotMockController:
         self.disconnect()
 
     def send_command(self, command: str):
-        self.logger.info(f"Mock robot received command: {command}")
-        with self._robot_response_lock:
-            self.robot_response.append(StrRobotResponse(command, "OK"))
+        if not self.robot_commands.valid(command):
+            self.logger.warning("Comando inválido: %s", command)
+            raise InvalidCommandError(f"comando desconocido: {command}")
 
-    def read_response(self) -> RobotResponse:
-        self.logger.info("Mock robot returning dummy response.")
+        self.logger.info("Mock robot received command: %s", command)
+        self._responses.put(StrRobotResponse("OK"))
 
-        with self._robot_response_lock:
-            responses = self.robot_response
-            self.robot_response = []
+    def read_response(self) -> RobotResponse | None:
+        return self._responses.get()
 
-        if len(responses) == 1:
-            return responses[0]
-
-        return ComposedRobotResponse(responses)
+    def stop_reading(self) -> None:
+        self._responses.put(None)
 
     def execute_sequence(self, commands: list[str]):
         self.logger.info("Mock robot executing command sequence (simulated):")
         for command in commands:
             if command:
                 self.send_command(command)
-                response = self.read_response()
-                self.logger.info("Mock Response for '%s': %s", command, response)
 
     def get_status(self) -> dict[str, Any]:
         """Retorna estado simulado del robot mock."""

@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from ..base import Strategy, State
 from ...server.server_service import ServerServices, RobotCredentials
-from ...json_rpc import parse_command, _error_response
+from ...json_rpc import JsonRpcError, JsonRpcResponse, parse_command
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +219,10 @@ class WsStrategy(Strategy):
 
         except ValidationError as e:
             logger.warning("Comando JSON-RPC inválido: %s", e)
-            return _error_response(None, -32600, "Comando inválido").model_dump(mode="json")
+            error = JsonRpcResponse(
+                error=JsonRpcError(code=-32600, message="Comando inválido"), id=None
+            )
+            return error.model_dump(mode="json")
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Mensaje no parseable: %s", e)
             return None

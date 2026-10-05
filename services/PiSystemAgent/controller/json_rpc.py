@@ -7,12 +7,10 @@ y retorna respuestas JSON-RPC tipadas.
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from pydantic import BaseModel
 
-# Árbol nuevo: lo usan dispatch() y to_jsonrpc().
 from .robot.responses import (
     CommandsDescriptionRobotResponse,
     DispatchErrorRobotResponse,
@@ -20,14 +18,6 @@ from .robot.responses import (
     RobotResponse,
     StatusRobotResponse,
     StrRobotResponse,
-)
-
-# Árbol viejo: lo usa SÓLO handle_json_rpc, que se borra en la Task 4 junto con estos
-# imports. Van con alias porque son clases distintas que comparten nombre con las de arriba.
-from .robot.ros2_controller import (
-    CommandErrorRobotResponse as _LegacyCommandErrorRobotResponse,
-    CommandsDescriptionRobotResponse as _LegacyCommandsDescriptionRobotResponse,
-    RobotResponse as _LegacyRobotResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,79 +87,7 @@ def parse_command(raw: str) -> JsonRpcCommand:
     return JsonRpcCommand.model_validate_json(raw)
 
 
-# --- Handler ---
-
-
-async def handle_json_rpc(
-    command: JsonRpcCommand, robot
-) -> AsyncGenerator[JsonRpcResponse | JsonRpcNotification, Any]:
-    """Procesa un comando JSON-RPC 2.0 validado y retorna la respuesta.
-
-    Ejecuta la I/O serial en run_in_executor para no bloquear el event loop.
-    """
-    loop = asyncio.get_running_loop()
-
-    try:
-        if command.method == "execute_sequence":
-            commands = command.params.get("commands", [])
-            if not isinstance(commands, list):
-                yield _error_response(
-                    command.id, -32602, "'commands' debe ser una lista"
-                )
-            else:
-                await loop.run_in_executor(None, robot.execute_sequence, commands)
-                result = JsonRpcResult(
-                    status="ok", method=command.method, commands_count=len(commands)
-                )
-
-                yield JsonRpcResponse(result=result, id=command.id)
-        else:
-            raw_command = command.params.get("command", command.method)
-            await loop.run_in_executor(None, robot.send_command, raw_command)
-            response: _LegacyRobotResponse = await loop.run_in_executor(
-                None, robot.read_response
-            )
-
-            for resp in response.each():
-                if resp.command is not None:
-                    if isinstance(resp, _LegacyCommandErrorRobotResponse):
-                        result = JsonRpcResult(
-                            status="error", method=resp.command, response=str(resp)
-                        )
-                    else:
-                        result = JsonRpcResult(
-                            status="ok", method=resp.command, response=str(resp)
-                        )
-
-                    yield JsonRpcResponse(result=result, id=None)
-                else:
-                    if isinstance(resp, _LegacyCommandErrorRobotResponse):
-                        yield JsonRpcResponse(
-                            error=JsonRpcError(message=str(resp), code=1)
-                        )
-                    elif isinstance(resp, _LegacyCommandsDescriptionRobotResponse):
-                        yield JsonRpcNotification(
-                            method="command.update", params={"commands": resp.toList()}
-                        )
-                    else:
-                        yield JsonRpcNotification(
-                            method="result", params={"result": str(resp)}
-                        )
-
-    except (ConnectionError, EnvironmentError) as e:
-        logger.error("Error ejecutando comando '%s': %s", command.method, e)
-        yield _error_response(command.id, -32603, str(e))
-
-
-def _error_response(
-    request_id: str | int | None, code: int, message: str
-) -> JsonRpcResponse:
-    return JsonRpcResponse(
-        error=JsonRpcError(code=code, message=message), id=request_id
-    )
-
-
-# --- dispatch / to_jsonrpc (árbol nuevo) ---
+# --- dispatch / to_jsonrpc ---
 
 
 async def dispatch(command: JsonRpcCommand, robot) -> RobotResponse:

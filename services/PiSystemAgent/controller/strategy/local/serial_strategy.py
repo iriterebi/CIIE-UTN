@@ -2,63 +2,36 @@
 
 import asyncio
 import logging
-from typing import Any, override
+from typing import override
 
-from ...json_rpc import (
-    JsonRpcCommand,
-    JsonRpcResponse,
-    create_status_notification,
-    handle_json_rpc,
-)
 from ...robot.robot_controller import RobotController
-from ..base import LocalStrategy, State
+from ..base import OutboxLocalStrategy, State
 
 logger = logging.getLogger(__name__)
 
-_STATUS_INTERVAL_SEC = 5.0
 
-
-class SerialStrategy(LocalStrategy):
-    """Wrappea RobotController para implementar la interfaz Strategy.
-
-    Traduce comandos JSON-RPC (formato interno) a operaciones serial
-    y produce respuestas + status periódico.
-    """
+class SerialStrategy(OutboxLocalStrategy):
+    """Wrappea RobotController. La cola, los loops y la traducción a JSON-RPC los
+    aporta OutboxLocalStrategy; acá sólo vive el ciclo de vida del puerto."""
 
     def __init__(self, arduino_port: str):
-        self._robot = RobotController(arduino_port)
-        self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        self._telemetry_enabled: bool = True
-        self._telemetry_task: asyncio.Task[None] | None = None
-
-    @override
-    def get_telemetry_enabled(self):
-        return self._telemetry_enabled
-
-    @override
-    def set_telemetry(self, enabled: bool) -> None:
-        self._telemetry_enabled = enabled
-        if enabled and (self._telemetry_task is None or self._telemetry_task.done()):
-            self._telemetry_task = asyncio.create_task(self._telemetry_loop())
-        elif not enabled and self._telemetry_task and not self._telemetry_task.done():
-            self._telemetry_task.cancel()
-            self._telemetry_task = None
-        logger.info(
-            "Telemetría serial %s", "habilitada" if enabled else "deshabilitada"
-        )
+        super().__init__()
+        self._robot: RobotController = RobotController(arduino_port)
 
     @override
     async def start(self) -> None:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.connect)
-        self._telemetry_task = asyncio.create_task(self._telemetry_loop())
+        self._start_loops()
         self._state = State.RUNNING
         logger.info("SerialStrategy iniciado (puerto: %s)", self._robot.arduino_port)
 
     @override
     async def stop(self) -> None:
-        if self._telemetry_task and not self._telemetry_task.done():
-            self._telemetry_task.cancel()
+        # stop_reading ANTES de cancelar: to_thread no se puede cancelar mientras el
+        # hilo está bloqueado en read_response.
+        self._robot.stop_reading()
+        await self._stop_loops()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._robot.disconnect)
         self._state = State.STOPPED
@@ -75,25 +48,3 @@ class SerialStrategy(LocalStrategy):
         self.set_telemetry(True)
         await super().resume()
         logger.info("SerialStrategy reanudado")
-
-    @override
-    async def receive(self) -> Any:
-        """Pull del outbox — telemetría y respuestas llegan por la misma cola."""
-        return await self._outbox.get()
-
-    async def _telemetry_loop(self) -> None:
-        """Encola status periódico mientras esté habilitada."""
-        try:
-            while True:
-                await asyncio.sleep(_STATUS_INTERVAL_SEC)
-                notification = create_status_notification(self._robot.get_status())
-                await self._outbox.put(notification.model_dump(mode="json"))
-        except asyncio.CancelledError:
-            pass
-
-    @override
-    async def send(self, message: Any) -> None:
-        """Recibe un comando en formato interno, lo ejecuta en el robot."""
-        command = JsonRpcCommand.model_validate(message)
-        async for response in handle_json_rpc(command, self._robot):
-            await self._outbox.put(response.model_dump(mode="json"))
