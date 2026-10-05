@@ -53,9 +53,18 @@ construcción y no por disciplina del llamador.
   `start`/`stop`/`restart` hardcodeados mientras los descriptores ya llegan por el socket. Es la
   próxima feature (el placeholder `useRobotControls.ts`, hoy vacío), no este refactor.
 - **Que el cliente mande un `id` JSON-RPC.** Hoy `sendCommand` envía `{method, access_token,
-  robot_id}` sin campo `id`. Arreglar el #3 es correcto a nivel protocolo, pero no será observable
-  end-to-end hasta que el cliente mande ids: **la verificación del #3 es por test unitario, no por
-  inspección de la UI.**
+  robot_id}` sin campo `id`, y eso sí es cierto — pero no es el bloqueante real para observar el
+  fix del #3 end-to-end, sólo el síntoma visible una capa por encima de él. El bloqueante real está
+  un piso más abajo, en la Api: `RRobotCommand` (`services/Api/src/robot/entities/json_rpc_commands.py`)
+  sólo declara `method: str`, y `user_stream_source.py` reenvía `command.model_dump()` de ese
+  modelo — así que la Api descarta `id`, `params` y `jsonrpc` del payload del usuario *antes* de
+  que el frame llegue a la Pi, sin importar qué mande el WebClient. Agregar un `id` sólo en el
+  WebClient no alcanzaría: el frame seguiría llegando despojado de `id` porque `RRobotCommand` no
+  tiene dónde ponerlo. Arreglar el #3 es correcto a nivel protocolo, pero no será observable
+  end-to-end hasta que se ensanche `RRobotCommand` (y lo que lo use) en la Api: **la verificación
+  del #3 es por test unitario, no por inspección de la UI.** Mismo origen, y vale la pena anotarlo
+  acá: `execute_sequence` es hoy **inalcanzable a través de la Api** por la misma razón — como
+  `params` nunca llega, `dispatch()` siempre lo ve como `{}`.
 - **Desambiguar comandos tipados.** `TypedRobotCommand` ignora `command_name` por diseño (igual
   que `ToggleRobotCommand`): `command_name` es metadata para la UI, no parte del wire. Con dos
   comandos `uint` mandar `"50"` matchea ambos. Es una limitación aceptada del controlador

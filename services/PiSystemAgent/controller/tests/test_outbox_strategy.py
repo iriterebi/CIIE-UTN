@@ -3,6 +3,7 @@
 import asyncio
 import queue
 import threading
+import time
 from typing import Any, override
 
 import pytest
@@ -112,6 +113,29 @@ def test_send_invalid_command_emits_error_with_id():
     assert msg["error"]["code"] == -32602
 
 
+def test_send_malformed_message_is_dropped_not_raised():
+    """Fix 3 (harden `send()`): un frame que no valida contra `JsonRpcCommand`
+    (ej. lo que produciría un `_parse_message` de `WsStrategy` sin este fix, o
+    cualquier otro frame malformado) debe descartarse con un log, nunca escapar
+    como `ValidationError` hacia el `TaskGroup` de `MicroCore` — mismo invariante
+    "nunca levanta" que `dispatch()`."""
+    async def scenario():
+        strat = FakeStrategy()
+        await strat.start()
+        await strat.send({"no_es_un_comando": True})  # falta 'method' -> inválido
+        # Un comando válido posterior debe seguir funcionando: send() no debe
+        # haber quedado en un estado roto por el frame descartado.
+        await strat.send({"jsonrpc": "2.0", "method": "start", "id": 1})
+        msg = await asyncio.wait_for(strat.receive(), 2.0)
+        await strat.stop()
+        return strat, msg
+
+    strat, msg = asyncio.run(scenario())
+    assert strat._outbox.empty()  # el frame malformado no encoló nada
+    assert msg["id"] == 1
+    assert msg["result"]["status"] == "ok"
+
+
 def test_response_loop_drains_without_any_command():
     """El #7: el output del robot sale aunque nadie mande comandos."""
     async def scenario():
@@ -182,16 +206,65 @@ def strat_state_cleared(task) -> bool:
     return task.cancelled() or task.exception() is None
 
 
-def test_response_loop_death_sets_state_stopped():
-    """Finding 2: si el canal de output del robot muere (error de E/S), el
-    strategy debe quedar observable como detenido. `send()` sigue funcionando
-    porque `dispatch()` es independiente, así que sin esto el strategy parecería
-    vivo mientras descarta todo output espontáneo del robot para siempre."""
+def test_disconnect_never_runs_before_the_real_read_thread_returns():
+    """Fix 2: `_disconnect_robot()` no debe correr mientras el hilo real sigue
+    bloqueado en `read_response`. `FakeRobot.read_response` (vía `queue.get()`)
+    es casi instantáneo, así que no expone la carrera por timing — este test usa
+    un robot con una lectura deliberadamente lenta (como el timeout=1 real del
+    puerto serial) para forzar la ventana donde, antes del fix, `task.cancel()`
+    ganaba la carrera contra el sentinel y `_stop_loops()` retornaba con el hilo
+    todavía vivo."""
+    class SlowFakeRobot(FakeRobot):
+        def read_response(self):
+            time.sleep(0.3)
+            return super().read_response()
+
+    class SlowFakeStrategy(FakeStrategy):
+        def __init__(self):
+            super().__init__()
+            self._robot: SlowFakeRobot = SlowFakeRobot()
+            self.disconnect_saw_thread_returned: bool | None = None
+
+        @override
+        async def _disconnect_robot(self) -> None:
+            self.disconnect_saw_thread_returned = self._robot.read_thread_returned.is_set()
+
+    async def scenario():
+        strat = SlowFakeStrategy()
+        await strat.start()
+        await asyncio.sleep(0.05)  # dejar que el loop entre genuinamente al read bloqueante
+        strat._robot.read_thread_returned.clear()
+        await asyncio.wait_for(strat.stop(), 2.0)
+        return strat
+
+    strat = asyncio.run(scenario())
+    assert strat.disconnect_saw_thread_returned is True, (
+        "_disconnect_robot() corrió mientras el hilo real de read_response todavía "
+        "estaba bloqueado -- la precondición que _stop_loops() debe garantizar"
+    )
+
+
+@pytest.mark.parametrize("exc_cls", [ConnectionError, RuntimeError])
+def test_response_loop_death_sets_state_stopped(exc_cls: type[Exception]):
+    """Finding 2: si el canal de output del robot muere (cualquier error, no sólo
+    E/S), el strategy debe quedar observable como detenido. `send()` sigue
+    funcionando porque `dispatch()` es independiente, así que sin esto el
+    strategy parecería vivo mientras descarta todo output espontáneo del robot
+    para siempre.
+
+    Parametrizado sobre `RuntimeError` además de `ConnectionError`: antes del fix
+    1, el loop sólo atrapaba `(ConnectionError, OSError)`, así que este test
+    pasaba con el bug presente (sólo ejercitaba una causa que YA estaba
+    cubierta). El disparador real es `UnicodeDecodeError` (hereda de
+    `ValueError`) en `robot_controller.py`; `RuntimeError` alcanza para probar
+    que el `except` es genérico sin acoplarse a una jerarquía de excepciones
+    puntual.
+    """
     async def scenario():
         strat = FakeStrategy()
 
         def _raise() -> RobotResponse | None:
-            raise ConnectionError("serial desconectado")
+            raise exc_cls("serial desconectado")
 
         strat._robot.read_response = _raise
         await strat.start()
@@ -204,31 +277,48 @@ def test_response_loop_death_sets_state_stopped():
     assert status_after_death == State.STOPPED
 
 
-def test_stop_completes_cleanly_after_telemetry_loop_dies(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("exc_cls", [ConnectionError, RuntimeError])
+def test_stop_completes_cleanly_after_telemetry_loop_dies(
+    monkeypatch: pytest.MonkeyPatch, exc_cls: type[Exception]
+):
     """Finding 3: si `get_status()` falla, el telemetry loop muere solo con una
     excepción pendiente en su Task. Antes de este fix, `_stop_loops()` la
     re-lanzaba al awaitear esa tarea, y `stop()` rompía su contrato de shutdown
     determinista. Acá no debe pasar: perder telemetría es degradación, no
-    motivo para que el strategy entero falle al apagarse."""
+    motivo para que el strategy entero falle al apagarse.
+
+    Parametrizado igual que `test_response_loop_death_sets_state_stopped` (ver
+    ahí el porqué de `RuntimeError`): con sólo `ConnectionError` este test pasaba
+    con el bug presente, porque esa causa ya estaba en el `except` original.
+
+    También fija Fix 5: la asimetría respuesta/telemetría respecto a `_state` es
+    deliberada (perder telemetría es degradación, no muerte del strategy) — acá
+    se pin-ea con un assert explícito para que una futura "unificación" no la
+    rompa en silencio.
+    """
     monkeypatch.setattr(base_module, "STATUS_INTERVAL_SEC", 0.01)
 
     async def scenario():
         strat = FakeStrategy()
 
         def _raise() -> dict[str, Any]:
-            raise ConnectionError("telemetría caída")
+            raise exc_cls("telemetría caída")
 
         strat._robot.get_status = _raise
         await strat.start()
         telemetry_task = strat._telemetry_task
         assert telemetry_task is not None
         await asyncio.wait_for(telemetry_task, 2.0)  # el loop muere solo, antes de stop()
+        status_right_after_telemetry_death = strat.status
         await asyncio.wait_for(strat.stop(), 2.0)  # no debe relanzar la excepción
-        return strat, telemetry_task
+        return strat, telemetry_task, status_right_after_telemetry_death
 
-    strat, telemetry_task = asyncio.run(scenario())
+    strat, telemetry_task, status_right_after_telemetry_death = asyncio.run(scenario())
     assert telemetry_task.done() and telemetry_task.exception() is None
-    assert strat.status == State.STOPPED
+    # Fix 5: la muerte del telemetry loop NO debe tocar `_state` — a diferencia
+    # de la muerte del response loop, es degradación, no caída del strategy.
+    assert status_right_after_telemetry_death != State.STOPPED
+    assert strat.status == State.STOPPED  # stop() sí lo deja detenido, al final
 
 
 def test_set_telemetry_disable_needs_no_running_loop():

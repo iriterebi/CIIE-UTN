@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from ..base import Strategy, State
 from ...server.server_service import ServerServices, RobotCredentials
-from ...json_rpc import JsonRpcError, JsonRpcResponse, parse_command
+from ...json_rpc import parse_command
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +210,14 @@ class WsStrategy(Strategy):
         """Parsea un mensaje WS como comando JSON-RPC.
 
         Retorna el comando como dict, o None si no es parseable.
+
+        Un frame inválido (JSON mal formado o que no cumple el schema de
+        `JsonRpcCommand`) se descarta devolviendo `None`, igual que el JSON mal
+        formado: construir y devolver una respuesta de error acá era código
+        inalcanzable por construcción — este canal (`receive()`) sólo entrega
+        comandos, nunca viaja de vuelta a la API, y lo único que lograba era que
+        `local.send()` reventara con `ValidationError` al intentar validar esa
+        respuesta de error como si fuera un `JsonRpcCommand`, tumbando el agente.
         """
         try:
             data = raw if isinstance(raw, str) else json.dumps(raw)
@@ -218,11 +226,8 @@ class WsStrategy(Strategy):
             return command.model_dump(mode="json")
 
         except ValidationError as e:
-            logger.warning("Comando JSON-RPC inválido: %s", e)
-            error = JsonRpcResponse(
-                error=JsonRpcError(code=-32600, message="Comando inválido"), id=None
-            )
-            return error.model_dump(mode="json")
+            logger.warning("Comando JSON-RPC inválido, se descarta: %s", e)
+            return None
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Mensaje no parseable: %s", e)
             return None

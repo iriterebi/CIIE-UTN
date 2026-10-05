@@ -70,11 +70,6 @@ class JsonRpcNotification(BaseModel):
     params: dict[Any, Any] = {}
 
 
-def create_status_notification(status: dict[Any, Any]) -> JsonRpcNotification:
-    """Envuelve el dict de status del robot en una notification JSON-RPC."""
-    return JsonRpcNotification(method="status.update", params=status)
-
-
 # --- Parsing ---
 
 

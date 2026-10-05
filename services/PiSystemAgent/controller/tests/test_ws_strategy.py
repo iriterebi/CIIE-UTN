@@ -51,6 +51,29 @@ class TestPingPong:
         assert json.loads(strategy._ws.sent[0]) == {"type": "pong"}
 
 
+class TestParseMessage:
+    def test_frame_malformado_retorna_none_y_no_levanta(self):
+        """Fix 3: un frame que no valida contra `JsonRpcCommand` (falta `method`)
+        debe descartarse devolviendo `None`, igual que el JSON mal formado (rama
+        hermana dos líneas más abajo). Antes del fix, esta rama construía y
+        devolvía una respuesta de error JSON-RPC -- que `receive()` entregaba al
+        core como si fuera un comando, y que `local.send()` jamás podía validar
+        como `JsonRpcCommand` (no tiene `method`), reventando con
+        `ValidationError` fuera de la red de seguridad de `dispatch()`."""
+        strategy = _make_strategy()
+
+        result = strategy._parse_message(json.dumps({"jsonrpc": "2.0"}))  # sin 'method'
+
+        assert result is None
+
+    def test_json_mal_formado_retorna_none_y_no_levanta(self):
+        strategy = _make_strategy()
+
+        result = strategy._parse_message("esto no es json")
+
+        assert result is None
+
+
 class TestHeartbeatWatchdog:
     def test_sin_ping_de_la_api_fuerza_reconexion(self, monkeypatch):
         monkeypatch.setattr(ws_strategy, "_HEARTBEAT_TIMEOUT_SECONDS", 0.02)

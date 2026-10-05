@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any, override
 
+from pydantic import ValidationError
+
 from ..json_rpc import JsonRpcCommand, dispatch, to_jsonrpc
 from ..robot.responses import RobotResponse, StatusRobotResponse
 
@@ -129,11 +131,16 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
 
     @override
     async def stop(self) -> None:
-        # stop_reading ANTES de cancelar: asyncio.to_thread no se puede cancelar
-        # mientras el hilo real está bloqueado en read_response — el sentinel es lo
-        # único que realmente lo desbloquea (ver `_stop_loops`). Esperar
-        # `_stop_loops()` acá es lo que hace que `stop()` sea determinista: sin el
-        # await, retornaría con hilos del executor todavía vivos.
+        # stop_reading ANTES de _stop_loops: encola el sentinel, que es lo único que
+        # de verdad libera al hilo real bloqueado en read_response. `task.cancel()`
+        # NO lo hace — el cancel del lado asyncio se desacopla del
+        # `concurrent.futures.Future` subyacente una vez que el hilo del executor ya
+        # está corriendo (ver docstring de `test_stop_terminates_the_response_loop`).
+        # `_stop_loops()` espera (con upper bound) a que ese sentinel haga su trabajo
+        # antes de cancelar lo que todavía quede vivo, así que awaitearla acá es lo
+        # que convierte "el hilo real ya retornó" en una precondición real de
+        # `_disconnect_robot()` — cancelar es sólo el fallback si el sentinel no
+        # alcanza a tiempo, no el mecanismo normal.
         self._robot.stop_reading()
         await self._stop_loops()
         await self._disconnect_robot()
@@ -175,8 +182,18 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
 
     @override
     async def send(self, message: Any) -> None:
-        """Despacha el comando. La respuesta correlacionada entra a la misma cola."""
-        command = JsonRpcCommand.model_validate(message)
+        """Despacha el comando. La respuesta correlacionada entra a la misma cola.
+
+        Mismo invariante "nunca levanta" que `dispatch()`: un frame que no es un
+        comando JSON-RPC válido (ej. lo que manda `_parse_message` ante un frame
+        WS malformado) se descarta con un log, en vez de dejar escapar el
+        `ValidationError` hacia el `TaskGroup` de `MicroCore`.
+        """
+        try:
+            command = JsonRpcCommand.model_validate(message)
+        except ValidationError:
+            logger.warning("Frame no es un comando JSON-RPC válido, se descarta: %r", message)
+            return
         await self._outbox.put(await dispatch(command, self._robot))
 
     @override
@@ -211,23 +228,54 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
     async def _stop_loops(self) -> None:
         """Cancela los loops y ESPERA a que terminen.
 
-        El llamador debe haber llamado `robot.stop_reading()` ANTES:
-        `asyncio.to_thread` no se puede cancelar mientras el hilo está bloqueado, así
-        que el sentinel es lo que realmente lo desbloquea. Esperar acá es lo que hace
-        que `stop()` sea determinista — sin el await, `stop()` retorna con hilos del
-        executor todavía vivos.
+        El llamador debe haber llamado `robot.stop_reading()` ANTES: eso encola el
+        sentinel que es lo único que de verdad libera al hilo real bloqueado en
+        `read_response` — `task.cancel()` NO lo hace, se desacopla del
+        `concurrent.futures.Future` subyacente una vez que el hilo del executor ya
+        está corriendo. Por eso, para `_response_task`, primero se espera (con cota
+        superior) a que ese sentinel haga su trabajo y el loop termine solo; sólo se
+        cancela lo que, pasado ese plazo, siga vivo. Esto es lo que convierte "el
+        hilo real ya retornó" en una precondición real de `_disconnect_robot()`
+        (cerrar el puerto con el hilo todavía adentro de `readline()` es el bug que
+        este fix cierra) — cancelar directo, sin esperar, no lo garantiza.
+
+        `_telemetry_task` no tiene esa restricción (no bloquea un hilo real del
+        executor, sólo duerme), así que se cancela directo como antes.
+
+        Belt-and-braces: si algún loop termina con una excepción que no sea
+        `CancelledError` (ej. algo fuera de los `except` propios del loop), `await
+        task` la re-lanzaría acá — el `except Exception` de abajo evita que un fallo
+        de cualquiera de los dos loops pueda bloquear el shutdown del strategy.
         """
-        for task in (self._response_task, self._telemetry_task):
-            if task is None:
-                continue
+        if self._response_task is not None:
+            task = self._response_task
+            if not task.done():
+                _, pending = await asyncio.wait([task], timeout=2.0)
+                if task in pending:
+                    logger.warning(
+                        "%s: el sentinel no liberó el hilo de lectura a tiempo, cancelando",
+                        self.name,
+                    )
+                    _ = task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Loop de respuestas terminó con error inesperado al apagarse")
+            self._response_task = None
+
+        if self._telemetry_task is not None:
+            task = self._telemetry_task
             if not task.done():
                 _ = task.cancel()
             try:
                 await task
             except asyncio.CancelledError:
                 pass
-        self._response_task = None
-        self._telemetry_task = None
+            except Exception:
+                logger.exception("Loop de telemetría terminó con error inesperado al apagarse")
+            self._telemetry_task = None
 
     async def _response_loop(self) -> None:
         """Drena el output del robot de forma continua, haya usuario o no.
@@ -244,7 +292,7 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
                 await self._outbox.put(resp)
         except asyncio.CancelledError:
             pass
-        except (ConnectionError, OSError) as e:
+        except Exception as e:
             # Este canal murió para siempre: nadie más va a leer output espontáneo del
             # robot (send() sigue funcionando porque dispatch() es independiente, así
             # que el strategy "parece" vivo si no marcamos el estado). Es la misma
@@ -253,7 +301,15 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
             # más arriba. `_state = STOPPED` lo hace observable vía
             # `connection::local::status` en el CLI; logger.exception deja el stack
             # completo, porque un canal muerto merece diagnóstico, no una línea suelta.
-            logger.exception("Loop de respuestas detenido por error de E/S: %s", e)
+            #
+            # `except Exception` (no sólo `ConnectionError`/`OSError`): "nunca deja el
+            # estado mintiendo" es un invariante absoluto, no una lista de causas
+            # anticipadas — mismo argumento que el `except Exception` de `dispatch()`.
+            # El disparador real que faltaba: `self.ser.readline().decode("utf-8")`
+            # en `robot_controller.py` puede levantar `UnicodeDecodeError`, que es un
+            # `ValueError`, no un `OSError` — ruido de línea serial común (reset de
+            # Arduino, descalce de baudrate), no un caso exótico.
+            logger.exception("Loop de respuestas detenido por error inesperado: %s", e)
             self._state = State.STOPPED
 
     async def _telemetry_loop(self) -> None:
@@ -263,9 +319,13 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
                 await self._outbox.put(StatusRobotResponse(self._robot.get_status()))
         except asyncio.CancelledError:
             pass
-        except (ConnectionError, OSError) as e:
+        except Exception as e:
             # A diferencia de `_response_loop`, perder telemetría es degradación, no
             # muerte del strategy: `send()` y el output espontáneo del robot siguen
             # funcionando sin depender de este loop. Por eso NO tocamos `_state` acá;
-            # la asimetría es deliberada, no un olvido.
-            logger.exception("Loop de telemetría detenido por error de E/S: %s", e)
+            # la asimetría es deliberada, no un olvido (ver test con el assert
+            # explícito sobre `_state`). `except Exception` (no sólo
+            # `ConnectionError`/`OSError`) por el mismo motivo que en
+            # `_response_loop`: no repetir el bug de un `except` que sólo cubre las
+            # causas anticipadas.
+            logger.exception("Loop de telemetría detenido por error inesperado: %s", e)

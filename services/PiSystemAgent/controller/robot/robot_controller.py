@@ -65,7 +65,15 @@ class RobotController:
 
         El puerto tiene timeout=1, así que readline() devuelve b'' cada segundo sin
         datos. Esos vacíos se descartan: son el punto donde se chequea la parada.
+
+        El chequeo de `_stop` va ANTES del de conexión: una llamada perdida tras
+        `disconnect()` (stop_reading() ya corrido, puerto ya cerrado) debe devolver
+        el sentinel como cualquier otra, no levantar `ConnectionError` — mismo
+        contrato que `RobotMockController`/`Ros2Controller` (su `queue.get()` no
+        distingue, siempre respeta el sentinel ya encolado).
         """
+        if self._stop.is_set():
+            return None
         if not self.ser or not self.ser.is_open:
             raise ConnectionError("Arduino not connected. Call connect() first.")
 
