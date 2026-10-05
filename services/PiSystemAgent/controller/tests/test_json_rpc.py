@@ -18,6 +18,7 @@ from controller.robot.responses import (
     DispatchOkRobotResponse,
     InvalidCommandError,
     RobotCommandRecord,
+    RobotResponse,
     StatusRobotResponse,
     StrRobotResponse,
 )
@@ -107,6 +108,16 @@ def test_dispatch_execute_sequence_rejects_non_list():
     assert resp.request_id == 9
 
 
+def test_dispatch_never_raises_on_unexpected_exception():
+    """El invariante es absoluto: un bug del controlador no debe tumbar el agente."""
+    robot = FakeRobot(raises=RuntimeError("bug inesperado del controlador"))
+    resp = asyncio.run(dispatch(_cmd(method="move", id=5), robot))
+
+    assert isinstance(resp, DispatchErrorRobotResponse)
+    assert resp.request_id == 5
+    assert to_jsonrpc(resp).error.code == -32603
+
+
 # --- to_jsonrpc ---
 
 def test_dispatch_ok_becomes_response_with_id():
@@ -176,3 +187,9 @@ def test_status_becomes_status_update_notification():
     assert isinstance(msg, JsonRpcNotification)
     assert msg.method == "status.update"
     assert msg.params == {"status": "online"}
+
+
+def test_unknown_response_type_falls_back_to_robot_output():
+    msg = to_jsonrpc(RobotResponse())
+    assert isinstance(msg, JsonRpcNotification)
+    assert msg.method == "robot.output"

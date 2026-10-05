@@ -204,6 +204,15 @@ async def dispatch(command: JsonRpcCommand, robot) -> RobotResponse:
         logger.error("Error despachando comando '%s': %s", command.method, e)
         return DispatchErrorRobotResponse(command.id, command.method, e)
 
+    except Exception as e:  # noqa: BLE001 — red de seguridad deliberada
+        # "Nunca levanta" es un invariante absoluto, no una lista de casos previstos.
+        # Cualquier excepción que escape de acá sube por OutboxLocalStrategy.send hasta
+        # el TaskGroup de MicroCore y mata el agente entero — la clase de bug que este
+        # refactor existe para cerrar. logger.exception deja el stack completo en los
+        # logs de la Pi, así que el bug sigue siendo diagnosticable sin tirar el proceso.
+        logger.exception("Fallo inesperado despachando '%s'", command.method)
+        return DispatchErrorRobotResponse(command.id, command.method, e)
+
 
 # Mapeo de causa → código JSON-RPC. InvalidCommandError hereda de ValueError, así que
 # el orden importa sólo para legibilidad: ambos caen en -32602.
