@@ -5,14 +5,18 @@ también verifica que el import de rclpy sea diferido (el módulo se importa sin
 """
 
 import asyncio
+import json
 import os
 import sys
 import types
 
 import pytest
 
+from controller.robot import ros2_controller
 from controller.robot.ros2_controller import (
-    Ros2Controller, parse_key_value, _SENT_ACK,
+    CommandsDescriptionRobotResponse, LiteralRobotCommand, RobotCommandRecord,
+    Ros2Controller, ToggleRobotCommand, TypedRobotCommand, parse_commands,
+    parse_key_value, _SENT_ACK,
 )
 from controller.strategy.local.ros2_strategy import Ros2Strategy
 
@@ -169,6 +173,100 @@ def test_get_status_reflects_connection(monkeypatch):
     assert ctrl.get_status()["status"] == "online"
     ctrl.disconnect()
     assert ctrl.get_status()["status"] == "disconnected"
+
+
+# --- Autodescubrimiento de comandos ---
+
+def test_parse_commands_literal_and_toggle_and_typed():
+    record = parse_commands("commands=restart,<toggle:start|stop>play,<type:uint>speed")
+    assert [type(c) for c in record.commands] == [
+        LiteralRobotCommand, ToggleRobotCommand, TypedRobotCommand,
+    ]
+
+
+@pytest.mark.parametrize("descriptor", [
+    "<toggle:start>play",       # falta el segundo literal
+    "<toggle:start|>play",      # segundo literal vacío
+    "<toggle:|stop>play",       # primer literal vacío
+    "<toggle:a|b|c>play",       # tres literales
+])
+def test_parse_commands_skips_malformed_toggle(descriptor):
+    """Un descriptor toggle mal formado se descarta; no debe levantar IndexError."""
+    record = parse_commands(f"commands={descriptor},restart")
+    assert [c.command for c in record.commands] == ["restart"]
+
+
+def test_toggle_todict_is_json_serializable():
+    """toDict() debe anidar dicts, no objetos: va directo a los params de un JSON-RPC."""
+    record = RobotCommandRecord([ToggleRobotCommand("play", "start", "stop")])
+    payload = CommandsDescriptionRobotResponse(record).toList()
+
+    assert json.loads(json.dumps(payload)) == [{
+        "_type": "toggle",
+        "mets_name": "play",
+        "true": {"_type": "literal", "command": "start"},
+        "false": {"_type": "literal", "command": "stop"},
+    }]
+
+
+@pytest.mark.parametrize("command,expected", [
+    ("10", True),
+    (10, True),
+    ("0", True),
+    ("-1", False),
+    (-1, False),
+    ("abc", False),      # no debe levantar ValueError
+    ("", False),
+    ("1.5", False),
+    (True, False),       # bool es subclase de int, no lo aceptamos
+])
+def test_typed_uint_valid(command, expected):
+    assert TypedRobotCommand("speed", "uint").valid(command) is expected
+
+
+def test_record_valid_fails_open_before_discovery():
+    """Sin `commands=` recibido todavía no hay contra qué validar: se deja pasar."""
+    assert RobotCommandRecord([]).valid("lo_que_sea") is True
+
+
+def test_send_command_rejects_unknown_command(monkeypatch):
+    published, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+
+    String = hooks["String"]
+    msg = String()
+    msg.data = "commands=restart,<toggle:start|stop>play"
+    hooks["on_data"](msg)
+
+    ctrl.send_command("jump")
+    assert published == []
+
+    ctrl.send_command("start")
+    ctrl.send_command("restart")
+    assert published == ["start", "restart"]
+
+
+def test_on_data_does_not_propagate_to_spin_thread(monkeypatch):
+    """Una excepción en el callback mataría el spin en silencio: debe quedar contenida."""
+    _, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+
+    def boom(_serialiced):
+        raise RuntimeError("parser roto")
+
+    monkeypatch.setattr(ros2_controller, "parse_commands", boom)
+
+    String = hooks["String"]
+    msg = String()
+    msg.data = "commands=restart"
+    hooks["on_data"](msg)  # no debe levantar
+
+    msg2 = String()
+    msg2.data = "base=90"
+    hooks["on_data"](msg2)
+    assert ctrl.get_status()["telemetry"] == {"base": "90"}
 
 
 # --- Ros2Strategy ---

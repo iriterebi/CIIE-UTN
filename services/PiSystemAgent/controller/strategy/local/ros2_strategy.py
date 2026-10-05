@@ -4,11 +4,13 @@ import asyncio
 import logging
 from typing import Any, override
 
-from ..base import LocalStrategy, State
-from ...robot.ros2_controller import Ros2Controller
 from ...json_rpc import (
-    JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
+    JsonRpcCommand,
+    create_status_notification,
+    handle_json_rpc,
 )
+from ...robot.ros2_controller import Ros2Controller
+from ..base import LocalStrategy, State
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,14 @@ class Ros2Strategy(LocalStrategy):
     y produce respuestas (ack) + status periódico desde la telemetría DDS.
     """
 
-    def __init__(self, *, node_name: str, command_topic: str, data_topic: str, domain_id: int = 42):
+    def __init__(
+        self,
+        *,
+        node_name: str,
+        command_topic: str,
+        data_topic: str,
+        domain_id: int = 42,
+    ):
         self._robot = Ros2Controller(
             node_name=node_name,
             command_topic=command_topic,
@@ -95,5 +104,5 @@ class Ros2Strategy(LocalStrategy):
     async def send(self, message: Any) -> None:
         """Recibe un comando en formato interno, lo publica vía ROS 2."""
         command = JsonRpcCommand.model_validate(message)
-        response: JsonRpcResponse = await handle_json_rpc(command, self._robot)
-        await self._outbox.put(response.model_dump(mode="json"))
+        async for response in handle_json_rpc(command, self._robot):
+            await self._outbox.put(response.model_dump(mode="json"))

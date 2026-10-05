@@ -4,11 +4,14 @@ import asyncio
 import logging
 from typing import Any, override
 
-from ..base import LocalStrategy, State
-from ...robot.robot_controller import RobotController
 from ...json_rpc import (
-    JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
+    JsonRpcCommand,
+    JsonRpcResponse,
+    create_status_notification,
+    handle_json_rpc,
 )
+from ...robot.robot_controller import RobotController
+from ..base import LocalStrategy, State
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,9 @@ class SerialStrategy(LocalStrategy):
         elif not enabled and self._telemetry_task and not self._telemetry_task.done():
             self._telemetry_task.cancel()
             self._telemetry_task = None
-        logger.info("Telemetría serial %s", "habilitada" if enabled else "deshabilitada")
+        logger.info(
+            "Telemetría serial %s", "habilitada" if enabled else "deshabilitada"
+        )
 
     @override
     async def start(self) -> None:
@@ -90,5 +95,5 @@ class SerialStrategy(LocalStrategy):
     async def send(self, message: Any) -> None:
         """Recibe un comando en formato interno, lo ejecuta en el robot."""
         command = JsonRpcCommand.model_validate(message)
-        response: JsonRpcResponse = await handle_json_rpc(command, self._robot)
-        await self._outbox.put(response.model_dump(mode="json"))
+        async for response in handle_json_rpc(command, self._robot):
+            await self._outbox.put(response.model_dump(mode="json"))

@@ -7,7 +7,7 @@ from typing import Any, override
 from ..base import LocalStrategy, State
 from ...robot.robot_mock_controller import RobotMockController
 from ...json_rpc import (
-    JsonRpcCommand, JsonRpcResponse, handle_json_rpc, create_status_notification,
+    JsonRpcCommand, handle_json_rpc, create_status_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class MockStrategy(LocalStrategy):
         self._robot = RobotMockController(arduino_port)
         self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._telemetry_enabled: bool = True
-        self._telemetry_task: asyncio.Task | None = None
+        self._telemetry_task: asyncio.Task[Any] | None = None
 
     @override
     def get_telemetry_enabled(self):
@@ -38,7 +38,7 @@ class MockStrategy(LocalStrategy):
         if enabled and (self._telemetry_task is None or self._telemetry_task.done()):
             self._telemetry_task = asyncio.create_task(self._telemetry_loop())
         elif not enabled and self._telemetry_task and not self._telemetry_task.done():
-            self._telemetry_task.cancel()
+            _ = self._telemetry_task.cancel()
             self._telemetry_task = None
         logger.info("Telemetría mock %s", "habilitada" if enabled else "deshabilitada")
 
@@ -46,15 +46,15 @@ class MockStrategy(LocalStrategy):
     async def start(self) -> None:
         self._robot.connect()
         self._telemetry_task = asyncio.create_task(self._telemetry_loop())
-        self._state = State.RUNNING
+        self._state: State = State.RUNNING
         logger.info("MockStrategy iniciado")
 
     @override
     async def stop(self) -> None:
         if self._telemetry_task and not self._telemetry_task.done():
-            self._telemetry_task.cancel()
+            _ = self._telemetry_task.cancel()
         self._robot.disconnect()
-        self._state = State.STOPPED
+        self._state: State = State.STOPPED
         logger.info("MockStrategy detenido")
 
     @override
@@ -88,5 +88,5 @@ class MockStrategy(LocalStrategy):
     async def send(self, message: Any) -> None:
         """Recibe un comando en formato interno, lo ejecuta en el mock."""
         command = JsonRpcCommand.model_validate(message)
-        response: JsonRpcResponse = await handle_json_rpc(command, self._robot)
-        await self._outbox.put(response.model_dump(mode="json"))
+        async for response in handle_json_rpc(command, self._robot):
+            await self._outbox.put(response.model_dump(mode="json"))

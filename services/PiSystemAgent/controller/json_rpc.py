@@ -7,23 +7,34 @@ y retorna respuestas JSON-RPC tipadas.
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from pydantic import BaseModel
+
+from .robot.ros2_controller import (
+    CommandErrorRobotResponse,
+    CommandsDescriptionRobotResponse,
+    RobotResponse,
+)
 
 logger = logging.getLogger(__name__)
 
 
 # --- Modelos de entrada (comando del usuario/API) ---
 
+
 class JsonRpcCommand(BaseModel):
     """Comando JSON-RPC 2.0 recibido desde la API."""
+
     jsonrpc: str = "2.0"
     method: str
-    params: dict = {}
+    params: dict[Any, Any] = {}
     id: str | int | None = None
 
 
 # --- Modelos de salida (respuesta al usuario/API) ---
+
 
 class JsonRpcError(BaseModel):
     code: int
@@ -39,6 +50,7 @@ class JsonRpcResult(BaseModel):
 
 class JsonRpcResponse(BaseModel):
     """Respuesta JSON-RPC 2.0 enviada a la API."""
+
     jsonrpc: str = "2.0"
     result: JsonRpcResult | None = None
     error: JsonRpcError | None = None
@@ -47,19 +59,22 @@ class JsonRpcResponse(BaseModel):
 
 # --- Notification (mensajes sin respuesta, ej: telemetría) ---
 
+
 class JsonRpcNotification(BaseModel):
     """Notification JSON-RPC 2.0 — fire-and-forget, sin id."""
+
     jsonrpc: str = "2.0"
     method: str
-    params: dict = {}
+    params: dict[Any, Any] = {}
 
 
-def create_status_notification(status: dict) -> JsonRpcNotification:
+def create_status_notification(status: dict[Any, Any]) -> JsonRpcNotification:
     """Envuelve el dict de status del robot en una notification JSON-RPC."""
     return JsonRpcNotification(method="status.update", params=status)
 
 
 # --- Parsing ---
+
 
 def parse_command(raw: str) -> JsonRpcCommand:
     """Parsea y valida un string JSON como comando JSON-RPC.
@@ -72,7 +87,10 @@ def parse_command(raw: str) -> JsonRpcCommand:
 
 # --- Handler ---
 
-async def handle_json_rpc(command: JsonRpcCommand, robot) -> JsonRpcResponse:
+
+async def handle_json_rpc(
+    command: JsonRpcCommand, robot
+) -> AsyncGenerator[JsonRpcResponse | JsonRpcNotification, Any]:
     """Procesa un comando JSON-RPC 2.0 validado y retorna la respuesta.
 
     Ejecuta la I/O serial en run_in_executor para no bloquear el event loop.
@@ -83,30 +101,57 @@ async def handle_json_rpc(command: JsonRpcCommand, robot) -> JsonRpcResponse:
         if command.method == "execute_sequence":
             commands = command.params.get("commands", [])
             if not isinstance(commands, list):
-                return _error_response(
+                yield _error_response(
                     command.id, -32602, "'commands' debe ser una lista"
                 )
-            await loop.run_in_executor(None, robot.execute_sequence, commands)
-            result = JsonRpcResult(
-                status="ok", method=command.method, commands_count=len(commands)
-            )
+            else:
+                await loop.run_in_executor(None, robot.execute_sequence, commands)
+                result = JsonRpcResult(
+                    status="ok", method=command.method, commands_count=len(commands)
+                )
 
+                yield JsonRpcResponse(result=result, id=command.id)
         else:
             raw_command = command.params.get("command", command.method)
             await loop.run_in_executor(None, robot.send_command, raw_command)
-            response = await loop.run_in_executor(None, robot.read_response)
-            result = JsonRpcResult(
-                status="ok", method=command.method, response=response
+            response: RobotResponse = await loop.run_in_executor(
+                None, robot.read_response
             )
+
+            for resp in response.each():
+                if resp.command is not None:
+                    if isinstance(resp, CommandErrorRobotResponse):
+                        result = JsonRpcResult(
+                            status="error", method=resp.command, response=str(resp)
+                        )
+                    else:
+                        result = JsonRpcResult(
+                            status="ok", method=resp.command, response=str(resp)
+                        )
+
+                    yield JsonRpcResponse(result=result, id=None)
+                else:
+                    if isinstance(resp, CommandErrorRobotResponse):
+                        yield JsonRpcResponse(
+                            error=JsonRpcError(message=str(resp), code=1)
+                        )
+                    elif isinstance(resp, CommandsDescriptionRobotResponse):
+                        yield JsonRpcNotification(
+                            method="command.update", params={"commands": resp.toList()}
+                        )
+                    else:
+                        yield JsonRpcNotification(
+                            method="result", params={"result": str(resp)}
+                        )
 
     except (ConnectionError, EnvironmentError) as e:
         logger.error("Error ejecutando comando '%s': %s", command.method, e)
-        return _error_response(command.id, -32603, str(e))
-
-    return JsonRpcResponse(result=result, id=command.id)
+        yield _error_response(command.id, -32603, str(e))
 
 
 def _error_response(
     request_id: str | int | None, code: int, message: str
 ) -> JsonRpcResponse:
-    return JsonRpcResponse(error=JsonRpcError(code=code, message=message), id=request_id)
+    return JsonRpcResponse(
+        error=JsonRpcError(code=code, message=message), id=request_id
+    )

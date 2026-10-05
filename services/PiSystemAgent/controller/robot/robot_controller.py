@@ -2,10 +2,14 @@
 TODO
 """
 
+import logging
 import time
 from typing import Any
-import logging
+
 import serial
+
+from .ros2_controller import RobotResponse, StrRobotResponse
+
 
 class RobotController:
     arduino_port: str
@@ -36,26 +40,25 @@ class RobotController:
     def __exit__(self, exc_type, exc_value, traceback):
         self.disconnect()
 
-
     def send_command(self, command: str):
         if not self.ser or not self.ser.is_open:
             raise ConnectionError("Arduino not connected. Call connect() first.")
 
         self.logger.debug("Sending command: %s", command)
         try:
-            self.ser.write((command + '\n').encode('utf-8'))
+            _ = self.ser.write((command + "\n").encode("utf-8"))
             time.sleep(0.1)  # Short delay after sending command
             self.logger.info("Sent command: %s", command)
         except serial.SerialException as e:
             raise EnvironmentError(f"Error sending command to Arduino: {e}") from e
 
-    def read_response(self) -> str:
+    def read_response(self) -> RobotResponse:
         if not self.ser or not self.ser.is_open:
             raise ConnectionError("Arduino not connected. Call connect() first.")
         try:
-            response = self.ser.readline().decode('utf-8').strip()
+            response = self.ser.readline().decode("utf-8").strip()
             self.logger.info("Received response: %s", response)
-            return response
+            return StrRobotResponse("", response)
         except serial.SerialException as e:
             raise EnvironmentError(f"Error reading response from Arduino: {e}") from e
 
