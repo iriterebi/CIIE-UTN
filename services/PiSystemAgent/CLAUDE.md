@@ -101,9 +101,9 @@ controller/
 ├── socket_server.py         # Unix socket JSON-RPC 2.0 (CLI ↔ core)
 ├── cli.py                   # CLI independiente (proceso separado)
 ├── type_defs.py             # TypedDicts compartidos
-├── json_rpc.py              # Modelos pydantic + handler de comandos JSON-RPC 2.0
+├── json_rpc.py              # Modelos pydantic + dispatch()/to_jsonrpc() (despacho de comandos y traducción RobotResponse → JSON-RPC)
 ├── strategy/
-│   ├── base.py              # ABC Strategy + LocalStrategy (telemetry)
+│   ├── base.py              # ABC Strategy + LocalStrategy + OutboxLocalStrategy (cola de RobotResponse, loops de respuesta/telemetría, ciclo de vida start/stop/pause/resume común a las tres strategies locales)
 │   ├── registry.py          # StrategyRegistry (lista por nombre)
 │   ├── local/
 │   │   ├── serial_strategy.py    # Wrappea RobotController (Arduino real)
@@ -114,9 +114,15 @@ controller/
 ├── server/
 │   └── server_service.py    # ServerServices — registro y handshake HTTP con la API
 ├── tests/
+│   ├── test_responses.py        # Tests del árbol RobotResponse + descriptores de comandos
+│   ├── test_json_rpc.py         # Tests de dispatch()/to_jsonrpc()
+│   ├── test_outbox_strategy.py  # Tests de OutboxLocalStrategy (cola, loops, orden de apagado)
+│   ├── test_mock_controller.py  # Tests de RobotMockController
+│   ├── test_serial_controller.py  # Tests de RobotController (serial)
 │   └── test_ros2.py         # Tests del controlador/strategy ROS 2 (rclpy mockeado)
 └── robot/
     ├── __init__.py          # Exporta RobotController (real o mock según MOCK_ROBOT)
+    ├── responses.py         # Vocabulario de dominio: árbol RobotResponse + descriptores de comandos
     ├── robot_controller.py  # Comunicación serial con Arduino
     ├── robot_mock_controller.py  # Mock sin hardware
     └── ros2_controller.py   # Nodo rclpy: publica comandos / suscribe telemetría (import diferido)

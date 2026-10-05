@@ -23,6 +23,75 @@
 
 ---
 
+## Flujo de comandos: despacho y respuestas
+
+Cada strategy local (`SerialStrategy`, `MockStrategy`, `Ros2Strategy`) extiende
+`OutboxLocalStrategy` (`controller/strategy/base.py`). Ahí vive, una sola vez, el modelo
+de correlación entre comandos y respuestas: una cola `asyncio.Queue[RobotResponse]` por
+strategy, alimentada por tres productores y drenada por un único consumidor.
+
+**Productores:**
+- `send()` — despacha el comando vía `json_rpc.dispatch()` y encola el resultado del
+  despacho (con el `id` que traía el comando).
+- `_response_loop` — drena de forma continua el output espontáneo del robot
+  (`robot.read_response()`, corrido en un hilo del executor), haya o no un usuario
+  conectado.
+- `_telemetry_loop` — cada `STATUS_INTERVAL_SEC` (5s) encola un snapshot de
+  `robot.get_status()`.
+
+**Consumidor:** `receive()` es el único punto donde un `RobotResponse` se traduce a un
+sobre JSON-RPC, vía `json_rpc.to_jsonrpc()`.
+
+### "Despacho" no es "ejecución"
+
+Despachar un comando significa que se validó contra los descriptores que el robot
+publicó y que se escribió/publicó. **No** afirma que el robot lo haya ejecutado: ni el
+Arduino ni el agente ROS 2 confirman ejecución de vuelta. La salida real del robot llega
+por un camino separado — `_response_loop` — como notification sin `id`.
+
+### Regla de correlación
+
+El TIPO concreto de `RobotResponse` decide el sobre JSON-RPC; `request_id` sólo rellena
+el campo `id`, nunca decide el sobre. `DispatchOkRobotResponse`/`DispatchErrorRobotResponse`
+(lo que produce `send()`) se traducen siempre a `JsonRpcResponse`, con cualquier id que
+haya traído el comando — incluido `null`. Todo lo demás que el robot emite
+espontáneamente (output crudo, descriptores de comandos, telemetría) se traduce a
+`JsonRpcNotification`. Discriminar por tipo y no por valor es deliberado: el WebClient
+no manda `id` en sus comandos, así que una regla basada en "¿tiene `request_id`?"
+degradaría todo resultado de despacho a notification.
+
+### Contrato del controlador
+
+`RobotController` (serial), `RobotMockController` y `Ros2Controller` comparten la misma
+firma:
+
+- `send_command(command: str) -> None` — valida y despacha; levanta
+  `InvalidCommandError` / `ConnectionError` / `OSError`; nunca acumula una respuesta.
+- `read_response() -> RobotResponse | None` — bloquea hasta tener output; `None` es la
+  señal de parada.
+- `stop_reading() -> None` — desbloquea un `read_response()` pendiente; idempotente.
+- `execute_sequence(commands) -> None` — sólo envía, nunca lee.
+- más `connect()`, `disconnect()`, `get_status()`.
+
+El contrato es uniforme en firma, no en validación: sólo `RobotMockController` (con un
+`RobotCommandRecord` seedeado a mano) y `Ros2Controller` (poblado por lo que publica el
+agente ROS real) tienen descriptores contra los cuales validar. El serial
+(`RobotController`) no tiene — el Arduino no los publica — así que nunca puede levantar
+`InvalidCommandError`: cualquier string se manda tal cual al puerto.
+
+### Orden de apagado
+
+`OutboxLocalStrategy.stop()` fija un orden que costó una investigación empírica para
+probar correcto: `robot.stop_reading()` → `await _stop_loops()` → `await
+_disconnect_robot()`. La razón: `_response_loop` bloquea un hilo del executor en
+`asyncio.to_thread(robot.read_response)`, y un hilo bloqueado ahí no se puede cancelar
+— `task.cancel()` no lo interrumpe, sólo el sentinel (`None`) lo libera. Invertir el
+orden deja hilos del executor vivos tras `stop()`. `connect()` en los tres controladores
+resetea su estado de lectura, para que un ciclo `stop()`/`start()` disparado desde el
+CLI funcione sobre la misma instancia.
+
+---
+
 # Plan de Refactor
 
 este es un plan general para el refactor del subporyecto, para movernos a la nueva arquitectura. Lo haremos en 2 grandes bloques
