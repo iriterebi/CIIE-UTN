@@ -23,6 +23,11 @@ class RobotController:
         self._stop = threading.Event()
 
     def connect(self):
+        # Resetear el Event es necesario para sobrevivir un segundo connect() tras un
+        # disconnect(): sin esto, un stop_reading() previo lo deja en True para
+        # siempre y read_response() devuelve None de inmediato en todo el ciclo
+        # siguiente (Finding 1 — ver fix report de Task 4).
+        self._stop.clear()
         try:
             self.ser = serial.Serial(self.arduino_port, 9600, timeout=1)
             time.sleep(2)  # Wait for Arduino to initialize

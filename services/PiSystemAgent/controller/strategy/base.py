@@ -100,9 +100,13 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
     (output del robot) y `_telemetry_loop` (snapshot periódico). Consumidor:
     `receive()`, único lugar donde se traduce a JSON-RPC.
 
-    Las subclases construyen `self._robot` en su `__init__` y manejan `start`/`stop`,
-    que es donde genuinamente difieren (el mock conecta sync; serial y ROS 2 van a
-    executor).
+    Las subclases construyen `self._robot` en su `__init__` y sólo implementan los
+    hooks `_connect_robot`/`_disconnect_robot` (y, si quieren una línea de log de
+    inicio con detalle, `_start_log_detail`). `start`/`stop`/`pause`/`resume` viven
+    acá, no en cada subclase: el orden `stop_reading()` → `_stop_loops()` →
+    `_disconnect_robot()` en `stop()` costó una investigación empírica entera (Task
+    3) para probarlo correcto, y un invariante así de caro de establecer no se
+    guarda en tres copias — divergen tarde o temprano, y sólo una termina bien.
     """
 
     _robot: Any
@@ -112,6 +116,60 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
         self._telemetry_enabled: bool = True
         self._telemetry_task: asyncio.Task[None] | None = None
         self._response_task: asyncio.Task[None] | None = None
+
+    # --- ciclo de vida (plantilla única para las tres strategies locales) ---
+
+    @override
+    async def start(self) -> None:
+        await self._connect_robot()
+        self._start_loops()
+        self._state = State.RUNNING
+        detail = self._start_log_detail()
+        logger.info("%s iniciado%s", self.name, f" ({detail})" if detail else "")
+
+    @override
+    async def stop(self) -> None:
+        # stop_reading ANTES de cancelar: asyncio.to_thread no se puede cancelar
+        # mientras el hilo real está bloqueado en read_response — el sentinel es lo
+        # único que realmente lo desbloquea (ver `_stop_loops`). Esperar
+        # `_stop_loops()` acá es lo que hace que `stop()` sea determinista: sin el
+        # await, retornaría con hilos del executor todavía vivos.
+        self._robot.stop_reading()
+        await self._stop_loops()
+        await self._disconnect_robot()
+        self._state = State.STOPPED
+        logger.info("%s detenido", self.name)
+
+    @override
+    async def pause(self) -> None:
+        self.set_telemetry(False)
+        await super().pause()
+        logger.info("%s pausado", self.name)
+
+    @override
+    async def resume(self) -> None:
+        self.set_telemetry(True)
+        await super().resume()
+        logger.info("%s reanudado", self.name)
+
+    @abstractmethod
+    async def _connect_robot(self) -> None:
+        """Conecta `self._robot`. Serial y ROS 2 corren su `connect()` (I/O
+        bloqueante) en executor; el mock es sync y llama al método directo."""
+        ...
+
+    @abstractmethod
+    async def _disconnect_robot(self) -> None:
+        """Desconecta `self._robot`. Mismo criterio executor/sync que
+        `_connect_robot`."""
+        ...
+
+    def _start_log_detail(self) -> str:
+        """Detalle opcional para el log de `start()` (puerto, node...).
+
+        Override opcional: por defecto no agrega nada al mensaje de inicio.
+        """
+        return ""
 
     # --- interfaz Strategy ---
 

@@ -255,6 +255,50 @@ def test_stop_reading_unblocks_with_none(monkeypatch):
     assert ctrl.read_response() is None
 
 
+def test_survives_disconnect_reconnect_cycle(monkeypatch):
+    """Finding 1: connect() debe resetear la cola de respuestas.
+
+    disconnect() llama a stop_reading() (idempotente — standalone debe poder
+    llamarse sin un stop_reading() explícito previo). Si ya hubo uno antes (el caso
+    normal: Ros2Strategy.stop() llama stop_reading() y LUEGO disconnect()), el
+    `None` de disconnect() queda huérfano en la cola. Sin este fix, el próximo
+    connect() no tiene forma de limpiarlo, y el primer read_response() del ciclo
+    nuevo devuelve ese None huérfano en vez de la telemetría real que llega después
+    — el mismo "canal que parece sano pero está muerto" de Finding 1 en los otros
+    dos controladores.
+    """
+    import threading
+
+    _, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+    ctrl.stop_reading()  # como haría Ros2Strategy.stop() antes de los loops
+    assert ctrl.read_response() is None
+    ctrl.disconnect()  # encola un segundo None, huérfano, si no se resetea la cola
+
+    ctrl.connect()
+    got: list = []
+    unblocked = threading.Event()
+
+    def reader():
+        got.append(ctrl.read_response())
+        unblocked.set()
+
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
+    assert not unblocked.wait(timeout=0.2), (
+        "read_response no debería desbloquear sin que llegue output nuevo"
+    )
+
+    String = hooks["String"]
+    msg = String()
+    msg.data = "commands=restart"
+    hooks["on_data"](msg)
+
+    assert unblocked.wait(timeout=2.0), "read_response debería desbloquear al llegar data"
+    assert isinstance(got[0], CommandsDescriptionRobotResponse)
+
+
 # --- Ros2Strategy ---
 
 def test_strategy_send_publishes_and_acks(monkeypatch):

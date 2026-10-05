@@ -87,6 +87,14 @@ class Ros2Controller:
         self._responses: queue.Queue[RobotResponse | None] = queue.Queue()
 
     def connect(self):
+        # Resetear la cola es necesario para sobrevivir un segundo connect() tras un
+        # disconnect(): disconnect() llama a stop_reading(), así que si ya había
+        # habido uno antes (el ciclo normal: strategy.stop() lo llama explícito y
+        # LUEGO disconnect()), ese segundo None queda huérfano. Sin este reset, el
+        # próximo read_response() del ciclo nuevo devolvería ese None huérfano en vez
+        # de la telemetría real (Finding 1 — ver fix report de Task 4).
+        self._responses = queue.Queue()
+
         # Fija el dominio DDS (debe coincidir con el agente ROS) vía la env var estándar que rclpy
         # lee en rclpy.init(). setdefault respeta un ROS_DOMAIN_ID externo si ya está seteado.
         os.environ.setdefault("ROS_DOMAIN_ID", str(self.domain_id))

@@ -34,6 +34,14 @@ class RobotMockController:
         self._responses: queue.Queue[RobotResponse | None] = queue.Queue()
 
     def connect(self):
+        # Resetear la cola es necesario para sobrevivir un segundo connect() tras un
+        # disconnect(): disconnect() llama a stop_reading(), así que si ya había
+        # habido uno antes (el ciclo normal: strategy.stop() lo llama explícito y
+        # LUEGO disconnect()), ese segundo None queda huérfano. Sin este reset, el
+        # próximo connect() encolaría los descriptores detrás del huérfano y el
+        # primer read_response() del ciclo nuevo devolvería None en vez de los
+        # descriptores (Finding 1 — ver fix report de Task 4).
+        self._responses = queue.Queue()
         # Publicar los descriptores al conectar imita al agente real, que los manda
         # por telemetría apenas arranca.
         self._responses.put(CommandsDescriptionRobotResponse(self.robot_commands))

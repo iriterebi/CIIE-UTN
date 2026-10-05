@@ -58,20 +58,21 @@ class FakeRobot:
 
 
 class FakeStrategy(OutboxLocalStrategy):
+    """Usa la plantilla start/stop/pause/resume de OutboxLocalStrategy sin cambios:
+    estos tests ejercitan esa plantilla, no una reimplementación paralela de ella.
+    FakeRobot no modela conexión, así que los hooks son no-ops."""
+
     def __init__(self):
         super().__init__()
         self._robot: FakeRobot = FakeRobot()
 
     @override
-    async def start(self) -> None:
-        self._start_loops()
-        self._state = State.RUNNING
+    async def _connect_robot(self) -> None:
+        pass
 
     @override
-    async def stop(self) -> None:
-        self._robot.stop_reading()
-        await self._stop_loops()
-        self._state = State.STOPPED
+    async def _disconnect_robot(self) -> None:
+        pass
 
 
 async def _drain(strat: FakeStrategy, n: int, timeout: float = 2.0):

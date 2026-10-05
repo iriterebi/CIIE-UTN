@@ -81,3 +81,45 @@ def test_execute_sequence_does_not_read(ctrl):
     """Antes leía por cada comando y le robaba respuestas al loop."""
     ctrl.execute_sequence(["a", "", "b"])
     assert ctrl.ser.written == [b"a\n", b"b\n"]
+
+
+def test_survives_disconnect_reconnect_cycle(monkeypatch):
+    """Finding 1: connect() debe limpiar self._stop.
+
+    Sin esto, el Event que setea stop_reading() queda en True para siempre: tras el
+    primer disconnect(), un connect() posterior sobre la misma instancia no alcanza
+    a resetearlo, y read_response() devuelve None de inmediato en cada llamada
+    siguiente — el canal "parece" reconectado (status online) pero está muerto.
+
+    No reutiliza el fixture `ctrl`: su doble (`lambda *a, **k: fake`) retorna siempre
+    LA MISMA instancia de FakeSerial, así que tras un close() real quedaría con
+    `is_open=False` para siempre — eso ocultaría el bug bajo otro, distinto. Un
+    `serial.Serial(...)` real abre un puerto nuevo en cada connect(); esta fábrica
+    imita eso.
+    """
+    monkeypatch.setattr("controller.robot.robot_controller.serial.Serial",
+                        lambda *a, **k: FakeSerial())
+    monkeypatch.setattr("controller.robot.robot_controller.time.sleep", lambda _: None)
+    c = RobotController("/dev/fake")
+    c.connect()
+    c.stop_reading()
+    assert c.read_response() is None
+    c.disconnect()
+
+    c.connect()
+    got: list = []
+    unblocked = threading.Event()
+
+    def reader():
+        got.append(c.read_response())
+        unblocked.set()
+
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
+    assert not unblocked.wait(timeout=0.2), (
+        "read_response debería bloquear tras reconectar, no devolver None de inmediato "
+        "(self._stop quedó en True de un ciclo anterior)"
+    )
+    c.ser.feed("OK")
+    assert unblocked.wait(timeout=2.0), "read_response debería desbloquear al llegar data"
+    assert got[0].text == "OK"
