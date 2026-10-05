@@ -905,16 +905,22 @@ def test_command_descriptors_arrive_as_notifications():
 
 
 def test_stop_terminates_the_response_loop():
+    """stop() no debe retornar con el loop todavía vivo."""
     async def scenario():
         strat = FakeStrategy()
         await strat.start()
         task = strat._response_task
-        await strat.stop()
-        await asyncio.sleep(0)
+        await asyncio.wait_for(strat.stop(), 2.0)
         return task
 
     task = asyncio.run(scenario())
     assert task is not None and task.done()
+    assert strat_state_cleared(task)
+
+
+def strat_state_cleared(task) -> bool:
+    """La tarea terminó, por cancelación o por el sentinel: ambas son fin limpio."""
+    return task.cancelled() or task.exception() is None
 
 
 def test_set_telemetry_toggles_without_running_loop():
@@ -1004,12 +1010,23 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
             self._telemetry_task = asyncio.create_task(self._telemetry_loop())
 
     async def _stop_loops(self) -> None:
-        """Cancela los loops. El llamador debe haber llamado `robot.stop_reading()`
-        ANTES: `asyncio.to_thread` no se puede cancelar mientras el hilo está
-        bloqueado, así que el sentinel es lo que realmente lo desbloquea."""
+        """Cancela los loops y ESPERA a que terminen.
+
+        El llamador debe haber llamado `robot.stop_reading()` ANTES:
+        `asyncio.to_thread` no se puede cancelar mientras el hilo está bloqueado, así
+        que el sentinel es lo que realmente lo desbloquea. Esperar acá es lo que hace
+        que `stop()` sea determinista — sin el await, `stop()` retorna con hilos del
+        executor todavía vivos.
+        """
         for task in (self._response_task, self._telemetry_task):
-            if task and not task.done():
+            if task is None:
+                continue
+            if not task.done():
                 _ = task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         self._response_task = None
         self._telemetry_task = None
 
@@ -1079,6 +1096,8 @@ Cambia el contrato de los controladores y migra las strategies. **El árbol qued
 - Modify: `services/PiSystemAgent/controller/strategy/local/serial_strategy.py`
 - Modify: `services/PiSystemAgent/controller/json_rpc.py`
 - Modify: `services/PiSystemAgent/controller/tests/test_ros2.py`
+- Create: `services/PiSystemAgent/controller/tests/test_mock_controller.py`
+- Create: `services/PiSystemAgent/controller/tests/test_serial_controller.py`
 
 **Interfaces:**
 - Consumes: `responses.py` (Task 1), `dispatch`/`to_jsonrpc` (Task 2), `OutboxLocalStrategy` (Task 3).
@@ -1181,7 +1200,7 @@ Esperado: fallos por `AttributeError: 'Ros2Controller' object has no attribute '
 
 En `controller/robot/ros2_controller.py`:
 
-1. Borrar las líneas **29-236** (de `# Ack sintético...` hasta el final de `ComposedRobotResponse`), es decir los dos árboles de tipos. Conservar `parse_key_value` y `Ros2Controller`.
+1. Borrar todo el bloque que va **desde la línea `_SENT_ACK = "mensaje enviado"` (con su comentario de dos líneas encima) hasta la línea inmediatamente anterior a `def parse_key_value(data: str) -> dict[str, str]:`**. Eso elimina los dos árboles de tipos (`RobotCommand`…`parse_commands` y `RobotResponse`…`ComposedRobotResponse`). Anclar por símbolo, no por número de línea. **Conservar** `parse_key_value` y `Ros2Controller`; después del borrado el módulo debe tener exactamente dos símbolos de nivel superior además de `logger`.
 2. Reemplazar los imports del tope por:
 
 ```python
@@ -1636,11 +1655,84 @@ class Ros2Strategy(OutboxLocalStrategy):
         logger.info("Ros2Strategy reanudado")
 ```
 
-Reemplazar `controller/strategy/local/serial_strategy.py` entero por el mismo esqueleto, cambiando: el docstring del módulo a `"""Strategy local: comunicación serial con Arduino."""`, el import a `from ...robot.robot_controller import RobotController`, la clase a `class SerialStrategy(OutboxLocalStrategy):`, el `__init__` a `def __init__(self, arduino_port: str): super().__init__(); self._robot: RobotController = RobotController(arduino_port)`, y los mensajes de log a `SerialStrategy` (el de `start` usa `self._robot.arduino_port`).
-
-Reemplazar `controller/strategy/local/mock_strategy.py` entero por el mismo esqueleto, con: import `from ...robot.robot_mock_controller import RobotMockController`, clase `MockStrategy(OutboxLocalStrategy)`, `__init__` igual al de serial pero construyendo `RobotMockController(arduino_port)`, y `start`/`stop` **sin executor** (el mock conecta sync):
+Reemplazar `controller/strategy/local/serial_strategy.py` entero por:
 
 ```python
+"""Strategy local: comunicación serial con Arduino."""
+
+import asyncio
+import logging
+from typing import override
+
+from ...robot.robot_controller import RobotController
+from ..base import OutboxLocalStrategy, State
+
+logger = logging.getLogger(__name__)
+
+
+class SerialStrategy(OutboxLocalStrategy):
+    """Wrappea RobotController. La cola, los loops y la traducción a JSON-RPC los
+    aporta OutboxLocalStrategy; acá sólo vive el ciclo de vida del puerto."""
+
+    def __init__(self, arduino_port: str):
+        super().__init__()
+        self._robot: RobotController = RobotController(arduino_port)
+
+    @override
+    async def start(self) -> None:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._robot.connect)
+        self._start_loops()
+        self._state = State.RUNNING
+        logger.info("SerialStrategy iniciado (puerto: %s)", self._robot.arduino_port)
+
+    @override
+    async def stop(self) -> None:
+        # stop_reading ANTES de cancelar: to_thread no se puede cancelar mientras el
+        # hilo está bloqueado en read_response.
+        self._robot.stop_reading()
+        await self._stop_loops()
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._robot.disconnect)
+        self._state = State.STOPPED
+        logger.info("SerialStrategy detenido")
+
+    @override
+    async def pause(self) -> None:
+        self.set_telemetry(False)
+        await super().pause()
+        logger.info("SerialStrategy pausado")
+
+    @override
+    async def resume(self) -> None:
+        self.set_telemetry(True)
+        await super().resume()
+        logger.info("SerialStrategy reanudado")
+```
+
+Reemplazar `controller/strategy/local/mock_strategy.py` entero por (ojo: el mock conecta
+**sync**, sin executor — es la única diferencia real entre las tres):
+
+```python
+"""Strategy local: robot mock (sin hardware)."""
+
+import logging
+from typing import override
+
+from ...robot.robot_mock_controller import RobotMockController
+from ..base import OutboxLocalStrategy, State
+
+logger = logging.getLogger(__name__)
+
+
+class MockStrategy(OutboxLocalStrategy):
+    """Wrappea RobotMockController. Mismo comportamiento que SerialStrategy pero sin
+    hardware: connect/disconnect son sync, así que no van a executor."""
+
+    def __init__(self, arduino_port: str):
+        super().__init__()
+        self._robot: RobotMockController = RobotMockController(arduino_port)
+
     @override
     async def start(self) -> None:
         self._robot.connect()
@@ -1650,20 +1742,45 @@ Reemplazar `controller/strategy/local/mock_strategy.py` entero por el mismo esqu
 
     @override
     async def stop(self) -> None:
+        # stop_reading ANTES de cancelar: to_thread no se puede cancelar mientras el
+        # hilo está bloqueado en read_response.
         self._robot.stop_reading()
         await self._stop_loops()
         self._robot.disconnect()
         self._state = State.STOPPED
         logger.info("MockStrategy detenido")
+
+    @override
+    async def pause(self) -> None:
+        self.set_telemetry(False)
+        await super().pause()
+        logger.info("MockStrategy pausado")
+
+    @override
+    async def resume(self) -> None:
+        self.set_telemetry(True)
+        await super().resume()
+        logger.info("MockStrategy reanudado")
 ```
 
 - [ ] **Step 12: Borrar `handle_json_rpc` y su import muerto**
 
 En `controller/json_rpc.py`:
-1. Borrar la función `handle_json_rpc` completa y la función auxiliar `_error_response` (ya no la usa nadie).
-2. Borrar `from .robot.ros2_controller import CommandErrorRobotResponse` (el import temporal del Task 2 Step 3).
-3. Borrar `CommandErrorRobotResponse` y `CommandsDescriptionRobotResponse` de los imports si quedaron sin uso; dejar sólo lo que usan `dispatch`/`to_jsonrpc`.
-4. Borrar `from collections.abc import AsyncGenerator` si quedó sin uso.
+
+1. Borrar la función `handle_json_rpc` completa y la auxiliar `_error_response` (ya no las usa nadie).
+2. Borrar entero el bloque de imports con alias que agregó la Task 2 Step 3 — era andamiaje para que `handle_json_rpc` siguiera viendo el árbol viejo:
+
+```python
+from .robot.ros2_controller import (
+    CommandErrorRobotResponse as _LegacyCommandErrorRobotResponse,
+    CommandsDescriptionRobotResponse as _LegacyCommandsDescriptionRobotResponse,
+    RobotResponse as _LegacyRobotResponse,
+)
+```
+
+   Con eso `json_rpc.py` deja de importar de `ros2_controller` por completo.
+3. Borrar `from collections.abc import AsyncGenerator` (quedó sin uso al irse el generador).
+4. Verificar que el import de `.robot.responses` quedó sin nombres muertos: `dispatch`/`to_jsonrpc` usan `CommandsDescriptionRobotResponse`, `DispatchErrorRobotResponse`, `DispatchOkRobotResponse`, `RobotResponse`, `StatusRobotResponse` y `StrRobotResponse` — los seis se siguen usando, así que el bloque queda tal cual.
 
 - [ ] **Step 13: Actualizar el test de strategy en `test_ros2.py`**
 
