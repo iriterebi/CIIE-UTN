@@ -73,9 +73,14 @@ Ni el Arduino ni el agente ROS 2 pueden correlacionar: el primero devuelve texto
 del id, el segundo es fire-and-forget y no responde comandos. No hay manera realista de asociar
 la salida real del robot al comando que la originó, así que el diseño deja de fingir que la hay.
 
-> **Un `RobotResponse` lleva `request_id` sólo si es el resultado de un despacho.
-> Todo lo demás viaja sin id.**
-> `request_id is not None` → `JsonRpcResponse` con id. Si no → `JsonRpcNotification`.
+> **El tipo del `RobotResponse` decide el sobre; `request_id` sólo rellena el campo `id`.**
+> `DispatchOkRobotResponse` / `DispatchErrorRobotResponse` → `JsonRpcResponse` (con el id que
+> traigan, aunque sea `null`). Cualquier otro → `JsonRpcNotification`.
+
+La regla discrimina por **tipo**, no por valor de `request_id`. Hacerlo por
+`request_id is not None` sería incorrecto: el WebClient hoy no manda `id`, así que `command.id`
+llega `None` y todo resultado de despacho degradaría a notification. El `request_id` es el valor
+que se copia al sobre, no el criterio para elegirlo.
 
 Esa regla reemplaza la heurística `resp.command is not None` de hoy, que es exactamente la causa
 del #4.
