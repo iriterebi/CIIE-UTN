@@ -187,7 +187,16 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
         except asyncio.CancelledError:
             pass
         except (ConnectionError, OSError) as e:
-            logger.error("Loop de respuestas detenido por error de E/S: %s", e)
+            # Este canal murió para siempre: nadie más va a leer output espontáneo del
+            # robot (send() sigue funcionando porque dispatch() es independiente, así
+            # que el strategy "parece" vivo si no marcamos el estado). Es la misma
+            # clase de bug que motivó este refactor (un hilo de spin de ROS 2 que
+            # moría en silencio con `_connected` en True) — no lo repetimos un piso
+            # más arriba. `_state = STOPPED` lo hace observable vía
+            # `connection::local::status` en el CLI; logger.exception deja el stack
+            # completo, porque un canal muerto merece diagnóstico, no una línea suelta.
+            logger.exception("Loop de respuestas detenido por error de E/S: %s", e)
+            self._state = State.STOPPED
 
     async def _telemetry_loop(self) -> None:
         try:
@@ -196,3 +205,9 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
                 await self._outbox.put(StatusRobotResponse(self._robot.get_status()))
         except asyncio.CancelledError:
             pass
+        except (ConnectionError, OSError) as e:
+            # A diferencia de `_response_loop`, perder telemetría es degradación, no
+            # muerte del strategy: `send()` y el output espontáneo del robot siguen
+            # funcionando sin depender de este loop. Por eso NO tocamos `_state` acá;
+            # la asimetría es deliberada, no un olvido.
+            logger.exception("Loop de telemetría detenido por error de E/S: %s", e)
