@@ -1,12 +1,12 @@
 """Tests del controlador/strategy ROS 2.
 
-rclpy se mockea vía sys.modules: estos tests NO requieren ROS 2 instalado, lo que
-también verifica que el import de rclpy sea diferido (el módulo se importa sin él).
+No requieren ROS 2 instalado: `conftest.py` registra stubs para poder importar los
+módulos, y cada test reemplaza `Node`/`String`/`rclpy` en `ros2_controller` con
+fakes vía `monkeypatch`. El executor se inyecta (`rclExecutor`) como un fake que
+registra los nodos agregados/quitados.
 """
 
 import asyncio
-import os
-import sys
 import types
 
 import pytest
@@ -19,13 +19,27 @@ from ..robot.responses import (
 from ..robot.ros2_controller import Ros2Controller, parse_key_value
 from ..strategy.local.ros2_strategy import Ros2Strategy
 
-# --- Fake rclpy / std_msgs ---
+# --- Fakes de rclpy / std_msgs ---
+
+
+class _FakeExecutor:
+    """Executor compartido falso: registra los nodos que le agregan y quitan."""
+
+    def __init__(self):
+        self.nodes: list[object] = []
+
+    def add_node(self, node):
+        self.nodes.append(node)
+        return True
+
+    def remove_node(self, node):
+        self.nodes.remove(node)
+
 
 def _install_fake_ros(monkeypatch):
-    """Inyecta un rclpy/std_msgs falso en sys.modules. Devuelve (published, hooks)."""
+    """Reemplaza Node/String/rclpy en `ros2_controller`. Devuelve (published, hooks)."""
     published: list[str] = []
     hooks: dict[str, object] = {}
-    state = {"ok": False}
 
     class String:
         def __init__(self):
@@ -49,37 +63,31 @@ def _install_fake_ros(monkeypatch):
         def destroy_node(self):
             hooks["destroyed"] = True
 
-    rclpy = types.ModuleType("rclpy")
-    rclpy.ok = lambda: state["ok"]
-    rclpy.init = lambda *a, **k: state.__setitem__("ok", True)
-    rclpy.shutdown = lambda *a, **k: state.__setitem__("ok", False)
-    rclpy.spin = lambda node: None  # retorna de inmediato
+    fake_rclpy = types.SimpleNamespace(
+        ok=lambda: True,
+        shutdown=lambda *a, **k: hooks.__setitem__("shutdown", True),
+    )
 
-    rclpy_node = types.ModuleType("rclpy.node")
-    rclpy_node.Node = FakeNode
-    rclpy.node = rclpy_node
-
-    std_msgs = types.ModuleType("std_msgs")
-    std_msgs_msg = types.ModuleType("std_msgs.msg")
-    std_msgs_msg.String = String
-    std_msgs.msg = std_msgs_msg
-
-    monkeypatch.setitem(sys.modules, "rclpy", rclpy)
-    monkeypatch.setitem(sys.modules, "rclpy.node", rclpy_node)
-    monkeypatch.setitem(sys.modules, "std_msgs", std_msgs)
-    monkeypatch.setitem(sys.modules, "std_msgs.msg", std_msgs_msg)
+    monkeypatch.setattr(ros2_controller, "rclpy", fake_rclpy)
+    monkeypatch.setattr(ros2_controller, "Node", FakeNode)
+    monkeypatch.setattr(ros2_controller, "String", String)
 
     hooks["String"] = String
-    hooks["state"] = state
     return published, hooks
 
 
-def _controller(domain_id=42):
+def _controller(executor=None):
     return Ros2Controller(
         node_name="test_node",
         command_topic="cmd",
         data_topic="data",
-        domain_id=domain_id,
+        rclExecutor=executor if executor is not None else _FakeExecutor(),
+    )
+
+
+def _strategy():
+    return Ros2Strategy(
+        node_name="n", command_topic="cmd", data_topic="data", rclExecutor=_FakeExecutor(),
     )
 
 
@@ -99,11 +107,25 @@ def test_parse_key_value(raw, expected):
 
 # --- Ros2Controller ---
 
-def test_connect_raises_environment_error_without_rclpy(monkeypatch):
-    monkeypatch.setitem(sys.modules, "rclpy", None)  # `import rclpy` -> ImportError
-    ctrl = _controller()
-    with pytest.raises(EnvironmentError):
-        ctrl.connect()
+def test_connect_adds_node_to_shared_executor(monkeypatch):
+    _install_fake_ros(monkeypatch)
+    executor = _FakeExecutor()
+    ctrl = _controller(executor)
+    ctrl.connect()
+    assert [n.name for n in executor.nodes] == ["test_node"]
+
+
+def test_disconnect_removes_node_without_shutting_down_rclpy(monkeypatch):
+    """El contexto rclpy es de toda la app: detener la strategy no debe matarlo
+    (si no, también moriría el nodo de la cámara, que comparte el contexto)."""
+    _, hooks = _install_fake_ros(monkeypatch)
+    executor = _FakeExecutor()
+    ctrl = _controller(executor)
+    ctrl.connect()
+    ctrl.disconnect()
+    assert executor.nodes == []
+    assert hooks.get("destroyed") is True
+    assert "shutdown" not in hooks
 
 
 def test_send_command_publishes(monkeypatch):
@@ -112,22 +134,6 @@ def test_send_command_publishes(monkeypatch):
     ctrl.connect()
     ctrl.send_command("base=90")
     assert published == ["base=90"]
-
-
-def test_connect_sets_ros_domain_id(monkeypatch):
-    monkeypatch.delenv("ROS_DOMAIN_ID", raising=False)
-    _install_fake_ros(monkeypatch)
-    ctrl = _controller(domain_id=42)
-    ctrl.connect()
-    assert os.environ["ROS_DOMAIN_ID"] == "42"
-
-
-def test_connect_respects_external_ros_domain_id(monkeypatch):
-    monkeypatch.setenv("ROS_DOMAIN_ID", "7")  # externo gana (setdefault)
-    _install_fake_ros(monkeypatch)
-    ctrl = _controller(domain_id=42)
-    ctrl.connect()
-    assert os.environ["ROS_DOMAIN_ID"] == "7"
 
 
 def test_send_command_without_connect_raises():
@@ -303,7 +309,7 @@ def test_survives_disconnect_reconnect_cycle(monkeypatch):
 
 def test_strategy_send_publishes_and_acks(monkeypatch):
     published, _ = _install_fake_ros(monkeypatch)
-    strat = Ros2Strategy(node_name="n", command_topic="cmd", data_topic="data")
+    strat = _strategy()
 
     async def scenario():
         await strat.start()
@@ -322,7 +328,7 @@ def test_strategy_send_publishes_and_acks(monkeypatch):
 
 
 def test_strategy_set_telemetry_disable_without_loop():
-    strat = Ros2Strategy(node_name="n", command_topic="cmd", data_topic="data")
+    strat = _strategy()
     assert strat.get_telemetry_enabled() is True
     strat.set_telemetry(False)  # no debe requerir un event loop corriendo
     assert strat.get_telemetry_enabled() is False

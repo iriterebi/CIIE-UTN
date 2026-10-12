@@ -1,21 +1,34 @@
 """Tests de CameraRelay.
 
-rclpy/sensor_msgs/cv2/numpy se mockean vía sys.modules: estos tests NO
-requieren ROS 2 ni opencv instalados de verdad, lo que también verifica
-que el import de todos ellos sea diferido (mismo patrón que test_ros2.py).
+No requieren ROS 2: `conftest.py` registra stubs para poder importar el módulo, y
+cada test reemplaza `Node`/`Image`/`cv2`/`np` en `camera_relay` con fakes vía
+`monkeypatch` (los fakes de cv2/numpy hacen la codificación determinística). El
+executor se inyecta (`rclExecutor`) como un fake que registra los nodos.
 """
 
 import asyncio
-import sys
 import types
 
-import pytest
-
+from controller.camera import camera_relay
 from controller.camera.camera_relay import CameraRelay
 
 
+class _FakeExecutor:
+    """Executor compartido falso: registra los nodos que le agregan y quitan."""
+
+    def __init__(self):
+        self.nodes: list[object] = []
+
+    def add_node(self, node):
+        self.nodes.append(node)
+        return True
+
+    def remove_node(self, node):
+        self.nodes.remove(node)
+
+
 def _install_fake_ros(monkeypatch):
-    """Inyecta rclpy/sensor_msgs/cv2/numpy falsos en sys.modules.
+    """Reemplaza Node/Image/cv2/np en `camera_relay` con fakes.
 
     Devuelve `hooks`, un dict con:
       - "Image": la clase falsa de sensor_msgs.msg.Image
@@ -23,7 +36,6 @@ def _install_fake_ros(monkeypatch):
         llena recién cuando CameraRelay.connect() corre)
     """
     hooks: dict[str, object] = {}
-    state = {"ok": False}
 
     class Image:
         def __init__(self):
@@ -44,21 +56,6 @@ def _install_fake_ros(monkeypatch):
         def destroy_node(self):
             hooks["destroyed"] = True
 
-    rclpy = types.ModuleType("rclpy")
-    rclpy.ok = lambda: state["ok"]
-    rclpy.init = lambda *a, **k: state.__setitem__("ok", True)
-    rclpy.shutdown = lambda *a, **k: state.__setitem__("ok", False)
-    rclpy.spin = lambda node: None  # retorna de inmediato
-
-    rclpy_node = types.ModuleType("rclpy.node")
-    rclpy_node.Node = FakeNode
-    rclpy.node = rclpy_node
-
-    sensor_msgs = types.ModuleType("sensor_msgs")
-    sensor_msgs_msg = types.ModuleType("sensor_msgs.msg")
-    sensor_msgs_msg.Image = Image
-    sensor_msgs.msg = sensor_msgs_msg
-
     class _FakeArray:
         def __init__(self, data):
             self._data = bytes(data)
@@ -69,9 +66,10 @@ def _install_fake_ros(monkeypatch):
         def tobytes(self):
             return self._data
 
-    numpy = types.ModuleType("numpy")
-    numpy.uint8 = "uint8"
-    numpy.frombuffer = lambda data, dtype: _FakeArray(data)
+    numpy = types.SimpleNamespace(
+        uint8="uint8",
+        frombuffer=lambda data, dtype: _FakeArray(data),
+    )
 
     class _FakeEncoded:
         def __init__(self, data):
@@ -80,41 +78,39 @@ def _install_fake_ros(monkeypatch):
         def tobytes(self):
             return self._data
 
-    cv2 = types.ModuleType("cv2")
-    cv2.IMWRITE_JPEG_QUALITY = 1
-    cv2.imencode = lambda ext, frame, params: (True, _FakeEncoded(b"JPEG:" + frame.tobytes()))
+    cv2 = types.SimpleNamespace(
+        IMWRITE_JPEG_QUALITY=1,
+        imencode=lambda ext, frame, params: (True, _FakeEncoded(b"JPEG:" + frame.tobytes())),
+    )
 
-    monkeypatch.setitem(sys.modules, "rclpy", rclpy)
-    monkeypatch.setitem(sys.modules, "rclpy.node", rclpy_node)
-    monkeypatch.setitem(sys.modules, "sensor_msgs", sensor_msgs)
-    monkeypatch.setitem(sys.modules, "sensor_msgs.msg", sensor_msgs_msg)
-    monkeypatch.setitem(sys.modules, "numpy", numpy)
-    monkeypatch.setitem(sys.modules, "cv2", cv2)
+    monkeypatch.setattr(camera_relay, "Node", FakeNode)
+    monkeypatch.setattr(camera_relay, "Image", Image)
+    monkeypatch.setattr(camera_relay, "np", numpy)
+    monkeypatch.setattr(camera_relay, "cv2", cv2)
 
     hooks["Image"] = Image
-    hooks["state"] = state
     return hooks
 
 
-def _relay():
+def _relay(executor=None):
     return CameraRelay(
         node_name="test_camera",
         camera_topic="usb_cam/image_raw",
         jpeg_quality=80,
-        domain_id=42,
+        rclExecutor=executor if executor is not None else _FakeExecutor(),
     )
 
 
-def test_connect_raises_environment_error_without_rclpy(monkeypatch):
-    monkeypatch.setitem(sys.modules, "rclpy", None)  # `import rclpy` -> ImportError
-    relay = _relay()
+def test_connect_adds_node_to_shared_executor(monkeypatch):
+    _install_fake_ros(monkeypatch)
+    executor = _FakeExecutor()
+    relay = _relay(executor)
 
     async def scenario():
-        loop = asyncio.get_running_loop()
-        with pytest.raises(EnvironmentError):
-            relay.connect(loop)
+        relay.connect(asyncio.get_running_loop())
 
     asyncio.run(scenario())
+    assert [n.name for n in executor.nodes] == ["test_camera"]
 
 
 def test_connect_subscribes_to_configured_topic(monkeypatch):
@@ -174,9 +170,12 @@ def test_last_frame_wins_when_not_consumed(monkeypatch):
     assert frame == b"JPEG:" + b"b" * 12  # se pisó el frame "a", nunca se acumula
 
 
-def test_disconnect_shuts_down_rclpy(monkeypatch):
+def test_disconnect_removes_node_from_executor_and_destroys_it(monkeypatch):
+    """Sólo libera su nodo: el contexto rclpy y el executor son de toda la app
+    (la strategy local los comparte), así que no los apaga."""
     hooks = _install_fake_ros(monkeypatch)
-    relay = _relay()
+    executor = _FakeExecutor()
+    relay = _relay(executor)
 
     async def scenario():
         loop = asyncio.get_running_loop()
@@ -184,5 +183,5 @@ def test_disconnect_shuts_down_rclpy(monkeypatch):
         relay.disconnect()
 
     asyncio.run(scenario())
-    assert hooks["state"]["ok"] is False
+    assert executor.nodes == []
     assert hooks.get("destroyed") is True
