@@ -2,7 +2,7 @@
 
 ## Descripción General
 
-Monolito modular en FastAPI (Python 3.13.7+). Cumple dos roles:
+Monolito modular en FastAPI (Python 3.14+). Cumple dos roles:
 
 1. **Punto de entrada para usuarios** — autenticación, gestión de sesiones, envío de comandos a robots vía WebSocket
 2. **Punto de entrada para robots** — registro, handshake M2M y conexión WebSocket directa para comunicación bidireccional

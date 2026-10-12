@@ -50,7 +50,7 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 
 ## Stack Tecnológico
 
-- **Backend**: Python 3.13.7+, FastAPI, SQLModel
+- **Backend**: Python 3.14+, FastAPI, SQLModel
 - **Base de datos**: PostgreSQL 17.5
 - **Autenticación**: JWT (HS256) + bcrypt
 - **Frontend**: Vue 3, TypeScript, Vite, PicoCSS
@@ -64,7 +64,7 @@ Para una descripción detallada de la arquitectura del sistema, flujos de comuni
 
 ### Prerrequisitos
 
-- Python 3.13.7+
+- Python 3.14+
 - Gestor de paquetes uv
 - Docker y Docker Compose
 

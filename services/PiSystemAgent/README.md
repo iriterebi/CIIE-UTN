@@ -33,7 +33,7 @@ Controller that runs on each Raspberry Pi connected to a robot. It registers and
 
 ## Prerequisites
 
-- Python 3.13.7+
+- Python 3.14+
 - uv package manager
 - Access to the API (local or via Docker network)
 
@@ -88,7 +88,7 @@ With `MOCK_ROBOT=1`, the controller uses `robot_mock_controller.py` which simula
 
 ## Deployment (Raspberry Pi)
 
-Packaged as a self-contained Docker image (ROS 2 Jazzy → Python 3.12) and run via Docker
+Packaged as a self-contained Docker image (ROS 2 Lyrical → Python 3.14) and run via Docker
 Compose (`restart: unless-stopped`, no systemd). Build with Podman on the dev machine and ship
 over SSH: `make deploy` (see `PI_HOST`/`PI_DIR` overrides). Manage the running controller with
 `./robot-cli <command>` (runs the CLI inside the container via `docker exec`).

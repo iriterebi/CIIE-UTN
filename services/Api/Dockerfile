@@ -1,7 +1,12 @@
 # Dockerfile — Api (producción)
 # Multi-stage build con uv para instalar dependencias
 
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
+
+# Sin descargas de Python: el venv se copia al stage final, así que debe usar
+# el intérprete del sistema (misma versión menor que el runtime). Si uv
+# descargara uno propio, el venv quedaría apuntando a un python inexistente.
+ENV UV_PYTHON_DOWNLOADS=never
 
 WORKDIR /app
 
@@ -22,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-editable --package ciie-remote-lab-api --no-dev
 
 
-FROM docker.io/library/python:3.13-slim-bookworm
+FROM docker.io/library/python:3.14-slim-bookworm
 
 WORKDIR /app
 

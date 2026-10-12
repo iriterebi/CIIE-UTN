@@ -50,7 +50,7 @@ For a detailed description of the system architecture, communication flows, data
 
 ## Tech Stack
 
-- **Backend**: Python 3.13.7+, FastAPI, SQLModel
+- **Backend**: Python 3.14+, FastAPI, SQLModel
 - **Database**: PostgreSQL 17.5
 - **Auth**: JWT (HS256) + bcrypt
 - **Frontend**: Vue 3, TypeScript, Vite, PicoCSS
@@ -64,7 +64,7 @@ For a detailed description of the system architecture, communication flows, data
 
 ### Prerequisites
 
-- Python 3.13.7+
+- Python 3.14+
 - uv package manager
 - Docker & Docker Compose
 

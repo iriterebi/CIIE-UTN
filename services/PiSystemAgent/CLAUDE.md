@@ -13,13 +13,13 @@ uv run python -m controller
 # Requiere .env o .env.defaults con las variables de entorno
 ```
 
-Esto corre el controller con el Python gestionado por uv (3.13) y sirve para `MockStrategy` /
+Esto corre el controller con el Python gestionado por uv (3.14) y sirve para `MockStrategy` /
 `SerialStrategy`. **No** sirve para `Ros2Strategy`, que necesita `rclpy` (ver abajo).
 
 ### Correr Ros2Strategy con Podman (ROS 2 Jazzy)
 
 `rclpy`/`std_msgs` no se instalan con uv (son extensiones compiladas atadas al Python de ROS), así
-que `Ros2Strategy` se corre dentro de un contenedor `ros:jazzy` (Ubuntu 24.04, Python 3.12 — el
+que `Ros2Strategy` se corre dentro de un contenedor `ros:lyrical` (Python 3.14 — el
 controller corre sin cambios de código). Requiere podman instalado en el host
 (`sudo apt install -y podman uidmap`). Podman es rootless: no necesita grupo ni daemon.
 
@@ -53,7 +53,7 @@ contenedor; el host sigue usando uv para mock/serial.
 
 ### Deploy en la Pi (Docker Compose)
 
-El controller se empaqueta como imagen Docker self-contained (ROS 2 Jazzy → **Python 3.12**;
+El controller se empaqueta como imagen Docker self-contained (ROS 2 Lyrical → **Python 3.14**;
 ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`). El Python
 3.11 del host Raspbian no se usa: el contenedor trae su propio intérprete.
 
@@ -70,7 +70,7 @@ ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`
   normalmente solo hacen falta `SERVER_URL` y `ARDUINO_PORT` en `.env`. La identidad del robot
   persiste en `./data/` (montado).
 - **Control**: `./robot-cli <comando>` corre la CLI dentro del contenedor vía `docker exec`
-  (el host es 3.11, la CLI usa 3.12). En dev: `CONTAINER_ENGINE=podman ./robot-cli status`.
+  (el host es 3.11, la CLI usa 3.14). En dev: `CONTAINER_ENGINE=podman ./robot-cli status`.
 
 Build y entrega (Podman en dev — docker no está en dev — → `docker load` en la Pi):
 

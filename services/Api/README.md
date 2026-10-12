@@ -11,7 +11,7 @@ FastAPI backend for the Labs Remoto system. Serves as the central entry point fo
 
 ## Requirements
 
-- Python 3.13.7+
+- Python 3.14+
 - [uv](https://docs.astral.sh/uv/) package manager
 - PostgreSQL (see `../Db/`)
 

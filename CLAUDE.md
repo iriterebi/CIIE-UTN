@@ -29,7 +29,7 @@ ROS 2 **no es** el bus de comunicación API↔robot. Tras el refactor en `raspi-
 
 ## Stack Tecnológico
 
-- **Lenguaje**: Python 3.13.7+ (Api, RaspberryPi), Arduino C++ (firmware)
+- **Lenguaje**: Python 3.14+ (Api, RaspberryPi), Arduino C++ (firmware)
 - **Framework**: FastAPI con SQLModel ORM
 - **Base de datos**: PostgreSQL 17.5 (Alpine)
 - **Autenticación**: JWT (HS256) + bcrypt para hashing de contraseñas
@@ -102,7 +102,7 @@ ROS 2 **no es** el bus de comunicación API↔robot. Tras el refactor en `raspi-
 
 ### Prerrequisitos
 
-- Python 3.13.7+
+- Python 3.14+
 - Gestor de paquetes uv
 - Docker y Docker Compose
 
