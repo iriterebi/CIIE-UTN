@@ -11,13 +11,13 @@ import types
 
 import pytest
 
-from controller.robot import ros2_controller
-from controller.robot.responses import (
-    CommandsDescriptionRobotResponse, InvalidCommandError,
+from ..robot import ros2_controller
+from ..robot.responses import (
+    CommandsDescriptionRobotResponse,
+    InvalidCommandError,
 )
-from controller.robot.ros2_controller import Ros2Controller, parse_key_value
-from controller.strategy.local.ros2_strategy import Ros2Strategy
-
+from ..robot.ros2_controller import Ros2Controller, parse_key_value
+from ..strategy.local.ros2_strategy import Ros2Strategy
 
 # --- Fake rclpy / std_msgs ---
 

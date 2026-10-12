@@ -5,7 +5,7 @@ Almacena clases (types), no instancias. Las instancias se crean al seleccionar.
 
 from dataclasses import dataclass, field
 
-from .base import Strategy, LocalStrategy
+from .base import LocalStrategy, Strategy
 
 
 @dataclass
@@ -20,12 +20,34 @@ class StrategyRegistry:
                 return cls
         return None
 
+    def get_remote_safe(self, name: str) -> type[Strategy]:
+        str = self.get_remote(name)
+        assert str is not None
+        return str
+
+    def has_remote(self, name: str) -> bool:
+        return self.get_remote(name) is not None
+
+    def add_remote(self, strategy: type[Strategy]) -> None:
+        self.remote.append(strategy)
+
     def get_local(self, name: str) -> type[LocalStrategy] | None:
         """Busca un strategy local por nombre de clase."""
         for cls in self.local:
             if cls.__name__ == name:
                 return cls
         return None
+
+    def get_local_safe(self, name: str) -> type[LocalStrategy]:
+        str = self.get_local(name)
+        assert str is not None
+        return str
+
+    def has_local(self, name: str) -> bool:
+        return self.get_local(name) is not None
+
+    def add_local(self, strategy: type[LocalStrategy]) -> None:
+        self.local.append(strategy)
 
     def list_remote(self) -> list[str]:
         """Retorna nombres de strategies remotos disponibles."""

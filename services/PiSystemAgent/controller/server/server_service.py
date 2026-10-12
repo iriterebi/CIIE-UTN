@@ -5,11 +5,11 @@ La comunicación de comandos se hace vía WS directo a la API
 (ver strategy/remote/ws_strategy.py).
 """
 
+import asyncio
 import secrets
 import string
 import json
 import logging
-import time
 import uuid
 from datetime import datetime
 from urllib.parse import urljoin
@@ -59,18 +59,6 @@ class ServerServices:
         self.metadata_file = metadata_file
         self._create_default_config = create_default_config
         self.logger = logging.getLogger(__name__)
-
-    def __enter__(self):
-        self.load_config()
-        if not self.connect_with_retry():
-            self.logger.critical(
-                "No se pudo establecer conexion con el servidor.")
-            raise EnvironmentError(
-                "No se pudo establecer conexion con el servidor.")
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
 
     def load_config(self) -> None:
         """Carga credenciales desde el archivo de metadata, o genera uno por defecto."""
@@ -165,31 +153,34 @@ class ServerServices:
         self.logger.info("Conexion exitosa con el servidor.")
         return 200
 
-    def connect_with_retry(self, base_delay: int = 5, max_delay: int = 300) -> bool:
-        """Registra el robot y reintenta handshake hasta ser aprobado."""
-        self.register()
+    async def connect_with_retry(self, base_delay: int = 5, max_delay: int = 300) -> bool:
+        """Registra el robot y reintenta handshake hasta ser aprobado.
+
+        El backoff es `asyncio.sleep` (cancelable al instante); sólo las llamadas
+        HTTP bloqueantes van a un thread. Un `time.sleep` dentro del executor
+        dejaba threads dormidos (hasta `max_delay`) que retenían el cierre de
+        `asyncio.run` → `docker stop` terminaba en SIGKILL.
+        """
+        _ = await asyncio.to_thread(self.register)
 
         attempt = 0
         while True:
-            status_code = self.connect()
+            status_code = await asyncio.to_thread(self.connect)
 
             if status_code == 200:
                 return True
 
+            delay = min(base_delay * (2 ** attempt), max_delay)
             if status_code == 403:
-                delay = min(base_delay * (2 ** attempt), max_delay)
                 self.logger.info(
                     "Robot pendiente de aprobacion. Reintentando en %ds...",
                     delay)
-                time.sleep(delay)
-                attempt += 1
             else:
-                delay = min(base_delay * (2 ** attempt), max_delay)
                 self.logger.warning(
                     "Error inesperado (status %s). Reintentando en %ds...",
                     status_code, delay)
-                time.sleep(delay)
-                attempt += 1
+            await asyncio.sleep(delay)
+            attempt += 1
 
     def _create_strong_random_psw(self, longitud=24) -> str:
         caracteres = string.ascii_letters + string.digits + string.punctuation

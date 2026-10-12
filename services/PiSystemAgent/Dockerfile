@@ -14,6 +14,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY services/PiSystemAgent/pyproject.toml ./services/PiSystemAgent/pyproject.toml
 
+# Venv con acceso a /usr/lib/python3/dist-packages: ahí viven las deps apt de
+# rclpy/rosidl (lark, empy, yaml...). Sin esto el venv no las ve.
+RUN uv venv --system-site-packages /app/.venv
 
 # Instalar dependencias sin el código fuente (cacheo de capas)
 RUN --mount=type=cache,target=/root/.cache/uv \

@@ -1,6 +1,7 @@
+import logging
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import logging
 
 
 class Config(BaseSettings):

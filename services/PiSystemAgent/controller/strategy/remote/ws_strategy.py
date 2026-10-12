@@ -70,8 +70,7 @@ class WsStrategy(Strategy):
 
     @override
     async def start(self) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._authenticate)
+        await self._authenticate()
 
         await self._connect_ws()
         self._state = State.RUNNING
@@ -149,10 +148,10 @@ class WsStrategy(Strategy):
 
     # --- Internos ---
 
-    def _authenticate(self) -> None:
-        """Ejecuta registro + handshake HTTP (sync). Bloquea hasta ser aprobado."""
-        self._server_service.load_config()
-        if not self._server_service.connect_with_retry():
+    async def _authenticate(self) -> None:
+        """Ejecuta registro + handshake HTTP. Espera hasta ser aprobado (cancelable)."""
+        await asyncio.to_thread(self._server_service.load_config)
+        if not await self._server_service.connect_with_retry():
             raise EnvironmentError("No se pudo establecer conexión con el servidor.")
         self._credentials = self._server_service.credentials
 
@@ -185,8 +184,7 @@ class WsStrategy(Strategy):
 
     async def _reconnect(self) -> None:
         """Re-autentica (JWT puede haber expirado) y reconecta al WS."""
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._authenticate)
+        await self._authenticate()
         await self._connect_ws()
 
     async def _handle_if_ping(self, raw: Any) -> bool:

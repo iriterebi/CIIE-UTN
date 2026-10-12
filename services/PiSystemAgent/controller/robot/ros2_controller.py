@@ -20,10 +20,16 @@ pueda importar (y el modo demo/tests corran) sin tener ROS 2 instalado.
 
 import logging
 import os
-import threading
 import queue
 from typing import Any
 
+import rclpy  # import diferido: requiere entorno ROS 2 sourceado
+from rclpy.executors import Executor
+from rclpy.node import Node
+from rclpy.publisher import Publisher
+from std_msgs.msg import String
+
+from ..domain import AtomicVar
 from .responses import (
     CommandsDescriptionRobotResponse,
     InvalidCommandError,
@@ -52,10 +58,10 @@ def parse_key_value(data: str) -> dict[str, str]:
                 result[key] = value.strip()
     return result
 
-
 class Ros2Controller:
     """Wrappea un nodo rclpy con la interfaz duck-typed del controlador del robot."""
 
+    # deprecated
     robot_commands: RobotCommandRecord
 
     def __init__(
@@ -64,27 +70,24 @@ class Ros2Controller:
         node_name: str,
         command_topic: str,
         data_topic: str,
-        domain_id: int = 42,
+        rclExecutor: Executor
     ):
         self.node_name: str = node_name
         self.command_topic: str = command_topic
         self.data_topic: str = data_topic
-        self.domain_id: int = domain_id
+        self.rclExecutor: Executor = rclExecutor
 
-        self._rclpy: Any = None
-        self._string_cls: Any = None
-        self._node: Any = None
-        self._publisher: Any = None
-        self._spin_thread: threading.Thread | None = None
+        self._node: Node | None = None
+        self._publisher: Publisher[String] | None = None
 
-        self._latest_status: dict[str, str] = {}
-        self._status_lock: threading.Lock = threading.Lock()
+        self._latest_status: AtomicVar[dict[str, str]] = AtomicVar({})
+
         self._connected: bool = False
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.robot_commands = RobotCommandRecord([])
 
-        self._responses: queue.Queue[RobotResponse | None] = queue.Queue()
+        self._robot_responses: queue.Queue[RobotResponse | None] = queue.Queue()
 
     def connect(self):
         # Resetear la cola es necesario para sobrevivir un segundo connect() tras un
@@ -93,35 +96,16 @@ class Ros2Controller:
         # LUEGO disconnect()), ese segundo None queda huérfano. Sin este reset, el
         # próximo read_response() del ciclo nuevo devolvería ese None huérfano en vez
         # de la telemetría real (Finding 1 — ver fix report de Task 4).
-        self._responses = queue.Queue()
-
-        # Fija el dominio DDS (debe coincidir con el agente ROS) vía la env var estándar que rclpy
-        # lee en rclpy.init(). setdefault respeta un ROS_DOMAIN_ID externo si ya está seteado.
-        os.environ.setdefault("ROS_DOMAIN_ID", str(self.domain_id))
-        try:
-            import rclpy  # import diferido: requiere entorno ROS 2 sourceado
-            from rclpy.node import Node
-            from std_msgs.msg import String
-        except ImportError as e:
-            raise OSError(
-                "No se pudo importar rclpy/std_msgs. Asegúrate de sourcear el entorno "
-                + "ROS 2 en la Pi (ej. `source /opt/ros/<distro>/setup.bash`) antes de "
-                + "usar Ros2Strategy."
-            ) from e
-
-        self._rclpy = rclpy
-        self._string_cls = String
-
-        if not rclpy.ok():
-            rclpy.init()
+        self._robot_responses = queue.Queue()
 
         self._node = Node(self.node_name)
         self._publisher = self._node.create_publisher(String, self.command_topic, 10)
-        self._node.create_subscription(String, self.data_topic, self._on_data, 10)
+        _ = self._node.create_subscription(String, self.data_topic, self._on_data, 10)
 
-        self._spin_thread = threading.Thread(target=self._spin, daemon=True)
-        self._spin_thread.start()
+        _ = self.rclExecutor.add_node(self._node)
+
         self._connected = True
+
         self.logger.info(
             "Ros2Controller conectado (node=%s, domain=%s, command_topic=%s, data_topic=%s)",
             self.node_name,
@@ -130,16 +114,7 @@ class Ros2Controller:
             self.data_topic,
         )
 
-    def _spin(self):
-        """Corre rclpy.spin en un daemon thread (asyncio queda en el main thread)."""
-        try:
-            self._rclpy.spin(self._node)
-        except (
-            Exception
-        ) as e:  # spin levanta al hacer shutdown; lo tratamos como fin normal
-            self.logger.debug("rclpy.spin finalizó: %s", e)
-
-    def _on_data(self, msg):
+    def _on_data(self, msg: String):
         """Callback de telemetría (corre en el thread de spin). Solo actualiza snapshot.
 
         Nunca debe propagar: una excepción aquí sale por `rclpy.spin`, que `_spin`
@@ -147,32 +122,30 @@ class Ros2Controller:
         `_connected` sigue en True (telemetría muerta con el agente aparentando salud).
         """
         try:
-            self._handle_data(msg)
+            self.logger.debug("Telemetría recibida: %s", msg)
+
+            if msg.data.startswith("commands="):
+                self.robot_commands = parse_commands(msg.data)
+                self._robot_responses.put(CommandsDescriptionRobotResponse(self.robot_commands))
+            else:
+                parsed = parse_key_value(msg.data)
+                if parsed:
+                    status = self._latest_status.get().copy()
+                    status.update(parsed)
+                    self._latest_status.set(status)
         except Exception:
             self.logger.exception("Error procesando telemetría: %r", msg.data)
 
-    def _handle_data(self, msg):
-        if isinstance(msg.data, str) and msg.data.startswith("commands="):  # pyright: ignore[reportUnknownMemberType]
-            self.robot_commands = parse_commands(msg.data)
-            self._responses.put(CommandsDescriptionRobotResponse(self.robot_commands))
-        else:
-            parsed = parse_key_value(msg.data)
-            if parsed:
-                with self._status_lock:
-                    self._latest_status.update(parsed)
-            self.logger.debug("Telemetría recibida: %s", msg.data)
-
     def disconnect(self):
         self.stop_reading()
-        if self._rclpy is not None and self._rclpy.ok():
-            self._rclpy.shutdown()
-        if self._spin_thread is not None and self._spin_thread.is_alive():
-            self._spin_thread.join(timeout=2)
+
         if self._node is not None:
             try:
+                _ = self.rclExecutor.remove_node(self._node)
                 self._node.destroy_node()
-            except Exception as e:
-                self.logger.debug("destroy_node falló: %s", e)
+            except Exception:
+                self.logger.exception("destroy_node falló: %s")
+
         self._connected = False
         self.logger.info("Ros2Controller desconectado")
 
@@ -193,18 +166,18 @@ class Ros2Controller:
             self.logger.warning("Comando inválido: %s", command)
             raise InvalidCommandError(f"comando desconocido: {command}")
 
-        msg = self._string_cls()
+        msg = String()
         msg.data = command
         self._publisher.publish(msg)
         self.logger.info("Comando publicado en %s: %s", self.command_topic, command)
 
     def read_response(self) -> RobotResponse | None:
         """Bloquea hasta que el robot emita algo. None = señal de parada."""
-        return self._responses.get()
+        return self._robot_responses.get()
 
     def stop_reading(self) -> None:
         """Desbloquea un read_response() en curso. Idempotente."""
-        self._responses.put(None)
+        self._robot_responses.put(None)
 
     def execute_sequence(self, commands: list[str]):
         self.logger.info("Publicando secuencia de comandos...")
@@ -215,10 +188,11 @@ class Ros2Controller:
     def get_status(self) -> dict[str, Any]:
         """Retorna el último estado de telemetría recibido por DDS."""
         connected = bool(
-            self._connected and self._rclpy is not None and self._rclpy.ok()
+            self._connected and rclpy.ok()
         )
-        with self._status_lock:
-            telemetry = dict(self._latest_status)
+
+        telemetry = dict(self._latest_status.get())
+
         return {
             "status": "online" if connected else "disconnected",
             "mock": False,

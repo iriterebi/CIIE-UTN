@@ -11,10 +11,11 @@ from enum import StrEnum
 from functools import partial
 from typing import TypedDict
 
-from .strategy.base import Strategy, LocalStrategy, State as StrategyState
-from .strategy.registry import StrategyRegistry
 from .socket_server import SocketServer
-from .type_defs import StatusData, CoreStatusData
+from .strategy.base import LocalStrategy, Strategy
+from .strategy.base import State as StrategyState
+from .strategy.registry import StrategyRegistry
+from .type_defs import CoreStatusData, StatusData
 
 logger = logging.getLogger(__name__)
 

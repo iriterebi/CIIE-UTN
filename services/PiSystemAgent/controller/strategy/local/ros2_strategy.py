@@ -3,6 +3,8 @@
 import asyncio
 from typing import override
 
+from rclpy.executors import Executor
+
 from ...robot.ros2_controller import Ros2Controller
 from ..base import OutboxLocalStrategy
 
@@ -17,14 +19,14 @@ class Ros2Strategy(OutboxLocalStrategy):
         node_name: str,
         command_topic: str,
         data_topic: str,
-        domain_id: int = 42,
+        rclExecutor: Executor
     ):
         super().__init__()
         self._robot: Ros2Controller = Ros2Controller(
             node_name=node_name,
             command_topic=command_topic,
             data_topic=data_topic,
-            domain_id=domain_id,
+            rclExecutor=rclExecutor
         )
 
     @override

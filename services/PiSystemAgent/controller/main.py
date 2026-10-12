@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """Punto de entrada del controlador de robot.
 
 Construye el registro de strategies, selecciona por config, inyecta en el core y arranca.
@@ -10,7 +8,10 @@ docs/superpowers/specs/2026-08-20-camera-video-webclient-design.md.
 
 import asyncio
 import logging
+import signal
 import sys
+from contextlib import ExitStack
+from typing import TYPE_CHECKING
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -18,47 +19,49 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-from .camera import CameraRelay, VideoWsClient
-from .camera.video_ws_client import derive_video_ws_url
 from .config import Config, config
 from .core import MicroCore
 from .server.server_service import ServerServices
 from .strategy.base import LocalStrategy, Strategy
-from .strategy.local.mock_strategy import MockStrategy
-from .strategy.local.ros2_strategy import Ros2Strategy
-from .strategy.local.serial_strategy import SerialStrategy
 from .strategy.registry import StrategyRegistry
 from .strategy.remote.ws_strategy import WsStrategy
 
 logger = logging.getLogger(__name__)
 
-
-registry = StrategyRegistry(
-    remote=[WsStrategy],
-    local=[MockStrategy, SerialStrategy, Ros2Strategy],
-)
+if TYPE_CHECKING:
+    from rclpy.executors import Executor
 
 
-def create_local(name: str) -> LocalStrategy:
+# try:
+#     import rclpy  # import diferido: requiere entorno ROS 2 sourceado
+#     from rclpy.node import Node
+#     from std_msgs.msg import String
+# except ImportError as e:
+
+def create_local(name: str, registry: StrategyRegistry, rclExecutor: Executor | None) -> LocalStrategy:
     """Factory: instancia un strategy local por nombre."""
     match name:
-        case "MockStrategy":
+        case "MockStrategy" if registry.has_local("MockStrategy"):
+            from .strategy.local.mock_strategy import MockStrategy
             return MockStrategy(config.arduino_port)
-        case "SerialStrategy":
-            return SerialStrategy(config.arduino_port)
-        case "Ros2Strategy":
+
+        case "Ros2Strategy" if registry.has_local("Ros2Strategy"):
+            from .strategy.local.ros2_strategy import Ros2Strategy
+            assert rclExecutor is not None
+
             return Ros2Strategy(
                 node_name=config.ros2_node_name,
                 command_topic=config.ros2_command_topic,
                 data_topic=config.ros2_data_topic,
-                domain_id=config.ros2_domain_id,
+                rclExecutor=rclExecutor
             )
+
         case _:
             available = ", ".join(registry.list_local())
             raise ValueError(f"Strategy local desconocido: '{name}'. Disponibles: {available}")
 
 
-def create_remote(name: str) -> Strategy:
+def create_remote(name: str, registry: StrategyRegistry) -> Strategy:
     """Factory: instancia un strategy remoto por nombre."""
     match name:
         case "WsStrategy":
@@ -72,24 +75,27 @@ def create_remote(name: str) -> Strategy:
             raise ValueError(f"Strategy remoto desconocido: '{name}'. Disponibles: {available}")
 
 
-async def run_camera_pipeline(cfg: Config) -> None:
+async def run_camera_pipeline(cfg: Config, rclExecutor: Executor) -> None:
     """Sube CameraRelay + VideoWsClient. No-op silencioso si falta rclpy/cv2 u
     ocurre cualquier otro error — no debe tumbar el resto del controller
     (mismo patrón que Ros2Controller). El try/except externo es la garantía
     real de aislamiento: los internos solo dan mensajes de log más
     específicos para los dos casos ya conocidos."""
     try:
+        from .camera import CameraRelay, VideoWsClient
+        from .camera.video_ws_client import derive_video_ws_url
+
         relay = CameraRelay(
             node_name=cfg.camera_node_name,
             camera_topic=cfg.camera_topic,
             jpeg_quality=cfg.camera_jpeg_quality,
-            domain_id=cfg.ros2_domain_id,
+            rclExecutor=rclExecutor
         )
 
         loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(None, relay.connect, loop)
-        except EnvironmentError as e:
+        except OSError as e:
             logger.warning("Cámara no disponible, video deshabilitado: %s", e)
             return
 
@@ -104,32 +110,91 @@ async def run_camera_pipeline(cfg: Config) -> None:
         )
         try:
             await client.run(relay.next_frame)
-        except EnvironmentError as e:
-            logger.warning("No se pudo autenticar VideoWsClient, video deshabilitado: %s", e)
+        except OSError:
+            logger.exception("No se pudo autenticar VideoWsClient, video deshabilitado: %s")
         finally:
             await loop.run_in_executor(None, relay.disconnect)
-    except Exception as e:
-        logger.warning(
-            "Pipeline de video terminó por un error inesperado (no afecta al resto del controller): %s",
-            e,
-        )
+    except Exception:
+        logger.exception("Pipeline de video terminó por un error inesperado (no afecta al resto del controller): %s")
+
+
+async def spin_executor(executor: Executor) -> None:
+    """Corre `executor.spin()` en un thread para no bloquear el event loop.
+
+    `to_thread` no se puede cancelar: al cancelar esta tarea, `executor.shutdown()`
+    es lo que despierta al thread y corta el spin.
+    """
+    try:
+        await asyncio.to_thread(executor.spin)
+    finally:
+        _ = executor.shutdown()
 
 
 async def async_main():
-    local = create_local(config.local_strategy)
-    remote = create_remote(config.remote_strategy)
+    # SIGTERM (docker stop) no lo maneja asyncio.run: sin este handler, como PID 1
+    # la señal se ignora y el contenedor muere por SIGKILL sin limpiar.
+    main_task = asyncio.current_task()
+    assert main_task is not None
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main_task.cancel)
 
-    core = MicroCore(
-        local=local,
-        remote=remote,
-        registry=registry,
-        socket_path=config.socket_path,
-    )
+    with ExitStack() as stack:
 
-    async with asyncio.TaskGroup() as tg:
-        tg.create_task(core.run())
-        tg.create_task(run_camera_pipeline(config))
+        from .strategy.local.mock_strategy import MockStrategy
+
+        registry = StrategyRegistry(
+            remote=[WsStrategy],
+            local=[MockStrategy],
+        )
+
+
+        executor: Executor | None = None
+
+        try:
+            import rclpy
+            from rclpy.executors import MultiThreadedExecutor
+            from rclpy.signals import SignalHandlerOptions
+
+            from .strategy.local.ros2_strategy import Ros2Strategy
+
+            registry.add_local(Ros2Strategy)
+
+            # Sin handlers de rclpy: si no, SIGINT/SIGTERM matan el contexto antes
+            # del apagado ordenado de la app. Las señales las maneja asyncio.
+            rclpyCtx = rclpy.init(
+                domain_id=config.ros2_domain_id,
+                signal_handler_options=SignalHandlerOptions.NO,
+            )
+            _ = stack.push(rclpyCtx)
+
+            executor = MultiThreadedExecutor()
+            _ = stack.push(executor)
+
+
+        except ImportError:
+            _ = logger.exception("rclpy couldn't be enabled")
+
+        local = create_local(config.local_strategy, registry, executor)
+        remote = create_remote(config.remote_strategy, registry)
+
+
+        core = MicroCore(
+            local=local,
+            remote=remote,
+            registry=registry,
+            socket_path=config.socket_path,
+        )
+
+        if executor is not None:
+            async with asyncio.TaskGroup() as tg:
+                _ = tg.create_task(core.run())
+                _ = tg.create_task(run_camera_pipeline(config, executor))
+                _ = tg.create_task(spin_executor(executor))
+        else:
+            await core.run()
 
 
 def main():
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except asyncio.CancelledError:
+        logger.info("Controller detenido por SIGTERM")

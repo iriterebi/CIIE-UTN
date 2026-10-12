@@ -11,9 +11,10 @@ credenciales").
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable, Never
+from collections.abc import Awaitable, Callable
+from typing import Any, Never
 
-from websockets.asyncio.client import connect, ClientConnection
+from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidURI
 
 from ..server.server_service import ServerServices
@@ -72,8 +73,7 @@ class VideoWsClient:
                 delay = min(delay * 2, _MAX_RECONNECT_DELAY)
 
     async def _connect(self) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._authenticate)
+        await self._authenticate()
 
         self._ws = await connect(self._ws_url)
 
@@ -93,8 +93,8 @@ class VideoWsClient:
 
         logger.info("VideoWsClient: auth WS exitoso")
 
-    def _authenticate(self) -> None:
-        """Ejecuta registro + handshake HTTP (sync, corre en executor)."""
-        self._server_service.load_config()
-        if not self._server_service.connect_with_retry():
-            raise EnvironmentError("VideoWsClient: no se pudo autenticar con el servidor.")
+    async def _authenticate(self) -> None:
+        """Ejecuta registro + handshake HTTP. Espera hasta ser aprobado (cancelable)."""
+        await asyncio.to_thread(self._server_service.load_config)
+        if not await self._server_service.connect_with_retry():
+            raise OSError("VideoWsClient: no se pudo autenticar con el servidor.")
