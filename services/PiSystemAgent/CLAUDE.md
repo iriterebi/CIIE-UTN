@@ -16,7 +16,7 @@ uv run python -m controller
 Esto corre el controller con el Python gestionado por uv (3.14) y sirve para `MockStrategy` /
 `SerialStrategy`. **No** sirve para `Ros2Strategy`, que necesita `rclpy` (ver abajo).
 
-### Correr Ros2Strategy con Podman (ROS 2 Jazzy)
+### Correr Ros2Strategy con Podman (ROS 2 Lyrical)
 
 `rclpy`/`std_msgs` no se instalan con uv (son extensiones compiladas atadas al Python de ROS), así
 que `Ros2Strategy` se corre dentro de un contenedor `ros:lyrical` (Python 3.14 — el
@@ -24,17 +24,17 @@ controller corre sin cambios de código). Requiere podman instalado en el host
 (`sudo apt install -y podman uidmap`). Podman es rootless: no necesita grupo ni daemon.
 
 ```bash
-make ros.build     # construye --target base (Dockerfile) → localhost/labs-remoto/controller-dev:jazzy
+make ros.build     # construye --target base (Dockerfile) → localhost/labs-remoto/controller-dev:lyrical
 make ros.verify    # comprueba que rclpy + std_msgs importan
-make ros.test      # corre pytest dentro del contenedor (rclpy real disponible)
+make ros.test      # corre pytest dentro del contenedor (rclpy real; instala pytest del grupo dev al vuelo)
 make ros.shell     # bash interactivo con ROS sourceado (ros2 topic echo/pub)
 make ros.run       # corre el controller con LOCAL_STRATEGY=Ros2Strategy
 ```
 
 `Dockerfile` es multi-stage: `base` (deps + rclpy, sin código de la app) y `final` (extiende `base`
 con el código y los defaults de deploy horneados — ver "Deploy en la Pi" abajo). `ros.build` siempre
-construye `--target base` hacia un tag propio (`controller-dev:jazzy`), **distinto** del tag de
-deploy (`controller:jazzy`) — evita que un build de dev pise el artefacto que se sube a la Pi (o
+construye `--target base` hacia un tag propio (`controller-dev:lyrical`), **distinto** del tag de
+deploy (`controller:lyrical`) — evita que un build de dev pise el artefacto que se sube a la Pi (o
 viceversa), ya que ambos stages difieren en contenido.
 
 Los targets usan `podman run` plano con `--network=host` (discovery DDS con el agente ROS y acceso a
@@ -60,7 +60,7 @@ ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`
 - **Artefacto**: `services/RaspberryPi/Dockerfile` es multi-stage: `base` (ROS 2 + venv + deps, sin
   código — lo usan los targets `ros.*` con bind-mount para iterar localmente) y `final` (extiende
   `base`: agrega el código self-contained + defaults de deploy horneados). `deploy.build` construye
-  siempre `--target final` hacia el tag `localhost/labs-remoto/controller:jazzy`.
+  siempre `--target final` hacia el tag `localhost/labs-remoto/controller:lyrical`.
 - **Runtime**: `compose.yaml` — un servicio `controller`, `network_mode: host`,
   `restart: unless-stopped`, `container_name: labs-remoto-robot`. Sin systemd: el ciclo de vida
   lo cubre la restart policy de Docker. Sin passthrough de serial (el Arduino lo maneja el agente ROS).

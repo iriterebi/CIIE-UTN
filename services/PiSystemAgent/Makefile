@@ -4,7 +4,7 @@ up_dev:
 
 .DEFAULT_GOAL := up_dev
 
-# --- ROS 2 (Jazzy) en Podman: correr Ros2Strategy con rclpy real ---
+# --- ROS 2 (Lyrical) en Podman: correr Ros2Strategy con rclpy real ---
 # Requiere podman instalado (ver sección "Correr Ros2Strategy con Podman" en CLAUDE.md).
 # Podman es rootless: no necesita grupo ni daemon.
 # Prefijo localhost/ porque podman guarda las imágenes locales en ese namespace.
@@ -12,11 +12,15 @@ up_dev:
 # repo DISTINTOS a propósito: los dos stages del Dockerfile ya no son idénticos, así
 # que compartir un tag arriesgaría pisar el artefacto de deploy con la imagen de dev
 # (o viceversa) según el orden en que se corran los targets.
-IMAGE := localhost/labs-remoto/controller:jazzy
-DEV_IMAGE := localhost/labs-remoto/controller-dev:jazzy
+IMAGE := localhost/labs-remoto/controller:lyrical
+DEV_IMAGE := localhost/labs-remoto/controller-dev:lyrical
+
+# El Dockerfile copia pyproject.toml/uv.lock de la raíz del workspace uv: el contexto de
+# build es la raíz del repo, no este directorio.
+REPO_ROOT := $(abspath $(CURDIR)/../..)
 
 # `deploy.build` cruza arquitectura (--platform linux/arm64) contra la MISMA referencia
-# de imagen base (docker.io/library/ros:jazzy) que usa `ros.build`. El storage local de
+# de imagen base (docker.io/library/ros:lyrical) que usa `ros.build`. El storage local de
 # podman guarda una sola arquitectura por tag, así que un build pisa la caché del otro
 # según el orden en que se corran — ros.build queda con la base arm64 y explota con
 # "Exec format error" al ejecutar apt-get. Fijar --platform al arch nativo del host en
@@ -33,22 +37,34 @@ endif
 
 .PHONY: ros.build ros.verify ros.test ros.shell ros.run
 ros.build:
-	podman build --platform $(DEV_PLATFORM) --target base -f Dockerfile -t $(DEV_IMAGE) .
+	podman build --platform $(DEV_PLATFORM) --target base -f $(CURDIR)/Dockerfile -t $(DEV_IMAGE) $(REPO_ROOT)
 
 ros.verify:
 	podman run --rm $(DEV_IMAGE) \
 		python -c "import rclpy; from std_msgs.msg import String; print('rclpy + std_msgs OK')"
 
 ros.test:
+	# El código se monta sobre /app/services/PiSystemAgent (no sobre /app, que taparía el
+	# venv de la imagen). pytest es del grupo dev, que la imagen no trae (--no-dev): se
+	# instala en el contenedor efímero desde el uv.lock (versión fijada); el volumen de
+	# cache evita re-descargarlo en cada corrida.
 	# PYTEST_DISABLE_PLUGIN_AUTOLOAD evita que los plugins pytest de ROS
 	# (launch_testing, etc., visibles vía --system-site-packages) choquen con pytest 9.x.
-	podman run --rm -e PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 -v "$(CURDIR)":/app $(DEV_IMAGE) python -m pytest
+	podman run --rm -v "$(CURDIR)":/app/services/PiSystemAgent:ro,Z -w /app/services/PiSystemAgent \
+		-v labs-remoto-uv-cache:/root/.cache/uv -e PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(DEV_IMAGE) \
+		bash -c 'cd /app && uv sync --frozen --package ciie-remote-lab-native --only-group dev --inexact --no-install-workspace -q \
+			&& cd services/PiSystemAgent && /app/.venv/bin/python -m pytest -p no:cacheprovider'
 
+# ros.shell / ros.run montan el código sobre /app/services/PiSystemAgent (no sobre /app, que
+# taparía el venv de la imagen) y trabajan desde ahí: `.env` y `robot-metadata.json` se leen
+# del directorio montado, igual que `uv run python -m controller` en el host.
 ros.shell:
-	podman run --rm -it --network=host -v "$(CURDIR)":/app $(DEV_IMAGE) bash
+	podman run --rm -it --network=host -v "$(CURDIR)":/app/services/PiSystemAgent:Z \
+		-w /app/services/PiSystemAgent $(DEV_IMAGE) bash
 
 ros.run:
-	podman run --rm --network=host -v "$(CURDIR)":/app -e LOCAL_STRATEGY=Ros2Strategy $(DEV_IMAGE)
+	podman run --rm --network=host -v "$(CURDIR)":/app/services/PiSystemAgent:Z \
+		-w /app/services/PiSystemAgent -e LOCAL_STRATEGY=Ros2Strategy $(DEV_IMAGE) python -m controller
 
 # --- Deploy a la Pi (Docker) --------------------------------------------------
 # Build con PODMAN en dev (docker no está instalado en dev), save como docker-archive
@@ -60,7 +76,7 @@ PI_DIR ?= labs-remoto-controller
 
 .PHONY: deploy.build deploy.push deploy.up deploy.restart deploy
 deploy.build:
-	podman build --platform linux/arm64 --target final -t $(IMAGE) -f Dockerfile .
+	podman build --platform linux/arm64 --target final -t $(IMAGE) -f $(CURDIR)/Dockerfile $(REPO_ROOT)
 	podman save --format docker-archive -o $(DEPLOY_TAR) $(IMAGE)
 
 deploy.push:

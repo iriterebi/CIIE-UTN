@@ -17,6 +17,9 @@ COPY services/PiSystemAgent/pyproject.toml ./services/PiSystemAgent/pyproject.to
 # Venv con acceso a /usr/lib/python3/dist-packages: ahí viven las deps apt de
 # rclpy/rosidl (lark, empy, yaml...). Sin esto el venv no las ve.
 RUN uv venv --system-site-packages /app/.venv
+# `python` del venv en el PATH también en este stage: los targets `ros.*` del Makefile
+# usan esta imagen (controller-dev) directamente, no el stage final.
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Instalar dependencias sin el código fuente (cacheo de capas)
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -31,8 +34,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-editable --package ciie-remote-lab-native --no-dev
 
 
-# ---- Stage: runtime -----------------------------------------------------------
-FROM docker.io/library/ros:lyrical
+# ---- Stage: final (runtime) ---------------------------------------------------
+# Nombrado: `make deploy.build` lo pide con --target final. Un build sin --target
+# (ej. el `build:` de compose.yaml) igual construye este stage, por ser el último.
+FROM docker.io/library/ros:lyrical AS final
 
 WORKDIR /app
 
