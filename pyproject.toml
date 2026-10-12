@@ -7,7 +7,8 @@ dependencies = []
 [tool.uv.workspace]
 members = [
     "services/Api",
-    "services/PiSystemAgent"
+    "services/PiSystemAgent",
+    "services/PiRobotDriver"
 ]
 exclude = []
 
@@ -21,9 +22,14 @@ dev = [
 
 
 [tool.pyright]
-include = ["services/Api", "services/PiSystemAgent"]
+include = [
+    "services/Api",
+    "services/PiSystemAgent",
+    "services/PiRobotDriver"
+]
 exclude = [
     "**/__pycache__",
 ]
+extraPaths = [".ros-typings"]
 
 reportExplicitAny = false

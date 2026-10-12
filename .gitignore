@@ -9,3 +9,4 @@ env-test1/*
 .build-cache
 .worktrees/
 .superpowers/
+.ros-typings/

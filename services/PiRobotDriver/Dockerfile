@@ -1,44 +1,57 @@
-FROM osrf/ros:jazzy
+# Compilar desde ../..
+# ---- Stage: base --------------------------------------------------------------
+FROM docker.io/library/ros:lyrical AS base
 
-WORKDIR /root/workspace
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+ENV UV_PYTHON=/usr/bin/python3.14 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
-ENV container=docker
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ROS_DOMAIN_ID=42
-ENV PIP_BREAK_SYSTEM_PACKAGES=1
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY services/PiRobotDriver/pyproject.toml ./services/PiRobotDriver/pyproject.toml
+
+# Venv con acceso a /usr/lib/python3/dist-packages: ahí viven las deps apt de
+# rclpy/rosidl (lark, empy, yaml...). Sin esto el venv no las ve.
+RUN uv venv --system-site-packages /app/.venv
+
+# Instalar dependencias sin el código fuente (cacheo de capas)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --package ciie-remote-lab-robot-driver --no-dev --no-install-workspace
+
+# Copiar código fuente de la Api
+COPY services/PiRobotDriver/agent /app/services/PiRobotDriver/agent
+
+# Instalar el paquete del workspace
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-editable --package ciie-remote-lab-robot-driver --no-dev
 
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    python3-pip \
-    python3-serial \
-    sudo \
-    tmux \
-    vim \
-    htop \
-    && rm -rf /var/lib/apt/lists/*
+# ---- Stage: runtime -----------------------------------------------------------
+FROM docker.io/library/ros:lyrical
 
-RUN pip3 install python-dotenv virtualenv
+WORKDIR /app
 
-# Make ROS available to all shells
-RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc && \
-    echo "export ROS_DOMAIN_ID=42" >> /root/.bashrc
+COPY --from=base /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    ROS_DOMAIN_ID=42 \
+    FASTDDS_BUILTIN_TRANSPORTS=UDPv4
 
-RUN wget -O /root/inoribt-installer.sh  https://control.inorbit.ai/liftoff/WklSDRtViJNzWRPN && \
-    chmod +x /root/inoribt-installer.sh
+# Copiar código fuente de la Api
+COPY services/PiRobotDriver/agent ./services/PiRobotDriver/agent
+COPY services/PiRobotDriver/inorbit_configs ./services/PiRobotDriver/inorbit_configs
 
-COPY ./tmux-start.sh /root/tmux-start.sh
-RUN chmod +x /root/tmux-start.sh
+COPY services/PiRobotDriver/start.sh ./start.sh
+RUN chmod +x ./start.sh
 
-COPY ./start.sh /root/start.sh
-RUN chmod +x /root/start.sh
+ENV CAMERA_DEVICE=/dev/video0 \
+    SERIAL_PORT=/dev/ttyUSB0 \
+    BAUD_RATE=9600 \
+    CAMERA_PUBLISH_TOPIC=/usb_cam/image_raw \
+    SERIAL_PUBLISH_TOPIC=/inorbit/custom_data \
+    SERIAL_SUBSCRIPTION_TOPIC=/inorbit/custom_command
 
-COPY .agent/ /root/agent/
-COPY ./inorbit_configs/ /root/inorbit_configs/
-
-# El ENTRYPOINT /ros_entrypoint.sh (heredado de ros:jazzy) sourcea /opt/ros/jazzy/setup.bash
-# y ejecuta el CMD, dejando rclpy importable.
-# CMD acá (no repetido en `final`): `final` extiende este stage y lo hereda tal
-# cual, ya que continúa la misma lineage de filesystem (no hay COPY --from=).
-CMD ["sh", "/root/start.sh"]
+CMD ["sh", "/app/start.sh", "--camera", "--robot_type", "serial"]

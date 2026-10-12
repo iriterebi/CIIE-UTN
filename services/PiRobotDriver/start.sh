@@ -1,8 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
-cd /root/agent/
+cd /app/services/PiRobotDriver/
 
-
-(cd ./serial_scraper/ && python3 ./scraper.py)
+python3 -m agent "$@"

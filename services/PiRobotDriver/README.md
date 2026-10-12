@@ -7,9 +7,9 @@ ROS 2 agent that integrates with the InOrbit platform. Publishes sensor data fro
 | Component | Description |
 |---|---|
 | `agent/serial_scraper/scraper.py` | Reads serial data from Arduino, publishes to InOrbit; also receives commands from InOrbit and writes them to serial |
-| `agent/listener.py` | Minimal test node — subscribes to `/inorbit/custom_command` and logs/writes to serial |
+| `agent/dummmy/listener.py` | Minimal test node — subscribes to `/inorbit/custom_command` and logs/writes to serial |
 | `agent/camera/camera_node.py` | Captures USB camera frames and publishes them as ROS `Image` messages |
-| `agent/publisher.py` | Dummy data publisher for testing (no hardware needed) |
+| `agent/dummmy/publisher.py` | Dummy data publisher for testing (no hardware needed) |
 
 ## Docker
 

@@ -1,3 +1,4 @@
+# Compilar desde ../..
 # ---- Stage: base --------------------------------------------------------------
 FROM docker.io/library/ros:lyrical AS base
 
@@ -63,7 +64,7 @@ ENV LOCAL_STRATEGY=Ros2Strategy \
 ENV ROS2_DATA_TOPIC=/inorbit/custom_data \
     ROS2_DOMAIN_ID=42 \
     CAMERA_NODE_NAME=labs_remoto_camera \
-    CAMERA_TOPIC=usb_cam/image_raw \
+    CAMERA_TOPIC=/usb_cam/image_raw \
     CAMERA_JPEG_QUALITY=80
 
 CMD ["python", "-m", "services.PiSystemAgent.controller"]
