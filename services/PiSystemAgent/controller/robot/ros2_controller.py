@@ -1,7 +1,7 @@
 """Controlador ROS 2 del robot (IPC interno de la Pi vía DDS).
 
-Expone la misma interfaz duck-typed que `RobotController` (serial) y
-`RobotMockController`, pero en vez de hablar serial publica/suscribe topics ROS 2:
+Expone la misma interfaz duck-typed que `RobotMockController`, pero publica/suscribe
+topics ROS 2:
 
 - publica los comandos como `std_msgs/String` en `command_topic`
   (default `inorbit/custom_command`),
@@ -19,7 +19,6 @@ pueda importar (y el modo demo/tests corran) sin tener ROS 2 instalado.
 """
 
 import logging
-import os
 import queue
 from typing import Any
 
@@ -109,7 +108,7 @@ class Ros2Controller:
         self.logger.info(
             "Ros2Controller conectado (node=%s, domain=%s, command_topic=%s, data_topic=%s)",
             self.node_name,
-            os.environ.get("ROS_DOMAIN_ID"),
+            self._node.context.get_domain_id(),
             self.command_topic,
             self.data_topic,
         )
@@ -130,9 +129,7 @@ class Ros2Controller:
             else:
                 parsed = parse_key_value(msg.data)
                 if parsed:
-                    status = self._latest_status.get().copy()
-                    status.update(parsed)
-                    self._latest_status.set(status)
+                    self._latest_status.mutate(lambda status : (status | parsed))
         except Exception:
             self.logger.exception("Error procesando telemetría: %r", msg.data)
 
@@ -144,7 +141,7 @@ class Ros2Controller:
                 _ = self.rclExecutor.remove_node(self._node)
                 self._node.destroy_node()
             except Exception:
-                self.logger.exception("destroy_node falló: %s")
+                self.logger.exception("destroy_node falló")
 
         self._connected = False
         self.logger.info("Ros2Controller desconectado")

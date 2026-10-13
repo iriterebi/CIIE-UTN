@@ -2,7 +2,7 @@
 
 ## Descripción General
 
-Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego abre un WebSocket directo a la API (endpoint `/m2m/robot/connect`) para recibir comandos JSON-RPC 2.0 y publicar respuestas/estado. Controla el Arduino vía puerto serial.
+Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego abre un WebSocket directo a la API (endpoint `/m2m/robot/connect`) para recibir comandos JSON-RPC 2.0 y publicar respuestas/estado. Controla el robot a través del agente ROS 2 local (PiRobotDriver), o de un mock en modo demo.
 
 **Arquitectura interna**: micro core asyncio + strategies intercambiables (local/remoto) + Unix socket para gestión vía CLI. Ver `ARQUITECTURA.md`.
 
@@ -13,8 +13,8 @@ uv run python -m controller
 # Requiere .env o .env.defaults con las variables de entorno
 ```
 
-Esto corre el controller con el Python gestionado por uv (3.14) y sirve para `MockStrategy` /
-`SerialStrategy`. **No** sirve para `Ros2Strategy`, que necesita `rclpy` (ver abajo).
+Esto corre el controller con el Python gestionado por uv (3.14) y sirve para `MockStrategy`.
+**No** sirve para `Ros2Strategy`, que necesita `rclpy` (ver abajo).
 
 ### Correr Ros2Strategy con Podman (ROS 2 Lyrical)
 
@@ -39,7 +39,7 @@ viceversa), ya que ambos stages difieren en contenido.
 
 Los targets usan `podman run` plano con `--network=host` (discovery DDS con el agente ROS y acceso a
 la API en `localhost`) y montan el código como volumen (incluido el `.env`). `rclpy` vive solo en el
-contenedor; el host sigue usando uv para mock/serial.
+contenedor; el host sigue usando uv para el mock.
 
 > **Transporte DDS entre contenedores**: el agente ROS corre en otro contenedor con su propio
 > `/dev/shm`, así que el transporte por memoria compartida de Fast DDS (default same-host) **no
@@ -103,10 +103,9 @@ controller/
 ├── type_defs.py             # TypedDicts compartidos
 ├── json_rpc.py              # Modelos pydantic + dispatch()/to_jsonrpc() (despacho de comandos y traducción RobotResponse → JSON-RPC)
 ├── strategy/
-│   ├── base.py              # ABC Strategy + LocalStrategy + OutboxLocalStrategy (cola de RobotResponse, loops de respuesta/telemetría, ciclo de vida start/stop/pause/resume común a las tres strategies locales)
+│   ├── base.py              # ABC Strategy + LocalStrategy + OutboxLocalStrategy (cola de RobotResponse, loops de respuesta/telemetría, ciclo de vida start/stop/pause/resume común a las strategies locales)
 │   ├── registry.py          # StrategyRegistry (lista por nombre)
 │   ├── local/
-│   │   ├── serial_strategy.py    # Wrappea RobotController (Arduino real)
 │   │   ├── mock_strategy.py      # Wrappea RobotMockController (sin hardware)
 │   │   └── ros2_strategy.py      # Wrappea Ros2Controller (IPC ROS 2 / DDS)
 │   └── remote/
@@ -118,12 +117,10 @@ controller/
 │   ├── test_json_rpc.py         # Tests de dispatch()/to_jsonrpc()
 │   ├── test_outbox_strategy.py  # Tests de OutboxLocalStrategy (cola, loops, orden de apagado)
 │   ├── test_mock_controller.py  # Tests de RobotMockController
-│   ├── test_serial_controller.py  # Tests de RobotController (serial)
 │   └── test_ros2.py         # Tests del controlador/strategy ROS 2 (rclpy mockeado)
 └── robot/
-    ├── __init__.py          # Exporta RobotController (real o mock según MOCK_ROBOT)
+    ├── __init__.py          # Vacío
     ├── responses.py         # Vocabulario de dominio: árbol RobotResponse + descriptores de comandos
-    ├── robot_controller.py  # Comunicación serial con Arduino
     ├── robot_mock_controller.py  # Mock sin hardware
     └── ros2_controller.py   # Nodo rclpy: publica comandos / suscribe telemetría (import diferido)
 ```
@@ -139,7 +136,7 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | `CREATE_DEFAULT_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
 | `METADATA_FILE` | Ruta al archivo de credenciales | `./robot-metadata.json` |
-| `LOCAL_STRATEGY` | Strategy local al arrancar (`MockStrategy`/`SerialStrategy`/`Ros2Strategy`) | `MockStrategy` |
+| `LOCAL_STRATEGY` | Strategy local al arrancar (`MockStrategy`/`Ros2Strategy`) | `MockStrategy` |
 | `REMOTE_STRATEGY` | Strategy remoto al arrancar | `WsStrategy` |
 | `SOCKET_PATH` | Ruta del Unix socket de gestión | `/tmp/robot-controller.sock` |
 | `ROS2_NODE_NAME` | Nombre del nodo rclpy (`Ros2Strategy`) | `labs_remoto_robot` |
@@ -147,7 +144,7 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | `ROS2_DATA_TOPIC` | Topic de telemetría `Key=Value` que se suscribe (`Ros2Strategy`) | `/inorbit/custom_data` |
 | `ROS2_DOMAIN_ID` | Dominio DDS — debe coincidir con el agente ROS de la Pi (`Ros2Strategy`) | `42` |
 
-> **Ros2Strategy**: comunica con el robot vía ROS 2 (IPC interno de la Pi sobre DDS) en vez de serial.
+> **Ros2Strategy**: comunica con el robot vía ROS 2 (IPC interno de la Pi sobre DDS).
 > Publica los comandos como `std_msgs/String` en `ROS2_COMMAND_TOPIC` y se suscribe a `ROS2_DATA_TOPIC`
 > para la telemetría (formato `Key=Value`, claves `Modo`/`Tension`/`Velocidad`). El agente ROS
 > contraparte (el `serial_scraper` que habla con el Arduino) es *fire-and-forget* (no responde
@@ -176,7 +173,7 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
    - El servidor confirma con `{status: "success auth"}`
 
 ### 3. Operación
-1. La strategy local entra al context manager del robot (abre puerto serial o mock)
+1. La strategy local conecta el robot (nodo ROS 2 o mock)
 2. La `WsStrategy` lee mensajes JSON-RPC 2.0 del WS y los entrega al core
 3. El core enruta los comandos a la strategy local; las respuestas y la telemetría periódica (cada 5s) vuelven al WS por el mismo camino
 4. Reconexión automática con backoff exponencial (1s → 30s) si se pierde la conexión WS
@@ -202,7 +199,6 @@ Generado automáticamente o provisto manualmente. Contiene las credenciales del 
 - **python-dotenv** — carga de `.env`
 - **requests** — HTTP client para registro y handshake con la API
 - **websockets** — cliente WebSocket para `/m2m/robot/connect`
-- **pyserial** / **types-pyserial** — comunicación serial con Arduino
 - **pydantic** / **pydantic-settings** — modelos JSON-RPC y carga de configuración
 
 ## Modo Demo

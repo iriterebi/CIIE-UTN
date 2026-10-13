@@ -7,6 +7,7 @@ registra los nodos agregados/quitados.
 """
 
 import asyncio
+import logging
 import types
 
 import pytest
@@ -52,6 +53,7 @@ def _install_fake_ros(monkeypatch):
     class FakeNode:
         def __init__(self, name):
             self.name = name
+            self.context = types.SimpleNamespace(get_domain_id=lambda: 42)
 
         def create_publisher(self, msg_type, topic, depth):
             return FakePublisher()
@@ -115,6 +117,17 @@ def test_connect_adds_node_to_shared_executor(monkeypatch):
     assert [n.name for n in executor.nodes] == ["test_node"]
 
 
+def test_connect_logs_domain_id_from_rclpy_context(monkeypatch, caplog):
+    """El dominio lo fija rclpy.init(domain_id=...): hay que leerlo del contexto,
+    no de la variable de entorno ROS_DOMAIN_ID (que puede no existir)."""
+    monkeypatch.delenv("ROS_DOMAIN_ID", raising=False)
+    _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    caplog.set_level(logging.INFO)
+    ctrl.connect()
+    assert "domain=42" in caplog.text
+
+
 def test_disconnect_removes_node_without_shutting_down_rclpy(monkeypatch):
     """El contexto rclpy es de toda la app: detener la strategy no debe matarlo
     (si no, también moriría el nodo de la cámara, que comparte el contexto)."""
@@ -162,6 +175,27 @@ def test_on_data_updates_telemetry_snapshot(monkeypatch):
     assert status["telemetry"] == {"base": "90", "mano": "10"}
     assert status["mock"] is False
     assert status["node"] == "test_node"
+
+
+def test_telemetry_snapshot_is_not_mutated_by_later_data(monkeypatch):
+    """`get()` entrega una referencia que el lector usa fuera del lock (get_status la
+    copia después): la telemetría nueva debe reemplazar el dict, no modificarlo."""
+    _, hooks = _install_fake_ros(monkeypatch)
+    ctrl = _controller()
+    ctrl.connect()
+    String = hooks["String"]
+
+    msg = String()
+    msg.data = "base=90"
+    hooks["on_data"](msg)
+    snapshot = ctrl._latest_status.get()
+
+    msg2 = String()
+    msg2.data = "mano=10"
+    hooks["on_data"](msg2)
+
+    assert snapshot == {"base": "90"}
+    assert ctrl.get_status()["telemetry"] == {"base": "90", "mano": "10"}
 
 
 def test_get_status_reflects_connection(monkeypatch):

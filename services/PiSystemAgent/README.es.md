@@ -2,7 +2,7 @@
 
 > [Read in English](./README.md)
 
-Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego abre un WebSocket directo a la API para recibir comandos JSON-RPC 2.0 y publicar respuestas/estado. Controla el Arduino vía puerto serial.
+Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registra y autentica con la API central (FastAPI), luego abre un WebSocket directo a la API para recibir comandos JSON-RPC 2.0 y publicar respuestas/estado. Controla el robot a través del agente ROS 2 local (PiRobotDriver), o de un mock en modo demo.
 
 ## Índice
 
@@ -16,9 +16,9 @@ Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registr
 ## Arquitectura
 
 ```
-                 API (FastAPI)                                        Arduino
+                 API (FastAPI)                                        Agente ROS
                       ▲                                                  ▲
-                      │ HTTP (registro/handshake) + WS (comandos)        │ Serial
+                      │ HTTP (registro/handshake) + WS (comandos)        │ ROS 2 (DDS)
                       │                                                  │
 ┌─────────────────────┴──────────────────────────────────────────────────┴─┐
 │                            RaspberryPi (controller)                      │
@@ -29,7 +29,7 @@ Controlador que se ejecuta en cada Raspberry Pi conectada a un robot. Se registr
 
 1. **Registro y handshake** (HTTP): la Pi se registra en la API y obtiene un JWT
 2. **Comandos** (WebSocket directo a la API): la Pi conecta a `/m2m/robot/connect` e intercambia mensajes JSON-RPC 2.0
-3. **Control del robot** (Serial): traduce comandos JSON-RPC 2.0 a instrucciones seriales para el Arduino
+3. **Control del robot** (ROS 2): publica los comandos en topics ROS 2 para el agente ROS (PiRobotDriver), que habla con el Arduino
 
 ## Prerrequisitos
 
@@ -75,9 +75,9 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 
 ### 3. Operación (async, WS directo a la API)
 
-1. Entra al context manager del robot (abre puerto serial o mock)
+1. Conecta la strategy local (nodo ROS 2 o mock)
 2. `WsStrategy` abre un WebSocket a `/m2m/robot/connect` y se autentica con el JWT
-3. Recibe comandos JSON-RPC 2.0 del WS, los ejecuta en el robot (serial I/O vía `run_in_executor`)
+3. Recibe comandos JSON-RPC 2.0 del WS, los ejecuta en el robot (I/O bloqueante vía `run_in_executor`)
 4. Envía respuestas y status periódico (cada 5s) por el mismo WS
 
 Reconexión automática con backoff exponencial (1s → 30s) si se pierde la conexión.

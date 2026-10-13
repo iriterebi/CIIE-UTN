@@ -3,7 +3,7 @@
 ```
 ------------------------------------------------------------------------
 |                                                                      |
-| [micro core] ──strategy── [ROS 2 / serial / mock]                    |
+| [micro core] ──strategy── [ROS 2 / mock]                             |
 |     │            (local)                                             |
 |     ├────────strategy── [WS / mqtt / http pull-push loop]  ──────────|───→ API
 |     │            (remoto)                                            |
@@ -13,8 +13,7 @@
 ```
 
 - **micro core** (asyncio, main thread): enrutador puro — mueve mensajes en formato interno entre adapters, no transforma datos. Cada adapter traduce entre su protocolo externo y el formato interno. Conecta dos strategies y el socket de gestión
-- **strategy local**: módulo de conexión con el robot. Intercambiable. Hoy hay tres implementaciones en `strategy/local/`:
-  - `SerialStrategy` — serial directo al Arduino (wrappea `RobotController`).
+- **strategy local**: módulo de conexión con el robot. Intercambiable. Hoy hay dos implementaciones en `strategy/local/` (el serial directo al Arduino se eliminó: el Arduino lo maneja el agente ROS de PiRobotDriver):
   - `MockStrategy` — sin hardware (modo demo).
   - `Ros2Strategy` — IPC ROS 2 sobre DDS: daemon thread con `rclpy.spin()`, publica comandos en `inorbit/custom_command` y suscribe telemetría `Key=Value` en `inorbit/custom_data` (`rclpy` con import diferido). El agente ROS contraparte es fire-and-forget (no responde comandos).
 - **strategy remoto** (WS por defecto): módulo de conexión con la API. Corre en asyncio del core. Intercambiable (alternativa futura: MQTT)
@@ -25,7 +24,7 @@
 
 ## Flujo de comandos: despacho y respuestas
 
-Cada strategy local (`SerialStrategy`, `MockStrategy`, `Ros2Strategy`) extiende
+Cada strategy local (`MockStrategy`, `Ros2Strategy`) extiende
 `OutboxLocalStrategy` (`controller/strategy/base.py`). Ahí vive, una sola vez, el modelo
 de correlación entre comandos y respuestas: una cola `asyncio.Queue[RobotResponse]` por
 strategy, alimentada por tres productores y drenada por un único consumidor.
@@ -62,7 +61,7 @@ degradaría todo resultado de despacho a notification.
 
 ### Contrato del controlador
 
-`RobotController` (serial), `RobotMockController` y `Ros2Controller` comparten la misma
+`RobotMockController` y `Ros2Controller` comparten la misma
 firma:
 
 - `send_command(command: str) -> None` — valida y despacha; levanta
@@ -75,9 +74,7 @@ firma:
 
 El contrato es uniforme en firma, no en validación: sólo `RobotMockController` (con un
 `RobotCommandRecord` seedeado a mano) y `Ros2Controller` (poblado por lo que publica el
-agente ROS real) tienen descriptores contra los cuales validar. El serial
-(`RobotController`) no tiene — el Arduino no los publica — así que nunca puede levantar
-`InvalidCommandError`: cualquier string se manda tal cual al puerto.
+agente ROS real) tienen descriptores contra los cuales validar.
 
 ### Orden de apagado
 
@@ -100,7 +97,7 @@ este es un plan general para el refactor del subporyecto, para movernos a la nue
 
 Cambiaremos al estructura del código a la nueva arquitectura, procurando mantener la funcionalidad actual. Para ello replantearmoes lo que tenemos:
 
-- Strategy Interno: @controller/robot/ tiene la implementación de la comunicación interna, tanto serial como mock.
+- Strategy Interno: @controller/robot/ tiene la implementación de la comunicación interna, tanto ROS 2 como mock.
 - Strategy Externo: la conexión remota vive en @controller/strategy/remote/ — actualmente WS directo a la API (`ws_strategy.py`).
 
 Como no tenemos "micro core", esto será lo nuevo, para esta etapa conectará los strategies y escuchará el Unix Socket (y nada más)

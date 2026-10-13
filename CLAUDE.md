@@ -14,7 +14,7 @@ Proyecto universitario (CIIE) para el control remoto de robots en laboratorios. 
 
 - **services/WebClient/**: Frontend Vue 3 + TypeScript + PicoCSS — SPA servida con nginx
 - **services/Api/**: Backend FastAPI — punto de entrada principal al sistema. Maneja auth, sesiones, comunicación WebSocket con usuarios y conexión WebSocket directa con cada Pi (sin intermediarios)
-- **services/RaspberryPi/**: Corre en cada robot. Se auto-registra en la API y mantiene un WebSocket directo a `/m2m/robot/connect` para recibir comandos y publicar respuestas/estado. Controla el Arduino vía serial (o mock en modo demo)
+- **services/RaspberryPi/**: Corre en cada robot. Se auto-registra en la API y mantiene un WebSocket directo a `/m2m/robot/connect` para recibir comandos y publicar respuestas/estado. Controla el robot a través del agente ROS 2 local (o mock en modo demo)
 - **services/Arduino/**: Firmware nativo del brazo robótico (control de 7 servos)
 - **services/Db/**: Esquema PostgreSQL 17.5, migraciones (dbmate) y datos semilla
 - **services/Proxy/**: Configuración de nginx como reverse proxy principal. En dev se instala en el host; en prod corre containerizado via quadlet. Punto de entrada para todo el tráfico — proxea la SPA, API y rutas WS, restringe rutas internas (`/m2m`) a intranet
@@ -64,10 +64,10 @@ ROS 2 **no es** el bus de comunicación API↔robot. Tras el refactor en `raspi-
 │   │   │   ├── strategy/     # ABC Strategy + registry
 │   │   │   │   ├── base.py             # ABC Strategy (State enum) + LocalStrategy
 │   │   │   │   ├── registry.py
-│   │   │   │   ├── local/              # serial_strategy.py, mock_strategy.py
+│   │   │   │   ├── local/              # mock_strategy.py, ros2_strategy.py
 │   │   │   │   └── remote/ws_strategy.py  # único remoto: WS directo a /m2m/robot/connect
 │   │   │   ├── server/       # Registro + handshake HTTP con la API
-│   │   │   └── robot/        # Controladores serial (real + mock)
+│   │   │   └── robot/        # Controladores del robot (mock + ROS 2)
 │   │   ├── cli/              # CLI de gestión (proceso separado, habla por Unix socket)
 │   │   │   ├── __init__.py   # Cáscara: from .cli import main
 │   │   │   ├── __main__.py   # Entry: python -m cli
@@ -133,7 +133,7 @@ uv run python -m controller   # Runtime del robot
 uv run python -m cli          # CLI de gestión (proceso separado, Unix socket)
 ```
 
-En modo demo se usa `MOCK_ROBOT=1` y se evita serial real. La conexión remota usa `WsStrategy` por defecto (WebSocket directo a `/m2m/robot/connect`).
+En modo demo se usa `MOCK_ROBOT=1` y se evita el hardware real. La conexión remota usa `WsStrategy` por defecto (WebSocket directo a `/m2m/robot/connect`).
 
 ### Variables de Entorno Requeridas
 
@@ -184,7 +184,7 @@ El registro es idempotente: si el `external_identifier` ya existe, retorna el ro
 
 1. **Usuario se conecta**: Abre WebSocket en `/user/robot/send_command` → envía mensaje de auth en 10s → envía comandos JSON-RPC 2.0
 2. **API enruta directo a la Pi**: El `UsersXRobotMapType` (pipe) conecta `UserConnection`↔`RobotConnection` bidireccionalmente con `TaskGroup`. Las validaciones de payload viven en `UserStreamSource`. La API no transforma datos: cada adapter traduce su protocolo ↔ formato interno
-3. **La Pi ejecuta y responde**: Recibe JSON-RPC por su WS, lo procesa con la strategy activa (serial real, mock, o local en el futuro) y devuelve respuesta/estado por el mismo WS
+3. **La Pi ejecuta y responde**: Recibe JSON-RPC por su WS, lo procesa con la strategy activa (ROS 2 o mock) y devuelve respuesta/estado por el mismo WS
 
 ## Convenciones del proyecto
 
@@ -213,7 +213,7 @@ El registro es idempotente: si el `external_identifier` ya existe, retorna el ro
 - **ROS 2 = IPC interno del robot** en la Raspi (ver §Rol de ROS 2). No proponer strategies `ros2://` ni puentes API↔ROS
 - **Un proceso, dos threads en la Pi** (cuando se integre rclpy): `rclpy.spin` en daemon thread, asyncio en main thread
 - **Core enrutador puro**: no transforma datos; cada adapter traduce su protocolo ↔ formato interno
-- **Dos strategies intercambiables en la Pi**: local (ROS 2 / serial / mock) y remoto (WS / MQTT / HTTP). Único strategy remoto registrado hoy: `WsStrategy`
+- **Dos strategies intercambiables en la Pi**: local (ROS 2 / mock) y remoto (WS / MQTT / HTTP). Único strategy remoto registrado hoy: `WsStrategy`
 - **CLI de la Pi = proceso separado** (Unix socket + JSON-RPC 2.0). **No usar Typer** — el CLI es async y los scoped args por strategy se resuelven mejor con `argparse` + subparsers + `nargs=REMAINDER`. Investigación cerrada en `Documents/cli_typer_investigacion.md` (reconsiderar solo si se cierra issue #950 de Typer o si aparece otro CLI similar en el repo)
 - **Pipe 1:1 (API)**: un usuario por robot; N:M queda para el futuro
 - **State enum** (`running`/`paused`/`stopped`): pause/resume **no** abstractos en la ABC. `LocalStrategy` extiende `Strategy` con `set_telemetry` + `get_telemetry_enabled` abstractos

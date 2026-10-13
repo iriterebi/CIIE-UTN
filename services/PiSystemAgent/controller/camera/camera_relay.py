@@ -13,7 +13,6 @@ pueda importar (y el modo demo/tests corran) sin tener ROS 2/opencv instalados.
 
 import asyncio
 import logging
-import os
 
 import cv2
 import numpy as np
@@ -63,7 +62,7 @@ class CameraRelay:
         self.logger.info(
             "CameraRelay conectado (node=%s, domain=%s, topic=%s)",
             self.node_name,
-            os.environ.get("ROS_DOMAIN_ID"),
+            self._node.context.get_domain_id(),
             self.camera_topic,
         )
 
@@ -98,6 +97,6 @@ class CameraRelay:
                 _ = self.rclExecutor.remove_node(self._node)
                 self._node.destroy_node()
             except Exception:
-                self.logger.exception("destroy_node falló: %s")
+                self.logger.exception("destroy_node falló")
 
         self.logger.info("CameraRelay desconectado")

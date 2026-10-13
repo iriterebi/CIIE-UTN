@@ -9,8 +9,6 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.1.1",
     "requests>=2.32.5",
-    "pyserial>=3.5",
-    "types-pyserial>=3.5.0.20251001",
     "websockets>=15.0",
     "opencv-python-headless>=4.10.0",
 ]

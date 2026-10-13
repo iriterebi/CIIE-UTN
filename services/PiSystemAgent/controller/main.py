@@ -76,11 +76,12 @@ def create_remote(name: str, registry: StrategyRegistry) -> Strategy:
 
 
 async def run_camera_pipeline(cfg: Config, rclExecutor: Executor) -> None:
-    """Sube CameraRelay + VideoWsClient. No-op silencioso si falta rclpy/cv2 u
-    ocurre cualquier otro error — no debe tumbar el resto del controller
-    (mismo patrón que Ros2Controller). El try/except externo es la garantía
-    real de aislamiento: los internos solo dan mensajes de log más
-    específicos para los dos casos ya conocidos."""
+    """Sube CameraRelay + VideoWsClient. Cualquier error queda contenido acá (se
+    loguea y el video se deshabilita): no debe tumbar el resto del controller.
+
+    `VideoWsClient.run` no retorna (reintenta por su cuenta ante cortes); sólo
+    termina por cancelación, y el `finally` libera el nodo de la cámara.
+    """
     try:
         from .camera import CameraRelay, VideoWsClient
         from .camera.video_ws_client import derive_video_ws_url
@@ -93,11 +94,7 @@ async def run_camera_pipeline(cfg: Config, rclExecutor: Executor) -> None:
         )
 
         loop = asyncio.get_running_loop()
-        try:
-            await loop.run_in_executor(None, relay.connect, loop)
-        except OSError as e:
-            logger.warning("Cámara no disponible, video deshabilitado: %s", e)
-            return
+        await loop.run_in_executor(None, relay.connect, loop)
 
         server_service = ServerServices(
             base_url=cfg.server_url,
@@ -110,12 +107,10 @@ async def run_camera_pipeline(cfg: Config, rclExecutor: Executor) -> None:
         )
         try:
             await client.run(relay.next_frame)
-        except OSError:
-            logger.exception("No se pudo autenticar VideoWsClient, video deshabilitado: %s")
         finally:
             await loop.run_in_executor(None, relay.disconnect)
     except Exception:
-        logger.exception("Pipeline de video terminó por un error inesperado (no afecta al resto del controller): %s")
+        logger.exception("Pipeline de video terminó por un error inesperado (no afecta al resto del controller)")
 
 
 async def spin_executor(executor: Executor) -> None:

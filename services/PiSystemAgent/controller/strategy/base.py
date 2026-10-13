@@ -305,10 +305,9 @@ class OutboxLocalStrategy(LocalStrategy, ABC):
             # `except Exception` (no sólo `ConnectionError`/`OSError`): "nunca deja el
             # estado mintiendo" es un invariante absoluto, no una lista de causas
             # anticipadas — mismo argumento que el `except Exception` de `dispatch()`.
-            # El disparador real que faltaba: `self.ser.readline().decode("utf-8")`
-            # en `robot_controller.py` puede levantar `UnicodeDecodeError`, que es un
-            # `ValueError`, no un `OSError` — ruido de línea serial común (reset de
-            # Arduino, descalce de baudrate), no un caso exótico.
+            # El disparador original fue un `UnicodeDecodeError` (un `ValueError`, no un
+            # `OSError`) al decodificar ruido de la línea serial en el controlador serial
+            # (ya eliminado): un error no anticipado puede venir de cualquier controlador.
             logger.exception("Loop de respuestas detenido por error inesperado: %s", e)
             self._state = State.STOPPED
 

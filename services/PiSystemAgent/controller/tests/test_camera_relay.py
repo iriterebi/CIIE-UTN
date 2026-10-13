@@ -7,6 +7,7 @@ executor se inyecta (`rclExecutor`) como un fake que registra los nodos.
 """
 
 import asyncio
+import logging
 import types
 
 from controller.camera import camera_relay
@@ -47,6 +48,7 @@ def _install_fake_ros(monkeypatch):
     class FakeNode:
         def __init__(self, name):
             self.name = name
+            self.context = types.SimpleNamespace(get_domain_id=lambda: 42)
 
         def create_subscription(self, msg_type, topic, callback, depth):
             hooks["on_frame"] = callback
@@ -123,6 +125,19 @@ def test_connect_subscribes_to_configured_topic(monkeypatch):
 
     asyncio.run(scenario())
     assert hooks["topic"] == "usb_cam/image_raw"
+
+
+def test_connect_logs_domain_id_from_rclpy_context(monkeypatch, caplog):
+    monkeypatch.delenv("ROS_DOMAIN_ID", raising=False)
+    _install_fake_ros(monkeypatch)
+    relay = _relay()
+    caplog.set_level(logging.INFO)
+
+    async def scenario():
+        relay.connect(asyncio.get_running_loop())
+
+    asyncio.run(scenario())
+    assert "domain=42" in caplog.text
 
 
 def test_on_frame_encodes_and_pushes_jpeg(monkeypatch):

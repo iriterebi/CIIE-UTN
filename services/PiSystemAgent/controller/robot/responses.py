@@ -1,8 +1,8 @@
 """Vocabulario de dominio del robot: descriptores de comandos y respuestas.
 
-Vive aparte de los controladores porque los tres (`ros2_controller`,
-`robot_controller`, `robot_mock_controller`) y el adapter `json_rpc` lo comparten.
-Antes estaba dentro de `ros2_controller.py`, lo que acoplaba el mock y el serial al
+Vive aparte de los controladores porque los dos (`ros2_controller`,
+`robot_mock_controller`) y el adapter `json_rpc` lo comparten.
+Antes estaba dentro de `ros2_controller.py`, lo que acoplaba el mock al
 módulo de ROS 2.
 
 Regla de correlación: el TIPO decide el sobre JSON-RPC.

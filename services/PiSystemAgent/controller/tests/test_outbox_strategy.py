@@ -255,8 +255,8 @@ def test_response_loop_death_sets_state_stopped(exc_cls: type[Exception]):
     Parametrizado sobre `RuntimeError` además de `ConnectionError`: antes del fix
     1, el loop sólo atrapaba `(ConnectionError, OSError)`, así que este test
     pasaba con el bug presente (sólo ejercitaba una causa que YA estaba
-    cubierta). El disparador real es `UnicodeDecodeError` (hereda de
-    `ValueError`) en `robot_controller.py`; `RuntimeError` alcanza para probar
+    cubierta). El disparador original fue un `UnicodeDecodeError` (hereda de
+    `ValueError`) en el controlador serial, ya eliminado; `RuntimeError` alcanza para probar
     que el `except` es genérico sin acoplarse a una jerarquía de excepciones
     puntual.
     """
