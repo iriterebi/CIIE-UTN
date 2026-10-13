@@ -143,7 +143,6 @@ En modo demo se usa `MOCK_ROBOT=1` y se evita el hardware real. La conexión rem
 
 **RaspberryPi** (`.env.defaults` tiene valores por defecto):
 - `SERVER_URL` — endpoint de la API (default: `http://localhost:8000/m2m/robot/`). La `WsStrategy` deriva `ws://`/`wss://` desde aquí
-- `ARDUINO_PORT` — puerto serial
 - `MOCK_ROBOT` — `1` para usar controlador mock
 - `CREATE_DEFAULT_METADATA` — `1` para auto-generar credenciales del robot
 - `METADATA_FILE` — ruta al archivo de credenciales (default: `./robot-metadata.json`)

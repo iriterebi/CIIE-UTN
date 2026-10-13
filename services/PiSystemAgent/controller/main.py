@@ -43,7 +43,7 @@ def create_local(name: str, registry: StrategyRegistry, rclExecutor: Executor | 
     match name:
         case "MockStrategy" if registry.has_local("MockStrategy"):
             from .strategy.local.mock_strategy import MockStrategy
-            return MockStrategy(config.arduino_port)
+            return MockStrategy()
 
         case "Ros2Strategy" if registry.has_local("Ros2Strategy"):
             from .strategy.local.ros2_strategy import Ros2Strategy

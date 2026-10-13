@@ -114,7 +114,7 @@ npm run dev               # Vite dev server on :5173
 - `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
 
 **RaspberryPi** (`.env.defaults` has defaults):
-- `SERVER_URL`, `ARDUINO_PORT`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`
+- `SERVER_URL`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`
 
 See each subproject's README for details.
 

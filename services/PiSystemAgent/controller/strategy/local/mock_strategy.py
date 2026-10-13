@@ -8,12 +8,12 @@ from ..base import OutboxLocalStrategy
 
 class MockStrategy(OutboxLocalStrategy):
     """Wrappea RobotMockController. El ciclo de vida (orden de start/stop,
-    pause/resume) lo aporta OutboxLocalStrategy; a diferencia de serial/ROS 2,
+    pause/resume) lo aporta OutboxLocalStrategy; a diferencia de ROS 2,
     connect/disconnect son sync acá, así que no van a executor."""
 
-    def __init__(self, arduino_port: str):
+    def __init__(self):
         super().__init__()
-        self._robot: RobotMockController = RobotMockController(arduino_port)
+        self._robot: RobotMockController = RobotMockController()
 
     @override
     async def _connect_robot(self) -> None:

@@ -18,10 +18,7 @@ class RobotMockController:
     """Robot simulado. Replica el contrato real, validación de comandos incluida,
     para que el modo demo ejercite de verdad el autodescubrimiento."""
 
-    arduino_port: str
-
-    def __init__(self, arduino_port: str):
-        self.arduino_port = arduino_port
+    def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.logger.warning(
             "RobotMockController is active. No physical robot commands will be sent."

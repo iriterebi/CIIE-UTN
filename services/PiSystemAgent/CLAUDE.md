@@ -67,7 +67,7 @@ ver `docs/superpowers/specs/2026-07-03-empaquetado-deploy-raspberrypi-design.md`
 - **Config**: copiar `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL`. El resto de la
   config de deploy (`LOCAL_STRATEGY`, `REMOTE_STRATEGY`, `MOCK_ROBOT`, `CREATE_DEFAULT_METADATA`,
   `METADATA_FILE`, `ROS2_*`) ya viene horneada como default en el stage `final` — en la Pi
-  normalmente solo hacen falta `SERVER_URL` y `ARDUINO_PORT` en `.env`. La identidad del robot
+  normalmente solo hace falta `SERVER_URL` en `.env`. La identidad del robot
   persiste en `./data/` (montado).
 - **Control**: `./robot-cli <comando>` corre la CLI dentro del contenedor vía `docker exec`
   (el host es 3.11, la CLI usa 3.14). En dev: `CONTAINER_ENGINE=podman ./robot-cli status`.
@@ -87,8 +87,8 @@ Build y entrega (Podman en dev — docker no está en dev — → `docker load` 
 > `.env.deploy.example` → `.env` en la Pi y ajustar `SERVER_URL` **antes** de correr
 > `make deploy.up` (o el `make deploy` encadenado, que falla en ese paso sin `.env`, ya que
 > `compose.yaml` lo requiere vía `env_file`). En redeploys siguientes, con `.env` ya presente,
-> `make deploy` alcanza como comando único. `.env.deploy.example` ahora trae solo `SERVER_URL` y
-> `ARDUINO_PORT` (el resto de la config viene horneada en la imagen — ver "Artefacto" arriba).
+> `make deploy` alcanza como comando único. `.env.deploy.example` ahora trae solo `SERVER_URL`
+> (el resto de la config viene horneada en la imagen — ver "Artefacto" arriba).
 
 ## Estructura del Código
 
@@ -132,7 +132,6 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | Variable | Descripción | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | URL base de la API M2M | `http://localhost:8000/m2m/robot/` |
-| `ARDUINO_PORT` | Puerto serial del Arduino | (ruta USB específica) |
 | `CREATE_DEFAULT_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
 | `METADATA_FILE` | Ruta al archivo de credenciales | `./robot-metadata.json` |

@@ -7,7 +7,7 @@ services:
     # acceso a la API. Los ENV de DDS (ROS_DOMAIN_ID, FASTDDS_BUILTIN_TRANSPORTS) van horneados.
     network_mode: host
     restart: unless-stopped
-    # Config específica del deploy: normalmente sólo SERVER_URL/ARDUINO_PORT (el resto
+    # Config específica del deploy: normalmente sólo SERVER_URL (el resto
     # viene horneado en la imagen, stage `final` — ver .env.deploy.example). env_file
     # igual requiere que el archivo exista (aunque sea de pocas líneas).
     env_file: .env

@@ -56,10 +56,8 @@ ENV ROS_DOMAIN_ID=42 \
 # el ENV horneado acá (precedencia estándar de Docker), así que siguen siendo
 # overrideables si hiciera falta.
 #
-# SERVER_URL y ARDUINO_PORT NO se hornean a propósito: Config los exige sin
-# default (varían por deploy / ARDUINO_PORT es requerido igual aunque
-# Ros2Strategy no lo use — bug de config.py fuera de alcance acá). Siguen
-# viniendo de .env/-e siempre.
+# SERVER_URL NO se hornea a propósito: Config lo exige sin default (varía por
+# deploy). Siempre viene de .env/-e.
 ENV LOCAL_STRATEGY=Ros2Strategy \
     REMOTE_STRATEGY=WsStrategy \
     MOCK_ROBOT=0 \

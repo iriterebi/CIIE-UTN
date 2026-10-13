@@ -22,11 +22,6 @@ class Config(BaseSettings):
         validation_alias=AliasChoices('s', 'server_url')
     )
 
-    arduino_port: str = Field(
-        validation_alias=AliasChoices('p', 'arduino_port'),
-        description="puerto serial del arduino"
-    )
-
     create_default_metadata: bool =  Field(
         default=False,
         validation_alias=AliasChoices('c', 'create_default_metadata'),

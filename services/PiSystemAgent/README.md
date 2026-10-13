@@ -52,7 +52,6 @@ Defined in `.env.defaults` (defaults), overridden by `.env`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | API M2M base URL | `http://localhost:8000/m2m/robot/` |
-| `ARDUINO_PORT` | Arduino serial port | (specific USB path) |
 | `CREATE_DEFAULT_METADATA` | `1` to auto-generate credentials on startup | `1` |
 | `MOCK_ROBOT` | `1` to use mock controller without hardware | `1` |
 
@@ -95,7 +94,7 @@ over SSH: `make deploy` (see `PI_HOST`/`PI_DIR` overrides). Manage the running c
 
 The `Dockerfile` is multi-stage: the `final` stage (the one shipped to the Pi) bakes in sensible
 `Ros2Strategy` defaults, so the container boots standalone with no code bind-mount and only
-`SERVER_URL`/`ARDUINO_PORT` supplied at runtime — the rest of the config has working defaults.
+`SERVER_URL` supplied at runtime — the rest of the config has working defaults.
 
 On a Pi that doesn't already have a `.env` (i.e. its very first deploy), copy
 `.env.deploy.example` to `.env` on the Pi and adjust `SERVER_URL` before running `make deploy.up`

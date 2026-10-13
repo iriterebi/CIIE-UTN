@@ -52,7 +52,6 @@ Definidas en `.env.defaults` (valores por defecto), sobreescritas por `.env`:
 | Variable | Descripción | Default |
 |----------|-------------|---------|
 | `SERVER_URL` | URL base de la API M2M | `http://localhost:8000/m2m/robot/` |
-| `ARDUINO_PORT` | Puerto serial del Arduino | (ruta USB específica) |
 | `CREATE_DEFAULT_METADATA` | `1` para auto-generar credenciales al arrancar | `1` |
 | `MOCK_ROBOT` | `1` para usar controlador mock sin hardware | `1` |
 
@@ -95,7 +94,7 @@ gestiona con `./robot-cli <comando>` (corre la CLI dentro del contenedor vía `d
 
 El `Dockerfile` es multi-stage: el stage `final` (el que se sube a la Pi) hornea defaults
 sensatos de `Ros2Strategy`, así que el contenedor arranca standalone sin bind-mount de código y
-con solo `SERVER_URL`/`ARDUINO_PORT` pasados en runtime — el resto de la config ya tiene defaults
+con solo `SERVER_URL` pasado en runtime — el resto de la config ya tiene defaults
 que funcionan.
 
 En una Pi que todavía no tiene `.env` (es decir, su primer deploy), copiar `.env.deploy.example`
